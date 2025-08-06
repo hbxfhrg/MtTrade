@@ -6,6 +6,9 @@
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
 
+// 引入极值点类定义
+#include "ZigzagExtremumPoint.mqh"
+
 //+------------------------------------------------------------------+
 //| ZigzagCalculator类用于计算ZigZag指标的极值                        |
 //+------------------------------------------------------------------+
@@ -62,6 +65,12 @@ public:
    
    // 为当前图表计算ZigZag值
    bool              CalculateForCurrentChart(int bars_count);
+   
+   // 获取极值点对象数组
+   bool              GetExtremumPoints(CZigzagExtremumPoint &points[], int max_count = 0);
+   
+   // 获取最近的N个极值点
+   bool              GetRecentExtremumPoints(CZigzagExtremumPoint &points[], int count);
    
    // 获取/设置参数
    void              SetParameters(int depth, int deviation, int backstep, ENUM_TIMEFRAMES timeframe=PERIOD_CURRENT);
@@ -400,6 +409,14 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
    // 从最后一个有效点开始向后查找可能的新极值
    int latest_idx = size - 1;
 
+   // 清除未确认区间内的所有之前的临时极值点
+   for(int i = last_valid_idx + 1; i <= latest_idx; i++)
+   {
+      peaks[i] = 0;
+      bottoms[i] = 0;
+      colors[i] = -1;
+   }
+
    // 如果最后一个有效点是峰值，则查找新的谷值
    if(last_valid_type == 1)
    {
@@ -416,30 +433,17 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
          }
       }
 
-      // 添加可能的谷值点（即使未完全确认）
+      // 只添加一个谷值点（即使未完全确认）
       if(min_idx > last_valid_idx)
       {
          bottoms[min_idx] = min_val;
          colors[min_idx] = 1; // 谷值颜色
 
-         // 现在从这个谷值开始查找可能的新峰值
-         double max_val = high[min_idx];
-         int max_idx = min_idx;
-
-         for(int i = min_idx + 1; i <= latest_idx; i++)
+         // 如果有新的低点突破，移除之前的临时谷值点
+         for(int i = last_valid_idx + 1; i < min_idx; i++)
          {
-            if(high[i] > max_val)
-            {
-               max_val = high[i];
-               max_idx = i;
-            }
-         }
-
-         // 添加可能的峰值点（即使未完全确认）
-         if(max_idx > min_idx)
-         {
-            peaks[max_idx] = max_val;
-            colors[max_idx] = 0; // 峰值颜色
+            bottoms[i] = 0;
+            if(colors[i] == 1) colors[i] = -1;
          }
       }
    }
@@ -459,30 +463,17 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
          }
       }
 
-      // 添加可能的峰值点（即使未完全确认）
+      // 只添加一个峰值点（即使未完全确认）
       if(max_idx > last_valid_idx)
       {
          peaks[max_idx] = max_val;
          colors[max_idx] = 0; // 峰值颜色
 
-         // 现在从这个峰值开始查找可能的新谷值
-         double min_val = low[max_idx];
-         int min_idx = max_idx;
-
-         for(int i = max_idx + 1; i <= latest_idx; i++)
+         // 如果有新的高点突破，移除之前的临时峰值点
+         for(int i = last_valid_idx + 1; i < max_idx; i++)
          {
-            if(low[i] < min_val)
-            {
-               min_val = low[i];
-               min_idx = i;
-            }
-         }
-
-         // 添加可能的谷值点（即使未完全确认）
-         if(min_idx > max_idx)
-         {
-            bottoms[min_idx] = min_val;
-            colors[min_idx] = 1; // 谷值颜色
+            peaks[i] = 0;
+            if(colors[i] == 0) colors[i] = -1;
          }
       }
    }
@@ -626,5 +617,101 @@ bool CZigzagCalculator::CalculateForCurrentChart(int bars_count)
    ENUM_TIMEFRAMES timeframe = (m_timeframe == PERIOD_CURRENT) ? (ENUM_TIMEFRAMES)Period() : m_timeframe;
    
    return CalculateForSymbol(symbol, timeframe, bars_count);
+}
+
+//+------------------------------------------------------------------+
+//| 获取极值点对象数组                                                |
+//+------------------------------------------------------------------+
+bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int max_count = 0)
+{
+   // 检查缓冲区是否已初始化
+   int size = ArraySize(m_zigzagPeakBuffer);
+   if(size == 0)
+      return false;
+      
+   // 获取时间数组
+   datetime time_array[];
+   if(CopyTime(Symbol(), m_timeframe, 0, size, time_array) <= 0)
+   {
+      Print("无法获取时间数据: ", GetLastError());
+      return false;
+   }
+   
+   // 计算有效极值点的数量
+   int valid_count = 0;
+   for(int i = 0; i < size; i++)
+   {
+      if(m_zigzagPeakBuffer[i] != 0 || m_zigzagBottomBuffer[i] != 0)
+         valid_count++;
+   }
+   
+   // 如果指定了最大数量，则限制返回的点数
+   if(max_count > 0 && max_count < valid_count)
+      valid_count = max_count;
+      
+   // 调整输出数组大小
+   ArrayResize(points, valid_count);
+   
+   // 填充极值点数组
+   int point_index = 0;
+   
+   for(int i = 0; i < size && point_index < valid_count; i++)
+   {
+      if(m_zigzagPeakBuffer[i] != 0)
+      {
+         // 创建峰值点
+         points[point_index] = CZigzagExtremumPoint(
+            m_timeframe,
+            time_array[i],
+            i,
+            m_zigzagPeakBuffer[i],
+            EXTREMUM_PEAK
+         );
+         point_index++;
+      }
+      else if(m_zigzagBottomBuffer[i] != 0)
+      {
+         // 创建谷值点
+         points[point_index] = CZigzagExtremumPoint(
+            m_timeframe,
+            time_array[i],
+            i,
+            m_zigzagBottomBuffer[i],
+            EXTREMUM_BOTTOM
+         );
+         point_index++;
+      }
+   }
+   
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| 获取最近的N个极值点                                               |
+//+------------------------------------------------------------------+
+bool CZigzagCalculator::GetRecentExtremumPoints(CZigzagExtremumPoint &points[], int count)
+{
+   if(count <= 0)
+      return false;
+      
+   // 获取所有极值点
+   CZigzagExtremumPoint all_points[];
+   if(!GetExtremumPoints(all_points))
+      return false;
+      
+   // 确定要返回的点数
+   int total_points = ArraySize(all_points);
+   int return_count = MathMin(count, total_points);
+   
+   // 调整输出数组大小
+   ArrayResize(points, return_count);
+   
+   // 复制最近的N个点（从最新到最旧）
+   for(int i = 0; i < return_count; i++)
+   {
+      points[i] = all_points[i];
+   }
+   
+   return true;
 }
 //+------------------------------------------------------------------+
