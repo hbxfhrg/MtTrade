@@ -382,7 +382,13 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
 void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], double &colors[], 
                                          const double &high[], const double &low[], int size)
 {
-   if(size < 3) return; // 至少需要3个柱子
+   if(size < 3) 
+   {
+      Print("柱子数量不足，无法添加最新极值点");
+      return; // 至少需要3个柱子
+   }
+
+   Print("开始添加最新极值点...");
 
    // 找到最后一个有效的ZigZag点
    int last_valid_idx = -1;
@@ -394,22 +400,33 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
       {
          last_valid_idx = i;
          last_valid_type = 1; // 峰值
+         Print("找到最后一个有效峰值点，索引:", i, ", 值:", peaks[i]);
          break;
       }
       else if(bottoms[i] != 0)
       {
          last_valid_idx = i;
          last_valid_type = -1; // 谷值
+         Print("找到最后一个有效谷值点，索引:", i, ", 值:", bottoms[i]);
          break;
       }
    }
 
-   if(last_valid_idx < 0) return; // 没有找到有效点
+   if(last_valid_idx < 0) 
+   {
+      Print("没有找到有效的极值点，无法添加最新极值");
+      return; // 没有找到有效点
+   }
+   
+   Print("最后一个有效点索引:", last_valid_idx, ", 类型:", (last_valid_type == 1 ? "峰值" : "谷值"));
 
    // 从最后一个有效点开始向后查找可能的新极值
    int latest_idx = size - 1;
+   // 移除时间打印，因为time数组未传入
+   Print("最新柱子索引:", latest_idx);
 
    // 清除未确认区间内的所有之前的临时极值点
+   Print("清除未确认区间内的临时极值点，从", last_valid_idx + 1, "到", latest_idx);
    for(int i = last_valid_idx + 1; i <= latest_idx; i++)
    {
       peaks[i] = 0;
@@ -420,6 +437,7 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
    // 如果最后一个有效点是峰值，则查找新的谷值
    if(last_valid_type == 1)
    {
+      Print("查找新的谷值点...");
       // 查找最低点（包括最新的柱子）
       double min_val = low[last_valid_idx];
       int min_idx = last_valid_idx;
@@ -430,6 +448,7 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
          {
             min_val = low[i];
             min_idx = i;
+            Print("发现新的低点，索引:", i, ", 值:", min_val);
          }
       }
 
@@ -438,6 +457,7 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
       {
          bottoms[min_idx] = min_val;
          colors[min_idx] = 1; // 谷值颜色
+         Print("添加新的谷值点，索引:", min_idx, ", 值:", min_val);
 
          // 如果有新的低点突破，移除之前的临时谷值点
          for(int i = last_valid_idx + 1; i < min_idx; i++)
@@ -446,10 +466,15 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
             if(colors[i] == 1) colors[i] = -1;
          }
       }
+      else
+      {
+         Print("未找到新的谷值点");
+      }
    }
    // 如果最后一个有效点是谷值，则查找新的峰值
    else if(last_valid_type == -1)
    {
+      Print("查找新的峰值点...");
       // 查找最高点（包括最新的柱子）
       double max_val = high[last_valid_idx];
       int max_idx = last_valid_idx;
@@ -460,6 +485,7 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
          {
             max_val = high[i];
             max_idx = i;
+            Print("发现新的高点，索引:", i, ", 值:", max_val);
          }
       }
 
@@ -468,6 +494,7 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
       {
          peaks[max_idx] = max_val;
          colors[max_idx] = 0; // 峰值颜色
+         Print("添加新的峰值点，索引:", max_idx, ", 值:", max_val);
 
          // 如果有新的高点突破，移除之前的临时峰值点
          for(int i = last_valid_idx + 1; i < max_idx; i++)
@@ -475,6 +502,10 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
             peaks[i] = 0;
             if(colors[i] == 0) colors[i] = -1;
          }
+      }
+      else
+      {
+         Print("未找到新的峰值点");
       }
    }
 }
@@ -698,6 +729,20 @@ bool CZigzagCalculator::GetRecentExtremumPoints(CZigzagExtremumPoint &points[], 
    CZigzagExtremumPoint all_points[];
    if(!GetExtremumPoints(all_points))
       return false;
+      
+   // 手动实现降序排序（按时间）
+   for(int i = 0; i < ArraySize(all_points) - 1; i++)
+   {
+      for(int j = i + 1; j < ArraySize(all_points); j++)
+      {
+         if(all_points[i].Time() < all_points[j].Time())
+         {
+            CZigzagExtremumPoint temp = all_points[i];
+            all_points[i] = all_points[j];
+            all_points[j] = temp;
+         }
+      }
+   }
       
    // 确定要返回的点数
    int total_points = ArraySize(all_points);
