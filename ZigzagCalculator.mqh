@@ -6,6 +6,12 @@
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
 
+//+------------------------------------------------------------------+
+//| 数组顺序约定:                                                      |
+//| 所有数组(rates, high, low, time等)都按照从最近到最远的顺序排列      |
+//| 序号0对应最新的数据，序号越大表示数据越旧                           |
+//+------------------------------------------------------------------+
+
 // 引入极值点类定义
 #include "ZigzagExtremumPoint.mqh"
 
@@ -145,8 +151,32 @@ double CZigzagCalculator::Lowest(const double &array[], int count, int start)
 //+------------------------------------------------------------------+
 bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int rates_total, int prev_calculated)
   {
+   Print("===== 开始计算ZigZag值 =====");
+   Print("参数: rates_total=", rates_total, ", prev_calculated=", prev_calculated);
+   Print("参数: m_depth=", m_depth, ", m_deviation=", m_deviation, ", m_backstep=", m_backstep);
+   
+   // 打印high数组前10个值
+   Print("high数组前10个值(序号0为最新数据):");
+   for(int h = 0; h < MathMin(10, ArraySize(high)); h++)
+   {
+      Print("high[", h, "]=", high[h]);
+   }
+   
+   // 打印low数组前10个值
+   Print("low数组前10个值(序号0为最新数据):");
+   for(int l = 0; l < MathMin(10, ArraySize(low)); l++)
+   {
+      Print("low[", l, "]=", low[l]);
+   }
+   
+   // 注意：输入数据是从最新到最早排序的，序号0是最新的数据
+   // ZigZag计算需要考虑这一点，确保结果的一致性
+   
    if(rates_total < 100)
+   {
+      Print("错误: rates_total小于100");
       return false;
+   }
       
    // 调整缓冲区大小
    ArrayResize(m_zigzagPeakBuffer, rates_total);
@@ -154,6 +184,8 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
    ArrayResize(m_highMapBuffer, rates_total);
    ArrayResize(m_lowMapBuffer, rates_total);
    ArrayResize(m_colorBuffer, rates_total);
+   
+   Print("缓冲区大小调整完成: ", rates_total);
    
    int    i, start = 0;
    int    extreme_counter = 0, extreme_search = Extremum;
@@ -382,9 +414,45 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
 void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], double &colors[], 
                                          const double &high[], const double &low[], int size)
 {
+   Print("===== 开始添加最新极值点 =====");
+   Print("参数: size=", size);
+   
+   // 打印peaks数组前10个值
+   Print("peaks数组前10个值(序号0为最新数据):");
+   for(int p = 0; p < MathMin(10, ArraySize(peaks)); p++)
+   {
+      if(peaks[p] != 0)
+         Print("peaks[", p, "]=", peaks[p]);
+   }
+   
+   // 打印bottoms数组前10个值
+   Print("bottoms数组前10个值(序号0为最新数据):");
+   for(int b = 0; b < MathMin(10, ArraySize(bottoms)); b++)
+   {
+      if(bottoms[b] != 0)
+         Print("bottoms[", b, "]=", bottoms[b]);
+   }
+   
+   // 打印high数组前10个值
+   Print("high数组前10个值(序号0为最新数据):");
+   for(int h = 0; h < MathMin(10, ArraySize(high)); h++)
+   {
+      Print("high[", h, "]=", high[h]);
+   }
+   
+   // 打印low数组前10个值
+   Print("low数组前10个值(序号0为最新数据):");
+   for(int l = 0; l < MathMin(10, ArraySize(low)); l++)
+   {
+      Print("low[", l, "]=", low[l]);
+   }
+   
+   // 注意：输入数据是从最新到最早排序的，序号0是最新的数据
+   // ZigZag计算需要考虑这一点，确保结果的一致性
+   
    if(size < 3) 
    {
-      Print("柱子数量不足，无法添加最新极值点");
+      Print("错误: 柱子数量不足，无法添加最新极值点");
       return; // 至少需要3个柱子
    }
 
@@ -455,9 +523,18 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
       // 只添加一个谷值点（即使未完全确认）
       if(min_idx > last_valid_idx)
       {
-         bottoms[min_idx] = min_val;
-         colors[min_idx] = 1; // 谷值颜色
-         Print("添加新的谷值点，索引:", min_idx, ", 值:", min_val);
+         double adjusted_min_val = NormalizeDouble(min_val, _Digits);
+         // 验证价格是否合理
+         if(adjusted_min_val > 0 && adjusted_min_val < 1000000)
+         {
+            bottoms[min_idx] = adjusted_min_val;
+            colors[min_idx] = 1; // 谷值颜色
+            Print("添加新的谷值点，索引:", min_idx, ", 值:", adjusted_min_val);
+         }
+         else
+         {
+            Print("无效的谷值价格: ", adjusted_min_val);
+         }
 
          // 如果有新的低点突破，移除之前的临时谷值点
          for(int i = last_valid_idx + 1; i < min_idx; i++)
@@ -492,9 +569,18 @@ void CZigzagCalculator::AddLatestExtremum(double &peaks[], double &bottoms[], do
       // 只添加一个峰值点（即使未完全确认）
       if(max_idx > last_valid_idx)
       {
-         peaks[max_idx] = max_val;
-         colors[max_idx] = 0; // 峰值颜色
-         Print("添加新的峰值点，索引:", max_idx, ", 值:", max_val);
+         double adjusted_max_val = NormalizeDouble(max_val, _Digits);
+         // 验证价格是否合理
+         if(adjusted_max_val > 0 && adjusted_max_val < 1000000)
+         {
+            peaks[max_idx] = adjusted_max_val;
+            colors[max_idx] = 0; // 峰值颜色
+            Print("添加新的峰值点，索引:", max_idx, ", 值:", adjusted_max_val);
+         }
+         else
+         {
+            Print("无效的峰值价格: ", adjusted_max_val);
+         }
 
          // 如果有新的高点突破，移除之前的临时峰值点
          for(int i = last_valid_idx + 1; i < max_idx; i++)
@@ -567,6 +653,18 @@ bool CZigzagCalculator::GetZigzagValuesForTimeframe(string symbol, ENUM_TIMEFRAM
       return false;
      }
      
+   Print("rates-------------------复制K线数据----------------------------");
+   // 注意：CopyRates返回的数据是从最新到最早排序的，即rates[0]是最新的K线数据
+   // 打印rates[]前10列值
+   int print_count = MathMin(10, ArraySize(rates));
+   for(int i=0; i<print_count; i++)
+     {
+      
+      Print("rates[", i, "] - time:", TimeToString(rates[i].time), ", open:", rates[i].open, 
+            ", high:", rates[i].high, ", low:", rates[i].low, ", close:", rates[i].close, 
+            ", tick_volume:", rates[i].tick_volume, ", spread:", rates[i].spread, ", real_volume:", rates[i].real_volume);
+     }
+     
    // 提取高点和低点数据
    double high[];
    double low[];
@@ -601,31 +699,69 @@ bool CZigzagCalculator::GetZigzagValuesForTimeframe(string symbol, ENUM_TIMEFRAM
 //+------------------------------------------------------------------+
 bool CZigzagCalculator::CalculateForSymbol(const string symbol, ENUM_TIMEFRAMES timeframe, int bars_count)
 {
+   Print("===== 开始为品种计算ZigZag值 =====");
+   Print("参数: symbol=", symbol, ", timeframe=", EnumToString(timeframe), ", bars_count=", bars_count);
+   Print("参数: m_depth=", m_depth, ", m_deviation=", m_deviation, ", m_backstep=", m_backstep);
+   
    // 检查参数
    if(bars_count <= 0)
+   {
+      Print("错误: bars_count参数无效");
       return false;
+   }
    
    // 获取历史数据
    MqlRates rates[];
    int copied = CopyRates(symbol, timeframe, 0, bars_count + m_depth, rates);
+   Print("CopyRates结果: copied=", copied, ", 请求数量=", bars_count + m_depth);
+   
    if(copied <= 0)
    {
-      Print("无法获取历史数据: ", GetLastError());
+      Print("错误: 无法获取历史数据: ", GetLastError());
       return false;
    }
    
-   // 提取高点和低点数据
-   double high[];
-   double low[];
+   // 打印rates数组前10个值
+   Print("rates数组前10个值(序号0为最新数据):");
+   for(int r = 0; r < MathMin(10, ArraySize(rates)); r++)
+   {
+      Print("rates[", r, "]: time=", TimeToString(rates[r].time), 
+            ", open=", rates[r].open, 
+            ", high=", rates[r].high, 
+            ", low=", rates[r].low, 
+            ", close=", rates[r].close);
+   }
+   
+   // 注意：CopyRates返回的数据是从最新到最早排序的（rates[0]是最新的K线）
+   // ZigZag计算时会通过Highest和Lowest函数处理这种顺序，无需手动反转数组
+   
+   // 直接从rates数组中提取高点和低点数据
+   double high[], low[];
+   datetime time[];
    int size = ArraySize(rates);
    ArrayResize(high, size);
    ArrayResize(low, size);
+   ArrayResize(time, size);
    
-   // 注意: CopyRates返回的数据是从新到旧排列的，需要反转
+   // 确保high、low和time数组的序号与rates完全一致
    for(int i = 0; i < size; i++)
    {
-      high[i] = rates[size-1-i].high;
-      low[i] = rates[size-1-i].low;
+      high[i] = rates[i].high;
+      low[i] = rates[i].low;
+      time[i] = rates[i].time;
+      // 验证价格是否合理
+      if(high[i] <= 0 || high[i] > 1000000 || low[i] <= 0 || low[i] > 1000000)
+      {
+         Print("无效的价格数据: high=", high[i], ", low=", low[i]);
+         return false;
+      }
+   }
+   
+   // 输出所有极值点
+   Print("所有极值点数据（共", size, "个）:");
+   for(int i = 0; i < size; i++)
+   {
+      Print("序号", i, ": time=", TimeToString(time[i]), ", high=", high[i], ", low=", low[i]);
    }
    
    // 计算ZigZag值
@@ -647,6 +783,17 @@ bool CZigzagCalculator::CalculateForCurrentChart(int bars_count)
    string symbol = Symbol();
    ENUM_TIMEFRAMES timeframe = (m_timeframe == PERIOD_CURRENT) ? (ENUM_TIMEFRAMES)Period() : m_timeframe;
    
+   // 记录当前时间周期，用于调试
+   static ENUM_TIMEFRAMES last_timeframe = PERIOD_CURRENT;
+   if(last_timeframe != timeframe)
+   {
+      Print("时间周期已变更: 从 ", EnumToString(last_timeframe), " 到 ", EnumToString(timeframe));
+      last_timeframe = timeframe;
+   }
+   
+   Print("CalculateForCurrentChart: 使用品种=", symbol, ", 时间周期=", EnumToString(timeframe), ", 数据条数=", bars_count);
+   
+   // 调用CalculateForSymbol方法，让它负责获取数据
    return CalculateForSymbol(symbol, timeframe, bars_count);
 }
 
@@ -655,18 +802,61 @@ bool CZigzagCalculator::CalculateForCurrentChart(int bars_count)
 //+------------------------------------------------------------------+
 bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int max_count = 0)
 {
+   Print("===== 开始获取极值点 =====");
+   Print("参数: max_count=", max_count);
+   
    // 检查缓冲区是否已初始化
    int size = ArraySize(m_zigzagPeakBuffer);
+   Print("缓冲区大小: size=", size);
+   
    if(size == 0)
+   {
+      Print("错误: 缓冲区未初始化");
       return false;
+   }
+   
+   // 打印m_zigzagPeakBuffer数组前10个值
+   Print("m_zigzagPeakBuffer数组前10个值(序号0为最早数据):");
+   int peak_count = 0;
+   for(int p = 0; p < MathMin(size, 100); p++)
+   {
+      if(m_zigzagPeakBuffer[p] != 0)
+      {
+         Print("m_zigzagPeakBuffer[", p, "]=", m_zigzagPeakBuffer[p]);
+         peak_count++;
+         if(peak_count >= 10) break;
+      }
+   }
+   
+   // 打印m_zigzagBottomBuffer数组前10个值
+   Print("m_zigzagBottomBuffer数组前10个值(序号0为最早数据):");
+   int bottom_count = 0;
+   for(int b = 0; b < MathMin(size, 100); b++)
+   {
+      if(m_zigzagBottomBuffer[b] != 0)
+      {
+         Print("m_zigzagBottomBuffer[", b, "]=", m_zigzagBottomBuffer[b]);
+         bottom_count++;
+         if(bottom_count >= 10) break;
+      }
+   }
       
    // 获取时间数组
    datetime time_array[];
    if(CopyTime(Symbol(), m_timeframe, 0, size, time_array) <= 0)
    {
-      Print("无法获取时间数据: ", GetLastError());
+      Print("错误: 无法获取时间数据: ", GetLastError());
       return false;
    }
+   
+   // 打印time_array数组前10个值
+   Print("time_array数组前10个值(序号0为最新数据):");
+   for(int t = 0; t < MathMin(10, ArraySize(time_array)); t++)
+   {
+      Print("time_array[", t, "]=", TimeToString(time_array[t]));
+   }
+   
+   // 注意：CopyTime返回的数据是从最新到最早排序的，与CopyRates一致
    
    // 计算有效极值点的数量
    int valid_count = 0;
@@ -686,31 +876,52 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
    // 填充极值点数组
    int point_index = 0;
    
+   // 打印当前时间周期
+   Print("当前时间周期: ", EnumToString(m_timeframe));
+   
    for(int i = 0; i < size && point_index < valid_count; i++)
    {
       if(m_zigzagPeakBuffer[i] != 0)
       {
-         // 创建峰值点
-         points[point_index] = CZigzagExtremumPoint(
-            m_timeframe,
-            time_array[i],
-            i,
-            m_zigzagPeakBuffer[i],
-            EXTREMUM_PEAK
-         );
-         point_index++;
+         // 创建峰值点，确保价格正确
+         double adjusted_price = NormalizeDouble(m_zigzagPeakBuffer[i], _Digits);
+         // 验证价格是否合理
+         if(adjusted_price > 0 && adjusted_price < 1000000) // 假设价格范围在0到1000000之间
+         {
+            points[point_index] = CZigzagExtremumPoint(
+               m_timeframe,
+               time_array[i],
+               i,
+               adjusted_price,
+               EXTREMUM_PEAK
+            );
+            point_index++;
+         }
+         else
+         {
+            Print("无效的峰值价格: ", adjusted_price);
+         }
       }
       else if(m_zigzagBottomBuffer[i] != 0)
       {
-         // 创建谷值点
-         points[point_index] = CZigzagExtremumPoint(
-            m_timeframe,
-            time_array[i],
-            i,
-            m_zigzagBottomBuffer[i],
-            EXTREMUM_BOTTOM
-         );
-         point_index++;
+         // 创建谷值点，确保价格正确
+         double adjusted_price = NormalizeDouble(m_zigzagBottomBuffer[i], _Digits);
+         // 验证价格是否合理
+         if(adjusted_price > 0 && adjusted_price < 1000000) // 假设价格范围在0到1000000之间
+         {
+            points[point_index] = CZigzagExtremumPoint(
+               m_timeframe,
+               time_array[i],
+               i,
+               adjusted_price,
+               EXTREMUM_BOTTOM
+            );
+            point_index++;
+         }
+         else
+         {
+            Print("无效的谷值价格: ", adjusted_price);
+         }
       }
    }
    
@@ -730,11 +941,20 @@ bool CZigzagCalculator::GetRecentExtremumPoints(CZigzagExtremumPoint &points[], 
    if(!GetExtremumPoints(all_points))
       return false;
       
-   // 手动实现降序排序（按时间）
+   // 打印排序前的前几个点的时间
+   Print("排序前的前5个点时间:");
+   for(int i = 0; i < MathMin(5, ArraySize(all_points)); i++)
+   {
+      Print("点#", i, " 时间: ", TimeToString(all_points[i].Time()), " 索引: ", all_points[i].BarIndex());
+   }
+   
+   // 手动实现降序排序（按时间，确保从最近到最远排列）
+   // 无论输入数据的顺序如何，都确保输出是从最近到最远
    for(int i = 0; i < ArraySize(all_points) - 1; i++)
    {
       for(int j = i + 1; j < ArraySize(all_points); j++)
       {
+         // 比较时间戳，确保降序排列（最新的在前面）
          if(all_points[i].Time() < all_points[j].Time())
          {
             CZigzagExtremumPoint temp = all_points[i];
@@ -742,6 +962,22 @@ bool CZigzagCalculator::GetRecentExtremumPoints(CZigzagExtremumPoint &points[], 
             all_points[j] = temp;
          }
       }
+   }
+   
+   // 打印排序后的前几个点的时间
+   Print("排序后的前5个点时间:");
+   for(int i = 0; i < MathMin(5, ArraySize(all_points)); i++)
+   {
+      Print("点#", i, " 时间: ", TimeToString(all_points[i].Time()), " 索引: ", all_points[i].BarIndex());
+   }
+   
+   // 打印排序后的前几个点，确认顺序正确
+   Print("排序后的极值点(从最近到最远):");
+   for(int i = 0; i < MathMin(5, ArraySize(all_points)); i++)
+   {
+      Print("点[", i, "]: 时间=", TimeToString(all_points[i].Time()), 
+            ", 价格=", all_points[i].Value(), 
+            ", 类型=", all_points[i].Type() == EXTREMUM_PEAK ? "峰值" : "谷值");
    }
       
    // 确定要返回的点数

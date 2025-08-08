@@ -31,6 +31,7 @@ private:
 public:
                      CZigzagExtremumPoint();
                      CZigzagExtremumPoint(ENUM_TIMEFRAMES timeframe, datetime time, int bar_index, double value, ENUM_EXTREMUM_TYPE type);
+                     CZigzagExtremumPoint(const CZigzagExtremumPoint &other);
                     ~CZigzagExtremumPoint();
    
    // 获取/设置属性
@@ -72,6 +73,15 @@ CZigzagExtremumPoint::CZigzagExtremumPoint()
 //+------------------------------------------------------------------+
 //| 参数化构造函数                                                     |
 //+------------------------------------------------------------------+
+CZigzagExtremumPoint::CZigzagExtremumPoint(const CZigzagExtremumPoint &other)
+{
+   m_timeframe = other.m_timeframe;
+   m_time = other.m_time;
+   m_bar_index = other.m_bar_index;
+   m_value = other.m_value;
+   m_type = other.m_type;
+}
+
 CZigzagExtremumPoint::CZigzagExtremumPoint(ENUM_TIMEFRAMES timeframe, datetime time, int bar_index, double value, ENUM_EXTREMUM_TYPE type)
 {
    m_timeframe = timeframe;
