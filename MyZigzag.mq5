@@ -49,7 +49,16 @@ void OnInit()
    PlotIndexSetString(0,PLOT_LABEL,short_name);
 //--- set an empty value
    PlotIndexSetDouble(0,PLOT_EMPTY_VALUE,0.0);
+   
+//--- 关闭交易历史和背景网格
+   ChartSetInteger(0,CHART_SHOW_TRADE_LEVELS,false);  // 关闭交易水平线
+   ChartSetInteger(0,CHART_SHOW_GRID,false);          // 关闭背景网格
+
+   
+//--- 允许显示对象描述（鼠标悬停时）
+   ChartSetInteger(0,CHART_SHOW_OBJECT_DESCR,true);
   }
+
 //+------------------------------------------------------------------+
 //| ZigZag calculation                                               |
 //+------------------------------------------------------------------+
@@ -283,5 +292,17 @@ double Lowest(const double&array[],int count,int start)
          res=array[i];
 //---
    return(res);
+  }
+
+
+//+------------------------------------------------------------------+
+//| Chart event handler                                              |
+//+------------------------------------------------------------------+
+void OnChartEvent(const int id,
+                  const long &lparam,
+                  const double &dparam,
+                  const string &sparam)
+  {
+   // 空实现
   }
 //+------------------------------------------------------------------+

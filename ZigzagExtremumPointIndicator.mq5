@@ -145,57 +145,11 @@ int OnInit()
    string timeframe_suffix = StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7);
    Print("当前周期标识: ", timeframe_suffix);
    
-   // 清理不属于当前周期的对象
-   int deleted_objects = 0;
-   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
-   {
-      string name = ObjectName(0, i);
-      if((StringFind(name, "ExtremumPoint_") == 0 || StringFind(name, "ExtremumPoint_Line_") == 0) && 
-         StringFind(name, timeframe_suffix) == -1)
-      {
-         ObjectDelete(0, name);
-         deleted_objects++;
-      }
-   }
-   
-   if(deleted_objects > 0)
-   {
-      Print("清理了", deleted_objects, "个不属于当前周期的对象");
-   }
-   
-   // 检查当前周期的对象数量
-   int existing_objects = 0;
-   for(int i = 0; i < ObjectsTotal(0); i++)
-   {
-      string name = ObjectName(0, i);
-      if((StringFind(name, "ExtremumPoint_") == 0 || StringFind(name, "ExtremumPoint_Line_") == 0) && 
-         StringFind(name, timeframe_suffix) != -1)
-      {
-         existing_objects++;
-      }
-   }
-   
-   if(existing_objects > 0)
-   {
-      Print("发现", existing_objects, "个当前周期的对象，保留不清理");
-   }
-   else
-   {
-      // 清理之前的标签和数据
-      DeleteAllLabels();
-      ArrayFree(g_points); // 清空全局数组
-      Print("没有发现现有对象，执行清理");
-   }
-   
-   // 确保图表处于正确状态
-   long chart_id = ChartID();  
-   
-   // 启用图表事件处理
-   ChartSetInteger(chart_id, CHART_EVENT_MOUSE_MOVE, true);
-   
    // 检查周期是否发生变化
    ENUM_TIMEFRAMES current_timeframe = (ENUM_TIMEFRAMES)_Period;
-   if(g_lastTimeframe != current_timeframe && g_lastTimeframe != PERIOD_CURRENT)
+   bool timeframe_changed = (g_lastTimeframe != current_timeframe && g_lastTimeframe != PERIOD_CURRENT);
+   
+   if(timeframe_changed)
    {
       Print("初始化时检测到周期变化，从 ", EnumToString(g_lastTimeframe), " 到 ", EnumToString(current_timeframe));
       
@@ -207,6 +161,62 @@ int OnInit()
       
       Print("已清理所有对象和数据，准备在新周期重新计算");
    }
+   else
+   {
+      // 清理不属于当前周期的对象
+      int deleted_objects = 0;
+      for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+      {
+         string name = ObjectName(0, i);
+         if((StringFind(name, "ExtremumPoint_") == 0 || StringFind(name, "ExtremumPoint_Line_") == 0) && 
+            StringFind(name, timeframe_suffix) == -1)
+         {
+            ObjectDelete(0, name);
+            deleted_objects++;
+         }
+      }
+      
+      if(deleted_objects > 0)
+      {
+         Print("清理了", deleted_objects, "个不属于当前周期的对象");
+      }
+      
+      // 检查当前周期的对象数量
+      int existing_objects = 0;
+      for(int i = 0; i < ObjectsTotal(0); i++)
+      {
+         string name = ObjectName(0, i);
+         if((StringFind(name, "ExtremumPoint_") == 0 || StringFind(name, "ExtremumPoint_Line_") == 0) && 
+            StringFind(name, timeframe_suffix) != -1)
+         {
+            existing_objects++;
+         }
+      }
+      
+      if(existing_objects > 0)
+      {
+         Print("发现", existing_objects, "个当前周期的对象，保留不清理");
+      }
+      else
+      {
+         // 清理之前的标签和数据
+         DeleteAllLabels();
+         ArrayFree(g_points); // 清空全局数组
+         Print("没有发现现有对象，执行清理");
+      }
+   }
+   
+   // 确保图表处于正确状态
+   long chart_id = ChartID();  
+   
+   // 启用图表事件处理
+   ChartSetInteger(chart_id, CHART_EVENT_MOUSE_MOVE, true);
+   
+   // 禁用背景网格显示
+   ChartSetInteger(chart_id, CHART_SHOW_GRID, false);
+   
+   // 取消显示交易历史
+   ChartSetInteger(chart_id, CHART_SHOW_TRADE_LEVELS, false);
    
    // 保存当前周期
    g_lastTimeframe = current_timeframe;
@@ -260,8 +270,6 @@ void OnDeinit(const int reason)
    Print("开始计算并显示极值点...");
    // 计算并显示极值点
    CalculateAndDisplayPoints();
-   
-   return(INIT_SUCCEEDED);
 }
 
 //+------------------------------------------------------------------+
@@ -725,16 +733,7 @@ void CalculateAndDisplayPoints()
       // 输出确认信息
       Print("已在图表上创建 ", created_objects, " 个图表对象，预期数量: ", points_to_show * 3); // 每个点有线条、箭头和文本
       
-      // 确保图表处于前台
-      long chart_id = ChartID();
-      ChartSetInteger(chart_id, CHART_BRING_TO_TOP, true);
-      
-      // 启用图表事件处理
-      ChartSetInteger(chart_id, CHART_EVENT_MOUSE_MOVE, true);
-      
-      // 设置图表属性，确保对象可见
-      ChartSetInteger(chart_id, CHART_SHOW_OBJECT_DESCR, true); // 显示对象描述
-      ChartSetInteger(chart_id, CHART_FOREGROUND, false);       // 确保价格在前景
+     
       
       // 添加调试信息
       Print("极值点显示逻辑已完成，请检查图表。");
