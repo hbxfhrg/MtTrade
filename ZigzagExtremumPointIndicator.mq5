@@ -62,7 +62,7 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       
       for(int i = 0; i < ArraySize(g_points); i++)
       {
-         string label_name = StringFormat("ExtremumPoint_%d", i);
+         string label_name = StringFormat("ExtremumPoint_%s_%d", StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7), i);
          
          // 检查对象是否存在
          if(!ObjectFind(0, label_name))
@@ -141,24 +141,121 @@ int OnInit()
    // 设置指标名称
    IndicatorSetString(INDICATOR_SHORTNAME, "ZigZag极值点标记");
    
-   // 清理之前的标签和数据
-   DeleteAllLabels();
-   ArrayFree(g_points); // 清空全局数组
+   // 获取当前周期标识（如"H4"）
+   string timeframe_suffix = StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7);
+   Print("当前周期标识: ", timeframe_suffix);
+   
+   // 清理不属于当前周期的对象
+   int deleted_objects = 0;
+   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+   {
+      string name = ObjectName(0, i);
+      if((StringFind(name, "ExtremumPoint_") == 0 || StringFind(name, "ExtremumPoint_Line_") == 0) && 
+         StringFind(name, timeframe_suffix) == -1)
+      {
+         ObjectDelete(0, name);
+         deleted_objects++;
+      }
+   }
+   
+   if(deleted_objects > 0)
+   {
+      Print("清理了", deleted_objects, "个不属于当前周期的对象");
+   }
+   
+   // 检查当前周期的对象数量
+   int existing_objects = 0;
+   for(int i = 0; i < ObjectsTotal(0); i++)
+   {
+      string name = ObjectName(0, i);
+      if((StringFind(name, "ExtremumPoint_") == 0 || StringFind(name, "ExtremumPoint_Line_") == 0) && 
+         StringFind(name, timeframe_suffix) != -1)
+      {
+         existing_objects++;
+      }
+   }
+   
+   if(existing_objects > 0)
+   {
+      Print("发现", existing_objects, "个当前周期的对象，保留不清理");
+   }
+   else
+   {
+      // 清理之前的标签和数据
+      DeleteAllLabels();
+      ArrayFree(g_points); // 清空全局数组
+      Print("没有发现现有对象，执行清理");
+   }
    
    // 确保图表处于正确状态
-   long chart_id = ChartID();
-   ChartSetInteger(chart_id, CHART_AUTOSCROLL, false);  // 禁用自动滚动
-   ChartSetInteger(chart_id, CHART_FOREGROUND, false);  // 确保价格在前景
-   ChartSetInteger(chart_id, CHART_SHOW_OBJECT_DESCR, true); // 显示对象描述
+   long chart_id = ChartID();  
    
    // 启用图表事件处理
    ChartSetInteger(chart_id, CHART_EVENT_MOUSE_MOVE, true);
    
+   // 检查周期是否发生变化
+   ENUM_TIMEFRAMES current_timeframe = (ENUM_TIMEFRAMES)_Period;
+   if(g_lastTimeframe != current_timeframe && g_lastTimeframe != PERIOD_CURRENT)
+   {
+      Print("初始化时检测到周期变化，从 ", EnumToString(g_lastTimeframe), " 到 ", EnumToString(current_timeframe));
+      
+      // 清空全局数组，确保不使用旧周期的数据
+      ArrayFree(g_points);
+      
+      // 删除所有图表对象，确保清理干净
+      DeleteAllLabels();
+      
+      Print("已清理所有对象和数据，准备在新周期重新计算");
+   }
+   
    // 保存当前周期
-   g_lastTimeframe = (ENUM_TIMEFRAMES)Period();
+   g_lastTimeframe = current_timeframe;
    
    // 添加短暂延迟确保图表准备就绪
-   Sleep(50);
+   Sleep(100);
+   
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| 指标卸载函数                                                      |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   Print("指标卸载，原因代码: ", reason);
+   
+   // 根据卸载原因执行不同的清理操作
+   switch(reason)
+   {
+      case REASON_CHARTCHANGE:  // 图表周期或品种变更
+         Print("图表周期或品种变更，执行完全清理");
+         DeleteAllLabels();     // 删除所有标签
+         ArrayFree(g_points);   // 清空全局数组
+         break;
+         
+      case REASON_REMOVE:       // 指标被从图表移除
+         Print("指标被从图表移除，执行完全清理");
+         DeleteAllLabels();     // 删除所有标签
+         ArrayFree(g_points);   // 清空全局数组
+         break;
+         
+      case REASON_RECOMPILE:    // 指标被重新编译
+         Print("指标被重新编译，保留对象以便重用");
+         // 不删除对象，让新实例可以重用它们
+         break;
+         
+      case REASON_PARAMETERS:   // 参数变更
+         Print("参数变更，执行完全清理以便使用新参数重新计算");
+         DeleteAllLabels();     // 删除所有标签
+         ArrayFree(g_points);   // 清空全局数组
+         break;
+         
+      default:
+         Print("其他卸载原因，执行基本清理");
+         // 执行基本清理，但保留对象
+         ArrayFree(g_points);   // 清空全局数组
+         break;
+   }
    
    Print("开始计算并显示极值点...");
    // 计算并显示极值点
@@ -182,51 +279,30 @@ int OnCalculate(const int rates_total,
                 const int &spread[])
 {
    // 检查周期是否发生变化
-   ENUM_TIMEFRAMES current_timeframe = (ENUM_TIMEFRAMES)Period();
+   ENUM_TIMEFRAMES current_timeframe = (ENUM_TIMEFRAMES)_Period;
    if(g_lastTimeframe != current_timeframe)
    {
       Print("图表周期已更改，从 ", EnumToString(g_lastTimeframe), " 到 ", EnumToString(current_timeframe));
-      Print("周期切换前清除所有现有标记");
-      DeleteAllLabels(); // 切换周期时清除所有标记，确保重新计算
-      ArrayFree(g_points); // 清空全局数组
+      
+      // 更新周期变量
       g_lastTimeframe = current_timeframe;
-      // 重新计算并显示极值点
-      Print("开始重新计算极值点...");
+      Print("周期已更新，将重新计算并显示极值点");
+      
+      // 重新计算并显示极值点，确保ZigzagCalculator被正确初始化
       CalculateAndDisplayPoints();
-      Print("周期切换后计算完成");
+      
       return(rates_total);
    }
    
-   // 检查是否需要重新计算
-   static int recalc_counter = 0;
-   static bool first_calculation = true;
-   
-   // 如果是首次计算或者每隔一定周期重新计算
-   // 注意：切换周期时prev_calculated会变为0，但我们不希望清除已有标记
-   if((prev_calculated == 0 && first_calculation) || recalc_counter >= 10)
+   // 检查是否需要重新计算（每分钟收线时触发）
+   if(prev_calculated == 0 || rates_total > prev_calculated)
    {
-      Print("触发重新计算，prev_calculated=", prev_calculated, ", recalc_counter=", recalc_counter);
+      Print("触发重新计算，prev_calculated=", prev_calculated, ", rates_total=", rates_total);
       // 重新计算并显示极值点
       CalculateAndDisplayPoints();
-      recalc_counter = 0;
-      first_calculation = false;
-   }
-   else
-   {
-      recalc_counter++;
    }
    
    return(rates_total);
-}
-
-//+------------------------------------------------------------------+
-//| 指标清理函数                                                      |
-//+------------------------------------------------------------------+
-void OnDeinit(const int reason)
-{
-   // 清理所有创建的对象
-   DeleteAllLabels();
-   Print("指标已移除，所有对象已清理");
 }
 
 //+------------------------------------------------------------------+
@@ -239,12 +315,35 @@ void CalculateAndDisplayPoints()
    // 确保图表已准备就绪
    Sleep(20);
    
-   // 检查是否已经有极值点对象
+   // 获取当前周期标识（如"H4"）
+   string timeframe_suffix = StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7);
+   Print("当前周期标识: ", timeframe_suffix);
+   
+   // 清理不属于当前周期的对象（包括标记和连接线）
+   int deleted_objects = 0;
+   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+   {
+      string name = ObjectName(0, i);
+      if((StringFind(name, "ExtremumPoint_") == 0 || StringFind(name, "ExtremumPoint_Line_") == 0) && 
+         StringFind(name, timeframe_suffix) == -1)
+      {
+         ObjectDelete(0, name);
+         deleted_objects++;
+      }
+   }
+   
+   if(deleted_objects > 0)
+   {
+      Print("清理了", deleted_objects, "个不属于当前周期的对象");
+   }
+   
+   // 检查当前周期的对象数量
    int existing_objects = 0;
    for(int i = 0; i < ObjectsTotal(0); i++)
    {
       string name = ObjectName(0, i);
-      if(StringFind(name, "ExtremumPoint_") == 0)
+      if((StringFind(name, "ExtremumPoint_") == 0 || StringFind(name, "ExtremumPoint_Line_") == 0) && 
+         StringFind(name, timeframe_suffix) != -1)
       {
          existing_objects++;
       }
@@ -272,16 +371,35 @@ void CalculateAndDisplayPoints()
    
    // 为当前图表计算ZigZag值
    Print("正在计算ZigZag值...");
+   Print("当前周期: ", EnumToString((ENUM_TIMEFRAMES)_Period));
+   
    // 只传递当前图表的品种和时间周期，数据由ZigzagCalculator类获取
-   if(!zigzag.CalculateForCurrentChart(1000))
+   bool calc_success = false;
+   for(int attempt = 1; attempt <= 3; attempt++)
    {
-      Print("计算ZigZag值失败");
+      Print("尝试计算ZigZag，第", attempt, "次尝试");
+      calc_success = zigzag.CalculateForCurrentChart(100);
+      if(calc_success)
+      {
+         Print("计算ZigZag成功");
+         break;
+      }
+      else
+      {
+         Print("计算ZigZag失败，等待后重试");
+         Sleep(100 * attempt); // 逐次增加等待时间
+      }
+   }
+   
+   if(!calc_success)
+   {
+      Print("计算ZigZag值失败，放弃尝试");
       return;
    }
    
    // 获取极值点对象
    Print("正在获取极值点...");
-   Print("当前周期: ", EnumToString((ENUM_TIMEFRAMES)Period()));
+   Print("当前周期: ", EnumToString((ENUM_TIMEFRAMES)_Period));
    if(zigzag.GetRecentExtremumPoints(g_points, InpPointsCount))
    {
       // 调试信息：显示所有获取到的点的时间
@@ -303,6 +421,32 @@ void CalculateAndDisplayPoints()
       // 注意：GetRecentExtremumPoints方法已经实现了按时间降序排序
       // 极值点已经按照从最近到最远的顺序排列，无需再次排序
       // 确保在所有时间周期下都保持一致的排序顺序
+      
+      // 极值点标记和连接线生成已移除
+         
+      // 创建连接线（仅当不是第一个点时，名称包含周期标识）
+      for(int i = 1; i < ArraySize(g_points); i++)
+      {
+         string line_name = StringFormat("ExtremumPoint_%s_Line_%d", StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7), i);
+         if(!ObjectCreate(0, line_name, OBJ_TREND, 0, g_points[i-1].Time(), g_points[i-1].Value(), g_points[i].Time(), g_points[i].Value()))
+         {
+            Print("创建线条失败: ", line_name, ", 错误码: ", GetLastError());
+            // 重试一次
+            Sleep(50);
+            if(!ObjectCreate(0, line_name, OBJ_TREND, 0, g_points[i-1].Time(), g_points[i-1].Value(), g_points[i].Time(), g_points[i].Value()))
+            {
+               Print("重试后仍创建线条失败: ", line_name, ", 错误码: ", GetLastError());
+               continue;
+            }
+         }
+         
+         // 设置线条属性
+         ObjectSetInteger(0, line_name, OBJPROP_COLOR, clrGray);
+         ObjectSetInteger(0, line_name, OBJPROP_WIDTH, 1);
+         ObjectSetInteger(0, line_name, OBJPROP_STYLE, STYLE_DOT);
+      }
+      
+      Print("极值点标记和连接线创建完成");
       
       // 调试信息：显示排序后的前几个点
       Print("排序后的前5个点:");
@@ -330,7 +474,7 @@ void CalculateAndDisplayPoints()
       Print("开始创建连接线...");
       for(int i = 1; i < points_to_show; i++)
       {
-         string line_name = StringFormat("ExtremumPoint_Line_%d", i);
+         string line_name = StringFormat("ExtremumPoint_%s_Line_%d", StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7), i);
          
          // 确保删除可能存在的旧对象
          ObjectDelete(0, line_name);
@@ -405,15 +549,12 @@ void CalculateAndDisplayPoints()
                " 价格从 ", DoubleToString(price1, _Digits), " 到 ", DoubleToString(price2, _Digits));
       }
       
-      // 强制刷新图表
-      ChartRedraw(0);
-      
       // 然后为每个点创建标记
       Print("开始创建极值点标记...");
       for(int i = 0; i < points_to_show; i++)
       {
          // 在图表上添加标签
-         string label_name = StringFormat("ExtremumPoint_%d", i);
+         string label_name = StringFormat("ExtremumPoint_%s_%d", StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7), i);
          string label_type = g_points[i].IsPeak() ? "峰值" : "谷值";
          color label_color = g_points[i].IsPeak() ? clrDodgerBlue : clrRed;
          
@@ -513,7 +654,7 @@ void CalculateAndDisplayPoints()
          ObjectSetInteger(0, label_name, OBJPROP_ZORDER, 100);       // 设置高Z顺序，确保在最前面显示
          
          // 额外添加一个文本标签，确保即使箭头不显示，文本也会显示
-         string text_label_name = StringFormat("ExtremumPoint_Text_%d", i);
+         string text_label_name = StringFormat("ExtremumPoint_%s_Text_%d", StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7), i);
          string text_content = g_points[i].IsPeak() ? "P" : "B";
          
          // 确保删除可能存在的旧对象
@@ -559,9 +700,6 @@ void CalculateAndDisplayPoints()
          
          // 添加调试信息
          PrintFormat("已创建对象 %s，tooltip内容: %s", label_name, tooltip);
-         
-         // 立即刷新当前对象
-         ChartRedraw(0);
       }
       
       // 强制刷新图表
@@ -598,38 +736,14 @@ void CalculateAndDisplayPoints()
       ChartSetInteger(chart_id, CHART_SHOW_OBJECT_DESCR, true); // 显示对象描述
       ChartSetInteger(chart_id, CHART_FOREGROUND, false);       // 确保价格在前景
       
-      // 再次刷新图表
-      ChartRedraw(0);
-      
       // 添加调试信息
       Print("极值点显示逻辑已完成，请检查图表。");
       
       // 提示用户
       Print("请移动鼠标到P/B点查看详细信息");
       
-      // 强制重绘所有对象
-      for(int i = 0; i < ObjectsTotal(0); i++)
-      {
-         string name = ObjectName(0, i);
-         if(StringFind(name, "ExtremumPoint_") == 0)
-         {
-            // 触发对象重绘
-            color obj_color = clrNONE;
-            long tmp_color;
-            if(ObjectGetInteger(0, name, OBJPROP_COLOR, 0, tmp_color))
-            {
-               obj_color = (color)tmp_color;
-               ObjectSetInteger(0, name, OBJPROP_COLOR, obj_color);
-            }
-         }
-      }
-      
-      // 最终刷新
+      // 最终刷新 - 所有对象准备好后只重绘一次
       ChartRedraw(0);
-   }
-   else
-   {
-      Print("无法获取极值点对象");
    }
 }
 //+------------------------------------------------------------------+
