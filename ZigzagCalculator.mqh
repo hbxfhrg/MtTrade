@@ -854,12 +854,7 @@ bool CZigzagCalculator::CalculateForSymbol(const string symbol, ENUM_TIMEFRAMES 
       }
    }
    
-   // 输出所有极值点
-   Print("所有极值点数据（共", size, "个）:");
-   for(int i = 0; i < size; i++)
-   {
-      Print("序号", i, ": time=", TimeToString(time[i]), ", high=", high[i], ", low=", low[i]);
-   }
+   // 已取消输出所有极值点数据
    
    // 计算ZigZag值
    if(!Calculate(high, low, size, 0))
