@@ -5,62 +5,67 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
-//--- indicator settings
+//--- 包含文件
+#include "ZigzagCalculator.mqh"
+
+//--- 指标设置
 #property indicator_chart_window
-#property indicator_buffers 5
+#property indicator_buffers 8  // 增加到8个缓冲区，包括3个对比缓冲区
 #property indicator_plots   1
 #property indicator_type1   DRAW_COLOR_ZIGZAG
 #property indicator_color1  clrDodgerBlue,clrRed
-//--- input parameters
-input int InpDepth    =12;  // Depth
-input int InpDeviation=5;   // Deviation
-input int InpBackstep =3;   // Back Step
-//--- indicator buffers
+//--- 输入参数
+input int InpDepth    =12;  // 深度
+input int InpDeviation=5;   // 偏差
+input int InpBackstep =3;   // 回溯步数
+//--- 指标缓冲区
 double ZigzagPeakBuffer[];
 double ZigzagBottomBuffer[];
 double HighMapBuffer[];
 double LowMapBuffer[];
 double ColorBuffer[];
 
-int ExtRecalc=3; // recounting's depth
+//--- 对比测试用缓冲区
+double ComparePeakBuffer[];
+double CompareBottomBuffer[];
+double CompareColorBuffer[];
+
+int ExtRecalc=3; // 重新计算的深度
 
 enum EnSearchMode
   {
-   Extremum=0, // searching for the first extremum
-   Peak=1,     // searching for the next ZigZag peak
-   Bottom=-1   // searching for the next ZigZag bottom
+   Extremum=0, // 搜索第一个极值点
+   Peak=1,     // 搜索下一个ZigZag峰值
+   Bottom=-1   // 搜索下一个ZigZag谷值
   };
 //+------------------------------------------------------------------+
-//| Custom indicator initialization function                         |
+//| 自定义指标初始化函数                                             |
 //+------------------------------------------------------------------+
 void OnInit()
   {
-//--- indicator buffers mapping
+//--- 指标缓冲区 mapping
    SetIndexBuffer(0,ZigzagPeakBuffer,INDICATOR_DATA);
    SetIndexBuffer(1,ZigzagBottomBuffer,INDICATOR_DATA);
    SetIndexBuffer(2,ColorBuffer,INDICATOR_COLOR_INDEX);
    SetIndexBuffer(3,HighMapBuffer,INDICATOR_CALCULATIONS);
    SetIndexBuffer(4,LowMapBuffer,INDICATOR_CALCULATIONS);
-//--- set accuracy
+   
+   // 对比测试用缓冲区
+   SetIndexBuffer(5,ComparePeakBuffer,INDICATOR_CALCULATIONS);
+   SetIndexBuffer(6,CompareBottomBuffer,INDICATOR_CALCULATIONS);
+   SetIndexBuffer(7,CompareColorBuffer,INDICATOR_CALCULATIONS);
+   
+//--- 设置精度
    IndicatorSetInteger(INDICATOR_DIGITS,_Digits);
-//--- name for DataWindow and indicator subwindow label
+//--- DataWindow和指标子窗口标签的名称
    string short_name=StringFormat("ZigZagColor(%d,%d,%d)",InpDepth,InpDeviation,InpBackstep);
    IndicatorSetString(INDICATOR_SHORTNAME,short_name);
    PlotIndexSetString(0,PLOT_LABEL,short_name);
-//--- set an empty value
+//--- 设置空值
    PlotIndexSetDouble(0,PLOT_EMPTY_VALUE,0.0);
-   
-//--- 关闭交易历史和背景网格
-   ChartSetInteger(0,CHART_SHOW_TRADE_LEVELS,false);  // 关闭交易水平线
-   ChartSetInteger(0,CHART_SHOW_GRID,false);          // 关闭背景网格
-
-   
-//--- 允许显示对象描述（鼠标悬停时）
-   ChartSetInteger(0,CHART_SHOW_OBJECT_DESCR,true);
   }
-
 //+------------------------------------------------------------------+
-//| ZigZag calculation                                               |
+//| ZigZag计算                                                      |
 //+------------------------------------------------------------------+
 int OnCalculate(const int rates_total,
                 const int prev_calculated,
@@ -75,13 +80,27 @@ int OnCalculate(const int rates_total,
   {
    if(rates_total<100)
       return(0);
+      
+   // 使用ZigzagCalculator类计算
+   static CZigzagCalculator calculator(InpDepth, InpDeviation, InpBackstep);
+   calculator.Calculate(high, low, rates_total, prev_calculated);
+   
+   // 获取计算结果
+   double calc_peaks[], calc_bottoms[], calc_colors[];
+   calculator.GetZigzagValues(rates_total, calc_peaks, calc_bottoms, calc_colors);
+   
+   // 复制到对比缓冲区
+   ArrayCopy(ComparePeakBuffer, calc_peaks);
+   ArrayCopy(CompareBottomBuffer, calc_bottoms);
+   ArrayCopy(CompareColorBuffer, calc_colors);
+   
 //---
    int    i,start=0;
    int    extreme_counter=0,extreme_search=Extremum;
    int    shift,back=0,last_high_pos=0,last_low_pos=0;
    double val=0,res=0;
    double cur_low=0,cur_high=0,last_high=0,last_low=0;
-//--- initializing
+//--- 初始化
    if(prev_calculated==0)
      {
       ArrayInitialize(ZigzagPeakBuffer,0.0);
@@ -91,11 +110,11 @@ int OnCalculate(const int rates_total,
       //--- start calculation from bar number InpDepth
       start=InpDepth-1;
      }
-//--- ZigZag was already calculated before
+//--- ZigZag之前已经计算过
    if(prev_calculated>0)
      {
       i=rates_total-1;
-      //--- searching for the third extremum from the last uncompleted bar
+      //--- 从最后一个未完成的柱开始搜索第三个极值点
       while(extreme_counter<ExtRecalc && i>rates_total -100)
         {
          res=(ZigzagPeakBuffer[i]+ZigzagBottomBuffer[i]);
@@ -106,7 +125,7 @@ int OnCalculate(const int rates_total,
         }
       i++;
       start=i;
-      //--- what type of exremum we search for
+      //--- 搜索哪种类型的极值点
       if(LowMapBuffer[i]!=0)
         {
          cur_low=LowMapBuffer[i];
@@ -117,7 +136,7 @@ int OnCalculate(const int rates_total,
          cur_high=HighMapBuffer[i];
          extreme_search=Bottom;
         }
-      //--- clear indicator values
+      //--- 清除指标值
       for(i=start+1; i<rates_total && !IsStopped(); i++)
         {
          ZigzagPeakBuffer[i]  =0.0;
@@ -126,10 +145,10 @@ int OnCalculate(const int rates_total,
          HighMapBuffer[i]     =0.0;
         }
      }
-//--- searching for high and low extremes
+//--- 搜索高点和低点极值
    for(shift=start; shift<rates_total && !IsStopped(); shift++)
      {
-      //--- low
+      //--- 低点
       val=Lowest(low,InpDepth,shift);
       if(val==last_low)
          val=0.0;
@@ -153,7 +172,7 @@ int OnCalculate(const int rates_total,
          LowMapBuffer[shift]=val;
       else
          LowMapBuffer[shift]=0.0;
-      //--- high
+      //--- 高点
       val=Highest(high,InpDepth,shift);
       if(val==last_high)
          val=0.0;
@@ -178,7 +197,7 @@ int OnCalculate(const int rates_total,
       else
          HighMapBuffer[shift]=0.0;
      }
-//--- set last values
+//--- 设置最后的值
    if(extreme_search==0) // undefined values
      {
       last_low=0;
@@ -189,7 +208,7 @@ int OnCalculate(const int rates_total,
       last_low=cur_low;
       last_high=cur_high;
      }
-//--- final selection of extreme points for ZigZag
+//--- 最终选择ZigZag极值点
    for(shift=start; shift<rates_total && !IsStopped(); shift++)
      {
       res=0.0;
@@ -264,11 +283,99 @@ int OnCalculate(const int rates_total,
         }
      }
 
+   // 对比两种方法的计算结果
+   int differences = 0;
+   int peak_diff = 0, bottom_diff = 0, color_diff = 0;
+   
+   // 使用更精确的浮点数比较
+   double epsilon = 1e-10; // 极小的误差容忍度
+   
+   for(int i = 0; i < rates_total; i++)
+   {
+      bool peak_different = MathAbs(ZigzagPeakBuffer[i] - ComparePeakBuffer[i]) > epsilon;
+      bool bottom_different = MathAbs(ZigzagBottomBuffer[i] - CompareBottomBuffer[i]) > epsilon;
+      bool color_different = MathAbs(ColorBuffer[i] - CompareColorBuffer[i]) > epsilon;
+      
+      if(peak_different || bottom_different || color_different)
+      {
+         differences++;
+         
+         // 统计各类型差异
+         if(peak_different) peak_diff++;
+         if(bottom_different) bottom_diff++;
+         if(color_different) color_diff++;
+         
+         // 只打印前10个差异，并且只打印真正有差异的值
+         if(differences <= 10)
+         {
+            string diff_type = "";
+            if(peak_different) diff_type += "峰值 ";
+            if(bottom_different) diff_type += "谷值 ";
+            if(color_different) diff_type += "颜色 ";
+            
+            PrintFormat("差异在柱 %d [%s]: 原方法(%.10f, %.10f, %.1f) vs 类方法(%.10f, %.10f, %.1f)",
+                        i,
+                        diff_type,
+                        ZigzagPeakBuffer[i], ZigzagBottomBuffer[i], ColorBuffer[i],
+                        ComparePeakBuffer[i], CompareBottomBuffer[i], CompareColorBuffer[i]);
+                        
+            // 如果值看起来相同但被检测为不同，显示二进制表示
+            if((peak_different && ZigzagPeakBuffer[i] == 0 && ComparePeakBuffer[i] == 0) ||
+               (bottom_different && ZigzagBottomBuffer[i] == 0 && CompareBottomBuffer[i] == 0) ||
+               (color_different && ColorBuffer[i] == 0 && CompareColorBuffer[i] == 0))
+            {
+               PrintFormat("警告：零值比较差异 - 可能是符号位或NaN问题");
+               
+               // 检查是否为负零或NaN
+               if(peak_different && ZigzagPeakBuffer[i] == 0 && ComparePeakBuffer[i] == 0)
+               {
+                  bool is_neg1 = MathIsValidNumber(ZigzagPeakBuffer[i]) ? false : true;
+                  bool is_neg2 = MathIsValidNumber(ComparePeakBuffer[i]) ? false : true;
+                  PrintFormat("峰值检查: 原方法(%s) vs 类方法(%s)", 
+                             is_neg1 ? "无效数" : "有效数", 
+                             is_neg2 ? "无效数" : "有效数");
+               }
+            }
+         }
+      }
+   }
+   
+   if(differences > 0)
+   {
+      PrintFormat("发现 %d 处差异 (峰值:%d, 谷值:%d, 颜色:%d)，请检查计算逻辑", 
+                 differences, peak_diff, bottom_diff, color_diff);
+                 
+      // 检查数组大小是否一致
+      PrintFormat("数组大小检查 - 原方法: %d, %d, %d vs 类方法: %d, %d, %d",
+                 ArraySize(ZigzagPeakBuffer), ArraySize(ZigzagBottomBuffer), ArraySize(ColorBuffer),
+                 ArraySize(ComparePeakBuffer), ArraySize(CompareBottomBuffer), ArraySize(CompareColorBuffer));
+                 
+      // 检查第一个非零值的位置
+      int first_nonzero_orig = -1, first_nonzero_comp = -1;
+      for(int i = 0; i < rates_total; i++)
+      {
+         if(first_nonzero_orig == -1 && (ZigzagPeakBuffer[i] != 0 || ZigzagBottomBuffer[i] != 0))
+            first_nonzero_orig = i;
+            
+         if(first_nonzero_comp == -1 && (ComparePeakBuffer[i] != 0 || CompareBottomBuffer[i] != 0))
+            first_nonzero_comp = i;
+            
+         if(first_nonzero_orig != -1 && first_nonzero_comp != -1)
+            break;
+      }
+      
+      PrintFormat("第一个非零值位置 - 原方法: %d, 类方法: %d", first_nonzero_orig, first_nonzero_comp);
+   }
+   else
+   {
+      Print("两种方法计算结果完全一致");
+   }
+
 //--- return value of prev_calculated for next call
    return(rates_total);
   }
 //+------------------------------------------------------------------+
-//| Get highest value for range                                      |
+//| 获取范围内的最高值                                              |
 //+------------------------------------------------------------------+
 double Highest(const double&array[],int count,int start)
   {
@@ -281,7 +388,7 @@ double Highest(const double&array[],int count,int start)
    return(res);
   }
 //+------------------------------------------------------------------+
-//| Get lowest value for range                                       |
+//| 获取范围内的最低值                                              |
 //+------------------------------------------------------------------+
 double Lowest(const double&array[],int count,int start)
   {
@@ -292,17 +399,5 @@ double Lowest(const double&array[],int count,int start)
          res=array[i];
 //---
    return(res);
-  }
-
-
-//+------------------------------------------------------------------+
-//| Chart event handler                                              |
-//+------------------------------------------------------------------+
-void OnChartEvent(const int id,
-                  const long &lparam,
-                  const double &dparam,
-                  const string &sparam)
-  {
-   // 空实现
   }
 //+------------------------------------------------------------------+
