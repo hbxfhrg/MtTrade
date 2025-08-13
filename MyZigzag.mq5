@@ -8,6 +8,7 @@
 
 //--- 包含文件
 #include "ZigzagCalculator.mqh"
+#include "GraphicsUtils.mqh"
 
 //--- 指标设置
 #property indicator_chart_window
@@ -26,32 +27,6 @@ input color InpLabelColor=clrWhite; // 标签文本颜色
 //--- 声明ZigZag计算器指针
 CZigzagCalculator *calculator = NULL;
 
-//--- 不需要全局声明指标缓冲区，直接使用计算器对象的公开缓冲区
-
-//+------------------------------------------------------------------+
-//| 创建文本标签                                                     |
-//+------------------------------------------------------------------+
-void CreateTextLabel(string name, string text, datetime time, double price, bool isPeak)
-  {
-   // 删除可能存在的同名对象
-   ObjectDelete(0, name);
-   
-   // 创建文本标签
-   ObjectCreate(0, name, OBJ_TEXT, 0, time, price);
-   
-   // 设置标签属性
-   ObjectSetString(0, name, OBJPROP_TEXT, text);
-   ObjectSetString(0, name, OBJPROP_FONT, "Arial");
-   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 8);
-   ObjectSetInteger(0, name, OBJPROP_COLOR, InpLabelColor);
-   
-   // 设置标签位置（峰值点在上方，谷值点在下方）
-   if(isPeak)
-      ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_BOTTOM);
-   else
-      ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_TOP);
-  }
-
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
 //+------------------------------------------------------------------+
@@ -59,6 +34,9 @@ void OnInit()
   {
 //--- 初始化ZigZag计算器
    calculator = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep);
+   
+//--- 初始化标签管理器
+   CLabelManager::Init(InpLabelColor);
    
 //--- 指标缓冲区 mapping
    SetIndexBuffer(0, calculator.ZigzagPeakBuffer, INDICATOR_DATA);
@@ -72,11 +50,9 @@ void OnInit()
    IndicatorSetString(INDICATOR_SHORTNAME, short_name);
    PlotIndexSetString(0, PLOT_LABEL, short_name);
 //--- 设置空值
-   PlotIndexSetDouble(0, PLOT_EMPTY_VALUE, 0.0);
-   
+   PlotIndexSetDouble(0, PLOT_EMPTY_VALUE, 0.0);  
 //--- 关闭图表网格
-   ChartSetInteger(0, CHART_SHOW_GRID, 0);
-   
+   ChartSetInteger(0, CHART_SHOW_GRID, 0);   
 //--- 关闭图表交易水平线显示
    ChartSetInteger(0, CHART_SHOW_TRADE_LEVELS, false);
   }
@@ -94,12 +70,9 @@ void OnDeinit(const int reason)
      }
      
    // 删除所有文本标签
-   ObjectsDeleteAll(0, "ZigzagLabel_");
+   CLabelManager::DeleteAllLabels("ZigzagLabel_");
    
-   // 注意：通常不建议在指标卸载时修改图表设置，因为用户可能已经手动更改了设置
-   // 如果需要恢复网格和交易水平线显示设置，可以取消下面代码的注释
-   // ChartSetInteger(0, CHART_SHOW_GRID, true);
-   // ChartSetInteger(0, CHART_SHOW_TRADE_LEVELS, true);
+ 
   }
 
 //+------------------------------------------------------------------+
@@ -139,7 +112,7 @@ int OnCalculate(const int rates_total,
         {
          // 清除旧标签
          if(prev_calculated == 0)
-            ObjectsDeleteAll(0, "ZigzagLabel_");
+            CLabelManager::DeleteAllLabels("ZigzagLabel_");
             
          // 添加新标签
          for(int i = prev_calculated; i < rates_total; i++)
@@ -148,14 +121,14 @@ int OnCalculate(const int rates_total,
             if(calculator.ZigzagPeakBuffer[i] != 0)
               {
                string labelName = "ZigzagLabel_Peak_" + IntegerToString(i);
-               CreateTextLabel(labelName, DoubleToString(calculator.ZigzagPeakBuffer[i], _Digits), time[i], calculator.ZigzagPeakBuffer[i], true);
+               CLabelManager::CreateTextLabel(labelName, DoubleToString(calculator.ZigzagPeakBuffer[i], _Digits), time[i], calculator.ZigzagPeakBuffer[i], true);
               }
               
             // 检查是否是谷值点
             if(calculator.ZigzagBottomBuffer[i] != 0)
               {
                string labelName = "ZigzagLabel_Bottom_" + IntegerToString(i);
-               CreateTextLabel(labelName, DoubleToString(calculator.ZigzagBottomBuffer[i], _Digits), time[i], calculator.ZigzagBottomBuffer[i], false);
+               CLabelManager::CreateTextLabel(labelName, DoubleToString(calculator.ZigzagBottomBuffer[i], _Digits), time[i], calculator.ZigzagBottomBuffer[i], false);
               }
            }
         }
