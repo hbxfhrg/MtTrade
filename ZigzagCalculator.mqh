@@ -35,7 +35,7 @@ private:
 public:
    // 公开缓冲区
    double            ZigzagPeakBuffer[];     // 峰值缓冲区
-   double            ZigzagBottomBuffer[];   // 谰值缓冲区
+   double            ZigzagBottomBuffer[];   // 谷值缓冲区
    double            ColorBuffer[];          // 颜色缓冲区
    double            HighMapBuffer[];        // 高点映射缓冲区
    double            LowMapBuffer[];         // 低点映射缓冲区
@@ -565,47 +565,74 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
       return false;
      }
    
-   // 计算有效极值点的数量
-   int valid_count = 0;
+   // 临时数组存储所有极值点
+   CZigzagExtremumPoint temp_points[];
+   int temp_count = 0;
+   
+   // 收集所有极值点
    for(int i = 0; i < size; i++)
-     {
-      if(ZigzagPeakBuffer[i] != 0 || ZigzagBottomBuffer[i] != 0)
-         valid_count++;
-     }
-   
-   // 如果指定了最大数量，则限制返回的点数
-   if(max_count > 0 && max_count < valid_count)
-      valid_count = max_count;
-      
-   // 调整输出数组大小
-   ArrayResize(points, valid_count);
-   
-   // 填充极值点数组
-   int point_index = 0;
-   for(int i = 0; i < size && point_index < valid_count; i++)
      {
       if(ZigzagPeakBuffer[i] != 0)
         {
-         points[point_index] = CZigzagExtremumPoint(
+         ArrayResize(temp_points, temp_count + 1);
+         temp_points[temp_count] = CZigzagExtremumPoint(
             m_timeframe,
             time_array[i],
             i,
             ZigzagPeakBuffer[i],
             EXTREMUM_PEAK
          );
-         point_index++;
+         temp_count++;
         }
       else if(ZigzagBottomBuffer[i] != 0)
         {
-         points[point_index] = CZigzagExtremumPoint(
+         ArrayResize(temp_points, temp_count + 1);
+         temp_points[temp_count] = CZigzagExtremumPoint(
             m_timeframe,
             time_array[i],
             i,
             ZigzagBottomBuffer[i],
             EXTREMUM_BOTTOM
          );
-         point_index++;
+         temp_count++;
         }
+     }
+   
+   // 过滤无效点（相邻的相同类型的极值点）
+   CZigzagExtremumPoint filtered_points[];
+   int filtered_count = 0;
+   
+   for(int i = 0; i < temp_count; i++)
+     {
+      // 第一个点直接添加
+      if(i == 0)
+        {
+         ArrayResize(filtered_points, filtered_count + 1);
+         filtered_points[filtered_count] = temp_points[i];
+         filtered_count++;
+         continue;
+        }
+        
+      // 检查当前点与前一个点的类型是否相同
+      if(temp_points[i].Type() != temp_points[i-1].Type())
+        {
+         ArrayResize(filtered_points, filtered_count + 1);
+         filtered_points[filtered_count] = temp_points[i];
+         filtered_count++;
+        }
+     }
+   
+   // 如果指定了最大数量，则限制返回的点数
+   if(max_count > 0 && max_count < filtered_count)
+      filtered_count = max_count;
+      
+   // 调整输出数组大小
+   ArrayResize(points, filtered_count);
+   
+   // 复制过滤后的结果
+   for(int i = 0; i < filtered_count; i++)
+     {
+      points[i] = filtered_points[i];
      }
    
    return true;

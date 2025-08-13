@@ -105,8 +105,7 @@ int OnCalculate(const int rates_total,
      {
       calculator.Calculate(high, low, rates_total, prev_calculated);
       
-      // 计算结果已直接存储在计算器对象的公开缓冲区中，无需额外复制
-      
+         
       // 如果需要显示文本标签
       if(InpShowLabels)
         {
@@ -114,21 +113,27 @@ int OnCalculate(const int rates_total,
          if(prev_calculated == 0)
             CLabelManager::DeleteAllLabels("ZigzagLabel_");
             
-         // 添加新标签
-         for(int i = prev_calculated; i < rates_total; i++)
+         // 获取极值点数组
+         CZigzagExtremumPoint points[];
+         if(calculator.GetExtremumPoints(points))
            {
-            // 检查是否是峰值点
-            if(calculator.ZigzagPeakBuffer[i] != 0)
+            // 添加新标签
+            for(int i = 0; i < ArraySize(points); i++)
               {
-               string labelName = "ZigzagLabel_Peak_" + IntegerToString(i);
-               CLabelManager::CreateTextLabel(labelName, DoubleToString(calculator.ZigzagPeakBuffer[i], _Digits), time[i], calculator.ZigzagPeakBuffer[i], true);
-              }
-              
-            // 检查是否是谷值点
-            if(calculator.ZigzagBottomBuffer[i] != 0)
-              {
-               string labelName = "ZigzagLabel_Bottom_" + IntegerToString(i);
-               CLabelManager::CreateTextLabel(labelName, DoubleToString(calculator.ZigzagBottomBuffer[i], _Digits), time[i], calculator.ZigzagBottomBuffer[i], false);
+               string labelName = "ZigzagLabel_" + IntegerToString(i);
+               string labelText = StringFormat("类型: %s\n时间: %s\n值: %s\n序号: %d",
+                  points[i].TypeAsString(),
+                  TimeToString(points[i].Time()), 
+                  DoubleToString(points[i].Value(), _Digits),
+                  points[i].BarIndex());
+               
+               CLabelManager::CreateTextLabel(
+                  labelName,
+                  labelText,
+                  points[i].Time(),
+                  points[i].Value(),
+                  points[i].IsPeak()
+               );
               }
            }
         }
