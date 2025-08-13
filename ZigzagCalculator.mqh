@@ -5,6 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
+
 // 错误代码定义
 #define ERR_UNKNOWN_SYMBOL 4006
 #define ERR_SERIES_NOT_AVAILABLE 4016
@@ -32,10 +33,29 @@ private:
    
    // 缓冲区
    double            m_zigzagPeakBuffer[];   // 峰值缓冲区
-   double            m_zigzagBottomBuffer[]; // 谷值缓冲区
+   double            m_zigzagBottomBuffer[]; // 谰值缓冲区
    double            m_highMapBuffer[];      // 高点映射缓冲区
    double            m_lowMapBuffer[];       // 低点映射缓冲区
    double            m_colorBuffer[];        // 颜色缓冲区
+   
+public:
+   // 获取缓冲区数组的引用（通过参数返回）
+   void              GetZigzagPeakBuffer(double &buffer[]);
+   void              GetZigzagBottomBuffer(double &buffer[]);
+   void              GetColorBuffer(double &buffer[]);
+   
+   // 获取单个缓冲区元素
+   double            GetZigzagPeakValue(int index)     { return m_zigzagPeakBuffer[index]; }
+   double            GetZigzagBottomValue(int index)   { return m_zigzagBottomBuffer[index]; }
+   double            GetColorValue(int index)          { return m_colorBuffer[index]; }
+   
+   // 设置缓冲区元素
+   void              SetZigzagPeakValue(int index, double value)     { m_zigzagPeakBuffer[index] = value; }
+   void              SetZigzagBottomValue(int index, double value)   { m_zigzagBottomBuffer[index] = value; }
+   void              SetColorValue(int index, double value)          { m_colorBuffer[index] = value; }
+   
+   // 获取缓冲区大小
+   int               GetBufferSize() { return ArraySize(m_zigzagPeakBuffer); }
    
    // 内部状态
    int               m_recalcDepth;          // 重新计算的深度
@@ -84,6 +104,39 @@ public:
    int               GetBackstep() const { return m_backstep; }
    ENUM_TIMEFRAMES   GetTimeframe() const { return m_timeframe; }
   };
+
+//+------------------------------------------------------------------+
+//| 获取峰值缓冲区                                                   |
+//+------------------------------------------------------------------+
+void CZigzagCalculator::GetZigzagPeakBuffer(double &buffer[])
+  {
+   int size = ArraySize(m_zigzagPeakBuffer);
+   ArrayResize(buffer, size);
+   for(int i = 0; i < size; i++)
+      buffer[i] = m_zigzagPeakBuffer[i];
+  }
+
+//+------------------------------------------------------------------+
+//| 获取谷值缓冲区                                                   |
+//+------------------------------------------------------------------+
+void CZigzagCalculator::GetZigzagBottomBuffer(double &buffer[])
+  {
+   int size = ArraySize(m_zigzagBottomBuffer);
+   ArrayResize(buffer, size);
+   for(int i = 0; i < size; i++)
+      buffer[i] = m_zigzagBottomBuffer[i];
+  }
+
+//+------------------------------------------------------------------+
+//| 获取颜色缓冲区                                                   |
+//+------------------------------------------------------------------+
+void CZigzagCalculator::GetColorBuffer(double &buffer[])
+  {
+   int size = ArraySize(m_colorBuffer);
+   ArrayResize(buffer, size);
+   for(int i = 0; i < size; i++)
+      buffer[i] = m_colorBuffer[i];
+  }
 
 //+------------------------------------------------------------------+
 //| 构造函数                                                          |

@@ -21,13 +21,13 @@ input int InpDepth    =12;  // 深度
 input int InpDeviation=5;   // 偏差
 input int InpBackstep =3;   // 回溯步数
 
-//--- 指标缓冲区
+//--- 声明ZigZag计算器指针
+CZigzagCalculator *calculator = NULL;
+
+//--- 声明指标缓冲区
 double ZigzagPeakBuffer[];
 double ZigzagBottomBuffer[];
 double ColorBuffer[];
-
-//--- 声明ZigZag计算器指针
-CZigzagCalculator *calculator = NULL;
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
@@ -38,18 +38,18 @@ void OnInit()
    calculator = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep);
    
 //--- 指标缓冲区 mapping
-   SetIndexBuffer(0,ZigzagPeakBuffer,INDICATOR_DATA);
-   SetIndexBuffer(1,ZigzagBottomBuffer,INDICATOR_DATA);
-   SetIndexBuffer(2,ColorBuffer,INDICATOR_COLOR_INDEX);
+   SetIndexBuffer(0, ZigzagPeakBuffer, INDICATOR_DATA);
+   SetIndexBuffer(1, ZigzagBottomBuffer, INDICATOR_DATA);
+   SetIndexBuffer(2, ColorBuffer, INDICATOR_COLOR_INDEX);
    
 //--- 设置精度
-   IndicatorSetInteger(INDICATOR_DIGITS,_Digits);
+   IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
 //--- DataWindow和指标子窗口标签的名称
-   string short_name=StringFormat("MyZigzag(%d,%d,%d)",InpDepth,InpDeviation,InpBackstep);
-   IndicatorSetString(INDICATOR_SHORTNAME,short_name);
-   PlotIndexSetString(0,PLOT_LABEL,short_name);
+   string short_name = StringFormat("MyZigzag(%d,%d,%d)", InpDepth, InpDeviation, InpBackstep);
+   IndicatorSetString(INDICATOR_SHORTNAME, short_name);
+   PlotIndexSetString(0, PLOT_LABEL, short_name);
 //--- 设置空值
-   PlotIndexSetDouble(0,PLOT_EMPTY_VALUE,0.0);
+   PlotIndexSetDouble(0, PLOT_EMPTY_VALUE, 0.0);
   }
 //+------------------------------------------------------------------+
 //| 自定义指标释放函数                                               |
@@ -77,11 +77,11 @@ int OnCalculate(const int rates_total,
                 const long &volume[],
                 const int &spread[])
   {
-   if(rates_total<100)
+   if(rates_total < 100)
       return(0);
       
    // 初始化缓冲区
-   if(prev_calculated==0)
+   if(prev_calculated == 0)
      {
       ArrayInitialize(ZigzagPeakBuffer, 0.0);
       ArrayInitialize(ZigzagBottomBuffer, 0.0);
