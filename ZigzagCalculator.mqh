@@ -31,31 +31,33 @@ private:
    int               m_backstep;    // 回溯步数参数
    ENUM_TIMEFRAMES   m_timeframe;   // 时间周期
    
-   // 缓冲区
-   double            m_zigzagPeakBuffer[];   // 峰值缓冲区
-   double            m_zigzagBottomBuffer[]; // 谰值缓冲区
-   double            m_highMapBuffer[];      // 高点映射缓冲区
-   double            m_lowMapBuffer[];       // 低点映射缓冲区
-   double            m_colorBuffer[];        // 颜色缓冲区
    
 public:
-   // 获取缓冲区数组的引用（通过参数返回）
-   void              GetZigzagPeakBuffer(double &buffer[]);
-   void              GetZigzagBottomBuffer(double &buffer[]);
-   void              GetColorBuffer(double &buffer[]);
+   // 公开缓冲区
+   double            ZigzagPeakBuffer[];     // 峰值缓冲区
+   double            ZigzagBottomBuffer[];   // 谰值缓冲区
+   double            ColorBuffer[];          // 颜色缓冲区
+   double            HighMapBuffer[];        // 高点映射缓冲区
+   double            LowMapBuffer[];         // 低点映射缓冲区
    
+public:
    // 获取单个缓冲区元素
-   double            GetZigzagPeakValue(int index)     { return m_zigzagPeakBuffer[index]; }
-   double            GetZigzagBottomValue(int index)   { return m_zigzagBottomBuffer[index]; }
-   double            GetColorValue(int index)          { return m_colorBuffer[index]; }
+   double            GetZigzagPeakValue(int index)     { return ZigzagPeakBuffer[index]; }
+   double            GetZigzagBottomValue(int index)   { return ZigzagBottomBuffer[index]; }
+   double            GetColorValue(int index)          { return ColorBuffer[index]; }
+   
+   // 注意：不再需要以下方法，因为缓冲区现在是公开的
+   // void              GetZigzagPeakBuffer(double &buffer[]);
+   // void              GetZigzagBottomBuffer(double &buffer[]);
+   // void              GetColorBuffer(double &buffer[]);
    
    // 设置缓冲区元素
-   void              SetZigzagPeakValue(int index, double value)     { m_zigzagPeakBuffer[index] = value; }
-   void              SetZigzagBottomValue(int index, double value)   { m_zigzagBottomBuffer[index] = value; }
-   void              SetColorValue(int index, double value)          { m_colorBuffer[index] = value; }
+   void              SetZigzagPeakValue(int index, double value)     { ZigzagPeakBuffer[index] = value; }
+   void              SetZigzagBottomValue(int index, double value)   { ZigzagBottomBuffer[index] = value; }
+   void              SetColorValue(int index, double value)          { ColorBuffer[index] = value; }
    
    // 获取缓冲区大小
-   int               GetBufferSize() { return ArraySize(m_zigzagPeakBuffer); }
+   int               GetBufferSize() { return ArraySize(ZigzagPeakBuffer); }
    
    // 内部状态
    int               m_recalcDepth;          // 重新计算的深度
@@ -106,37 +108,31 @@ public:
   };
 
 //+------------------------------------------------------------------+
-//| 获取峰值缓冲区                                                   |
+//| 以下方法已弃用，因为缓冲区现在是公开的                              |
 //+------------------------------------------------------------------+
-void CZigzagCalculator::GetZigzagPeakBuffer(double &buffer[])
-  {
-   int size = ArraySize(m_zigzagPeakBuffer);
-   ArrayResize(buffer, size);
-   for(int i = 0; i < size; i++)
-      buffer[i] = m_zigzagPeakBuffer[i];
-  }
-
-//+------------------------------------------------------------------+
-//| 获取谷值缓冲区                                                   |
-//+------------------------------------------------------------------+
-void CZigzagCalculator::GetZigzagBottomBuffer(double &buffer[])
-  {
-   int size = ArraySize(m_zigzagBottomBuffer);
-   ArrayResize(buffer, size);
-   for(int i = 0; i < size; i++)
-      buffer[i] = m_zigzagBottomBuffer[i];
-  }
-
-//+------------------------------------------------------------------+
-//| 获取颜色缓冲区                                                   |
-//+------------------------------------------------------------------+
-void CZigzagCalculator::GetColorBuffer(double &buffer[])
-  {
-   int size = ArraySize(m_colorBuffer);
-   ArrayResize(buffer, size);
-   for(int i = 0; i < size; i++)
-      buffer[i] = m_colorBuffer[i];
-  }
+// void CZigzagCalculator::GetZigzagPeakBuffer(double &buffer[])
+//   {
+//    int size = ArraySize(ZigzagPeakBuffer);
+//    ArrayResize(buffer, size);
+//    for(int i = 0; i < size; i++)
+//       buffer[i] = ZigzagPeakBuffer[i];
+//   }
+// 
+// void CZigzagCalculator::GetZigzagBottomBuffer(double &buffer[])
+//   {
+//    int size = ArraySize(ZigzagBottomBuffer);
+//    ArrayResize(buffer, size);
+//    for(int i = 0; i < size; i++)
+//       buffer[i] = ZigzagBottomBuffer[i];
+//   }
+// 
+// void CZigzagCalculator::GetColorBuffer(double &buffer[])
+//   {
+//    int size = ArraySize(ColorBuffer);
+//    ArrayResize(buffer, size);
+//    for(int i = 0; i < size; i++)
+//       buffer[i] = ColorBuffer[i];
+//   }
 
 //+------------------------------------------------------------------+
 //| 构造函数                                                          |
@@ -206,11 +202,11 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
       return false;
       
    // 调整缓冲区大小
-   ArrayResize(m_zigzagPeakBuffer, rates_total);
-   ArrayResize(m_zigzagBottomBuffer, rates_total);
-   ArrayResize(m_highMapBuffer, rates_total);
-   ArrayResize(m_lowMapBuffer, rates_total);
-   ArrayResize(m_colorBuffer, rates_total);
+   ArrayResize(ZigzagPeakBuffer, rates_total);
+   ArrayResize(ZigzagBottomBuffer, rates_total);
+   ArrayResize(HighMapBuffer, rates_total);
+   ArrayResize(LowMapBuffer, rates_total);
+   ArrayResize(ColorBuffer, rates_total);
    
    int    i, start = 0;
    int    extreme_counter = 0, extreme_search = Extremum;
@@ -221,11 +217,11 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
    // 初始化
    if(prev_calculated == 0)
      {
-      ArrayInitialize(m_zigzagPeakBuffer, 0.0);
-      ArrayInitialize(m_zigzagBottomBuffer, 0.0);
-      ArrayInitialize(m_highMapBuffer, 0.0);
-      ArrayInitialize(m_lowMapBuffer, 0.0);
-      ArrayInitialize(m_colorBuffer, 0.0);
+      ArrayInitialize(ZigzagPeakBuffer, 0.0);
+      ArrayInitialize(ZigzagBottomBuffer, 0.0);
+      ArrayInitialize(HighMapBuffer, 0.0);
+      ArrayInitialize(LowMapBuffer, 0.0);
+      ArrayInitialize(ColorBuffer, 0.0);
       
       // 从深度参数开始计算
       start = m_depth - 1;
@@ -239,7 +235,7 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
       // 从最后一个未完成的柱子开始搜索第三个极值
       while(extreme_counter < m_recalcDepth && i > rates_total - 100)
         {
-         res = (m_zigzagPeakBuffer[i] + m_zigzagBottomBuffer[i]);
+         res = (ZigzagPeakBuffer[i] + ZigzagBottomBuffer[i]);
          
          if(res != 0)
             extreme_counter++;
@@ -251,24 +247,24 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
       start = i;
       
       // 确定我们要搜索的极值类型
-      if(m_lowMapBuffer[i] != 0)
+      if(LowMapBuffer[i] != 0)
         {
-         cur_low = m_lowMapBuffer[i];
+         cur_low = LowMapBuffer[i];
          extreme_search = Peak;
         }
       else
         {
-         cur_high = m_highMapBuffer[i];
+         cur_high = HighMapBuffer[i];
          extreme_search = Bottom;
         }
         
       // 清除指标值
       for(i = start + 1; i < rates_total && !IsStopped(); i++)
         {
-         m_zigzagPeakBuffer[i] = 0.0;
-         m_zigzagBottomBuffer[i] = 0.0;
-         m_lowMapBuffer[i] = 0.0;
-         m_highMapBuffer[i] = 0.0;
+         ZigzagPeakBuffer[i] = 0.0;
+         ZigzagBottomBuffer[i] = 0.0;
+         LowMapBuffer[i] = 0.0;
+         HighMapBuffer[i] = 0.0;
         }
      }
      
@@ -288,18 +284,18 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
            {
             for(back = m_backstep; back >= 1; back--)
               {
-               res = m_lowMapBuffer[shift - back];
+               res = LowMapBuffer[shift - back];
                
                if((res != 0) && (res > val))
-                  m_lowMapBuffer[shift - back] = 0.0;
+                  LowMapBuffer[shift - back] = 0.0;
               }
            }
         }
         
       if(low[shift] == val)
-         m_lowMapBuffer[shift] = val;
+         LowMapBuffer[shift] = val;
       else
-         m_lowMapBuffer[shift] = 0.0;
+         LowMapBuffer[shift] = 0.0;
          
       // 高点
       val = Highest(high, m_depth, shift);
@@ -314,18 +310,18 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
            {
             for(back = m_backstep; back >= 1; back--)
               {
-               res = m_highMapBuffer[shift - back];
+               res = HighMapBuffer[shift - back];
                
                if((res != 0) && (res < val))
-                  m_highMapBuffer[shift - back] = 0.0;
+                  HighMapBuffer[shift - back] = 0.0;
               }
            }
         }
         
       if(high[shift] == val)
-         m_highMapBuffer[shift] = val;
+         HighMapBuffer[shift] = val;
       else
-         m_highMapBuffer[shift] = 0.0;
+         HighMapBuffer[shift] = 0.0;
      }
      
    // 设置最后的值
@@ -349,69 +345,69 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
          case Extremum:
             if(last_low == 0 && last_high == 0)
               {
-               if(m_highMapBuffer[shift] != 0)
+               if(HighMapBuffer[shift] != 0)
                  {
                   last_high = high[shift];
                   last_high_pos = shift;
                   extreme_search = Bottom;
-                  m_zigzagPeakBuffer[shift] = last_high;
-                  m_colorBuffer[shift] = 0;
+                  ZigzagPeakBuffer[shift] = last_high;
+                  ColorBuffer[shift] = 0;
                   res = 1;
                  }
                  
-               if(m_lowMapBuffer[shift] != 0)
+               if(LowMapBuffer[shift] != 0)
                  {
                   last_low = low[shift];
                   last_low_pos = shift;
                   extreme_search = Peak;
-                  m_zigzagBottomBuffer[shift] = last_low;
-                  m_colorBuffer[shift] = 1;
+                  ZigzagBottomBuffer[shift] = last_low;
+                  ColorBuffer[shift] = 1;
                   res = 1;
                  }
               }
             break;
             
          case Peak:
-            if(m_lowMapBuffer[shift] != 0.0 && m_lowMapBuffer[shift] < last_low &&
-               m_highMapBuffer[shift] == 0.0)
+            if(LowMapBuffer[shift] != 0.0 && LowMapBuffer[shift] < last_low &&
+               HighMapBuffer[shift] == 0.0)
               {
-               m_zigzagBottomBuffer[last_low_pos] = 0.0;
+               ZigzagBottomBuffer[last_low_pos] = 0.0;
                last_low_pos = shift;
-               last_low = m_lowMapBuffer[shift];
-               m_zigzagBottomBuffer[shift] = last_low;
-               m_colorBuffer[shift] = 1;
+               last_low = LowMapBuffer[shift];
+               ZigzagBottomBuffer[shift] = last_low;
+               ColorBuffer[shift] = 1;
                res = 1;
               }
               
-            if(m_highMapBuffer[shift] != 0.0 && m_lowMapBuffer[shift] == 0.0)
+            if(HighMapBuffer[shift] != 0.0 && LowMapBuffer[shift] == 0.0)
               {
-               last_high = m_highMapBuffer[shift];
+               last_high = HighMapBuffer[shift];
                last_high_pos = shift;
-               m_zigzagPeakBuffer[shift] = last_high;
-               m_colorBuffer[shift] = 0;
+               ZigzagPeakBuffer[shift] = last_high;
+               ColorBuffer[shift] = 0;
                extreme_search = Bottom;
                res = 1;
               }
             break;
             
          case Bottom:
-            if(m_highMapBuffer[shift] != 0.0 &&
-               m_highMapBuffer[shift] > last_high &&
-               m_lowMapBuffer[shift] == 0.0)
+            if(HighMapBuffer[shift] != 0.0 &&
+               HighMapBuffer[shift] > last_high &&
+               LowMapBuffer[shift] == 0.0)
               {
-               m_zigzagPeakBuffer[last_high_pos] = 0.0;
+               ZigzagPeakBuffer[last_high_pos] = 0.0;
                last_high_pos = shift;
-               last_high = m_highMapBuffer[shift];
-               m_zigzagPeakBuffer[shift] = last_high;
-               m_colorBuffer[shift] = 0;
+               last_high = HighMapBuffer[shift];
+               ZigzagPeakBuffer[shift] = last_high;
+               ColorBuffer[shift] = 0;
               }
               
-            if(m_lowMapBuffer[shift] != 0.0 && m_highMapBuffer[shift] == 0.0)
+            if(LowMapBuffer[shift] != 0.0 && HighMapBuffer[shift] == 0.0)
               {
-               last_low = m_lowMapBuffer[shift];
+               last_low = LowMapBuffer[shift];
                last_low_pos = shift;
-               m_zigzagBottomBuffer[shift] = last_low;
-               m_colorBuffer[shift] = 1;
+               ZigzagBottomBuffer[shift] = last_low;
+               ColorBuffer[shift] = 1;
                extreme_search = Peak;
               }
             break;
@@ -425,7 +421,7 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
   }
 
 //+------------------------------------------------------------------+
-//| 获取ZigZag值                                                      |
+//| 获取ZigZag值 - 已弃用，现在直接使用公开缓冲区                       |
 //+------------------------------------------------------------------+
 bool CZigzagCalculator::GetZigzagValues(int bars_count, double &peaks[], double &bottoms[], double &colors[])
   {
@@ -434,7 +430,7 @@ bool CZigzagCalculator::GetZigzagValues(int bars_count, double &peaks[], double 
       return false;
       
    // 检查缓冲区是否已初始化
-   int size = ArraySize(m_zigzagPeakBuffer);
+   int size = ArraySize(ZigzagPeakBuffer);
    if(size == 0)
       return false;
       
@@ -454,9 +450,9 @@ bool CZigzagCalculator::GetZigzagValues(int bars_count, double &peaks[], double 
    // 复制数据
    for(int i = 0; i < copy_size; i++)
      {
-      peaks[i] = m_zigzagPeakBuffer[i];
-      bottoms[i] = m_zigzagBottomBuffer[i];
-      colors[i] = m_colorBuffer[i];
+      peaks[i] = ZigzagPeakBuffer[i];
+      bottoms[i] = ZigzagBottomBuffer[i];
+      colors[i] = ColorBuffer[i];
      }
      
    return true;
@@ -556,7 +552,7 @@ bool CZigzagCalculator::CalculateForCurrentChart(int bars_count)
 bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int max_count/* = 0*/)
   {
    // 检查缓冲区是否已初始化
-   int size = ArraySize(m_zigzagPeakBuffer);
+   int size = ArraySize(ZigzagPeakBuffer);
    if(size == 0)
       return false;
    
@@ -573,7 +569,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
    int valid_count = 0;
    for(int i = 0; i < size; i++)
      {
-      if(m_zigzagPeakBuffer[i] != 0 || m_zigzagBottomBuffer[i] != 0)
+      if(ZigzagPeakBuffer[i] != 0 || ZigzagBottomBuffer[i] != 0)
          valid_count++;
      }
    
@@ -588,24 +584,24 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
    int point_index = 0;
    for(int i = 0; i < size && point_index < valid_count; i++)
      {
-      if(m_zigzagPeakBuffer[i] != 0)
+      if(ZigzagPeakBuffer[i] != 0)
         {
          points[point_index] = CZigzagExtremumPoint(
             m_timeframe,
             time_array[i],
             i,
-            m_zigzagPeakBuffer[i],
+            ZigzagPeakBuffer[i],
             EXTREMUM_PEAK
          );
          point_index++;
         }
-      else if(m_zigzagBottomBuffer[i] != 0)
+      else if(ZigzagBottomBuffer[i] != 0)
         {
          points[point_index] = CZigzagExtremumPoint(
             m_timeframe,
             time_array[i],
             i,
-            m_zigzagBottomBuffer[i],
+            ZigzagBottomBuffer[i],
             EXTREMUM_BOTTOM
          );
          point_index++;

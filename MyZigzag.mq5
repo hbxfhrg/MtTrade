@@ -24,10 +24,7 @@ input int InpBackstep =3;   // 回溯步数
 //--- 声明ZigZag计算器指针
 CZigzagCalculator *calculator = NULL;
 
-//--- 声明指标缓冲区
-double ZigzagPeakBuffer[];
-double ZigzagBottomBuffer[];
-double ColorBuffer[];
+//--- 不需要全局声明指标缓冲区，直接使用计算器对象的公开缓冲区
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
@@ -38,9 +35,9 @@ void OnInit()
    calculator = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep);
    
 //--- 指标缓冲区 mapping
-   SetIndexBuffer(0, ZigzagPeakBuffer, INDICATOR_DATA);
-   SetIndexBuffer(1, ZigzagBottomBuffer, INDICATOR_DATA);
-   SetIndexBuffer(2, ColorBuffer, INDICATOR_COLOR_INDEX);
+   SetIndexBuffer(0, calculator.ZigzagPeakBuffer, INDICATOR_DATA);
+   SetIndexBuffer(1, calculator.ZigzagBottomBuffer, INDICATOR_DATA);
+   SetIndexBuffer(2, calculator.ColorBuffer, INDICATOR_COLOR_INDEX);
    
 //--- 设置精度
    IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
@@ -83,9 +80,9 @@ int OnCalculate(const int rates_total,
    // 初始化缓冲区
    if(prev_calculated == 0)
      {
-      ArrayInitialize(ZigzagPeakBuffer, 0.0);
-      ArrayInitialize(ZigzagBottomBuffer, 0.0);
-      ArrayInitialize(ColorBuffer, 0.0);
+      ArrayInitialize(calculator.ZigzagPeakBuffer, 0.0);
+      ArrayInitialize(calculator.ZigzagBottomBuffer, 0.0);
+      ArrayInitialize(calculator.ColorBuffer, 0.0);
      }
    
    // 计算ZigZag
@@ -93,8 +90,7 @@ int OnCalculate(const int rates_total,
      {
       calculator.Calculate(high, low, rates_total, prev_calculated);
       
-      // 获取计算结果并直接复制到指标缓冲区
-      calculator.GetZigzagValues(rates_total, ZigzagPeakBuffer, ZigzagBottomBuffer, ColorBuffer);
+      // 计算结果已直接存储在计算器对象的公开缓冲区中，无需额外复制
      }
    
    // 返回计算的柱数
