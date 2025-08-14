@@ -86,6 +86,9 @@ void OnDeinit(const int reason)
    CLabelManager::DeleteAllLabels("ZigzagLabel_");
    CLabelManager::DeleteAllLabels("ZigzagLabel4H_"); // 添加删除4H周期标签
    
+   // 清理图表对象和自定义图形
+   ObjectsDeleteAll(0, "ZigzagLabel_");
+   ObjectsDeleteAll(0, "ZigzagLabel4H_");
  
   }
 
@@ -119,52 +122,18 @@ int OnCalculate(const int rates_total,
      {
       calculator.Calculate(high, low, rates_total, prev_calculated);
       
+      // 声明4H周期极值点数组（提升作用域到整个函数）
+      CZigzagExtremumPoint points4H[];
+      bool has4HPoints = false;
+      
       // 计算4H周期ZigZag
       if(calculator4H != NULL && InpShow4H)
         {
          // 使用CalculateForSymbol方法直接计算4H周期数据
-         calculator4H.CalculateForSymbol(Symbol(), PERIOD_H4, 100);
-         
+         calculator4H.CalculateForSymbol(Symbol(), PERIOD_H4, 100);         
          // 获取4H周期极值点
-         CZigzagExtremumPoint points4H[];
-         if(calculator4H.GetExtremumPoints(points4H))
-           {
-            // 打印4H周期峰谷值
-            int maxPoints = MathMin(10, ArraySize(points4H));
-            string h4Log = "4H周期峰谷值(最近" + IntegerToString(maxPoints) + "个):\n";
-            
-            for(int j = 0; j < maxPoints; j++)
-              {
-               h4Log += StringFormat("%s: 值=%s 时间=%s\n",
-                  points4H[j].IsPeak() ? "峰" : "谷",
-                  DoubleToString(points4H[j].Value(), _Digits),
-                  TimeToString(points4H[j].Time()));
-              }
-            
-            Print(h4Log);
-            
-            // 添加4小时周期的标签
-            if(InpShowLabels)
-              {
-               for(int i = 0; i < ArraySize(points4H); i++)
-                 {
-                  string labelName = "ZigzagLabel4H_" + IntegerToString(i);
-                  string labelText = StringFormat("4H: %s\n序号: %d",              
-                     DoubleToString(points4H[i].Value(), _Digits),
-                     points4H[i].BarIndex());
-                  
-                  // 使用4小时周期专用的标签颜色和标识
-                  CLabelManager::CreateTextLabel(
-                     labelName,
-                     labelText,
-                     points4H[i].Time(),
-                     points4H[i].Value(),
-                     points4H[i].IsPeak(),
-                     true  // 标记为4H周期
-                  );
-                 }
-              }
-           }
+         has4HPoints = calculator4H.GetExtremumPoints(points4H);
+       
         }
          
       // 如果需要显示文本标签
@@ -180,37 +149,73 @@ int OnCalculate(const int rates_total,
          // 获取当前周期极值点数组
          CZigzagExtremumPoint points[];
          if(calculator.GetExtremumPoints(points))
-           {
-            // 打印当前周期峰谷值
-            int maxPoints = MathMin(10, ArraySize(points));
-            string currentLog = "当前周期(" + EnumToString(Period()) + ")峰谷值:\n";
-            
-            for(int j = 0; j < maxPoints; j++)
-              {
-               currentLog += StringFormat("%s: 值=%s 时间=%s\n",
-                  points[j].IsPeak() ? "峰" : "谷",
-                  DoubleToString(points[j].Value(), _Digits),
-                  TimeToString(points[j].Time()));
-              }
-            
-            Print(currentLog);
+           {          
             
             // 添加当前周期的标签
             for(int i = 0; i < ArraySize(points); i++)
               {
-               string labelName = "ZigzagLabel_" + IntegerToString(i);
-               string labelText = StringFormat("%s: %s\n序号: %d",
-                  EnumToString(Period()),              
-                  DoubleToString(points[i].Value(), _Digits),
-                  points[i].BarIndex());
+               //检查这个值是否在4H小时周期峰谷值列表中出现
+               bool foundIn4H = false;
+               double tolerance = 0.0001; // 价格匹配的容差
                
+               // 如果4H周期计算器存在且已启用4H显示且有4H点位数据
+               if(calculator4H != NULL && InpShow4H && has4HPoints && ArraySize(points4H) > 0)
+                 {
+                  // 遍历4H周期的所有极值点
+                  for(int j = 0; j < ArraySize(points4H); j++)
+                    {
+                     // 如果价格在容差范围内匹配，则认为是同一个价格点
+                     if(MathAbs(points[i].Value() - points4H[j].Value()) < tolerance)
+                       {
+                        foundIn4H = true;
+                        break;
+                       }
+                    }
+                 }
+               
+               string labelName = "ZigzagLabel_" + IntegerToString(i);
+               string labelText;
+               
+               // 如果这个价格出现在4H周期中则将标签文本变成H4:价格
+               if(foundIn4H)
+                 {
+                  labelText = StringFormat("H4: %s\n序号: %d",
+                     DoubleToString(points[i].Value(), _Digits),
+                     points[i].BarIndex());
+                 }
+               else
+                 {
+                  // 将周期名称转换为简写形式
+                  string periodShort = "";
+                  ENUM_TIMEFRAMES currentPeriod = Period();
+                  
+                  switch(currentPeriod)
+                    {
+                     case PERIOD_M1:  periodShort = "M1"; break;
+                     case PERIOD_M5:  periodShort = "M5"; break;
+                     case PERIOD_M15: periodShort = "M15"; break;
+                     case PERIOD_M30: periodShort = "M30"; break;
+                     case PERIOD_H1:  periodShort = "H1"; break;
+                     case PERIOD_H4:  periodShort = "H4"; break;
+                     case PERIOD_D1:  periodShort = "D1"; break;
+                     case PERIOD_W1:  periodShort = "W1"; break;
+                     case PERIOD_MN1: periodShort = "MN"; break;
+                     default: periodShort = EnumToString(currentPeriod); break;
+                    }
+                  
+                  labelText = StringFormat("%s: %s\n序号: %d",
+                     periodShort,              
+                     DoubleToString(points[i].Value(), _Digits),
+                     points[i].BarIndex());
+                 }
+
                CLabelManager::CreateTextLabel(
                   labelName,
                   labelText,
                   points[i].Time(),
                   points[i].Value(),
                   points[i].IsPeak(),
-                  false  // 标记为当前周期
+                  foundIn4H  // 如果在4H周期中找到，则使用4H周期的颜色
                );
               }
            }
