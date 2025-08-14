@@ -179,9 +179,9 @@ int OnCalculate(const int rates_total,
                // 如果这个价格出现在4H周期中则将标签文本变成H4:价格
                if(foundIn4H)
                  {
-                  labelText = StringFormat("H4: %s\n序号: %d",
-                     DoubleToString(points[i].Value(), _Digits),
-                     points[i].BarIndex());
+                  labelText = StringFormat("H4: %s", 
+                     DoubleToString(points[i].Value(), _Digits));
+                  labelText += "\n序号: " + IntegerToString(points[i].BarIndex());
                  }
                else
                  {
@@ -203,19 +203,46 @@ int OnCalculate(const int rates_total,
                      default: periodShort = EnumToString(currentPeriod); break;
                     }
                   
-                  labelText = StringFormat("%s: %s\n序号: %d",
+                  labelText = StringFormat("%s: %s",
                      periodShort,              
-                     DoubleToString(points[i].Value(), _Digits),
-                     points[i].BarIndex());
+                     DoubleToString(points[i].Value(), _Digits));
+                  labelText += "\n序号: " + IntegerToString(points[i].BarIndex());
                  }
 
+               // 创建价格标签
+               string priceLabel = "";
+               
+               // 将周期名称转换为简写形式
+               string periodShort = "";
+               ENUM_TIMEFRAMES currentPeriod = Period();
+               
+               switch(currentPeriod)
+                 {
+                  case PERIOD_M1:  periodShort = "M1"; break;
+                  case PERIOD_M5:  periodShort = "M5"; break;
+                  case PERIOD_M15: periodShort = "M15"; break;
+                  case PERIOD_M30: periodShort = "M30"; break;
+                  case PERIOD_H1:  periodShort = "H1"; break;
+                  case PERIOD_H4:  periodShort = "H4"; break;
+                  case PERIOD_D1:  periodShort = "D1"; break;
+                  case PERIOD_W1:  periodShort = "W1"; break;
+                  case PERIOD_MN1: periodShort = "MN"; break;
+                  default: periodShort = EnumToString(currentPeriod); break;
+                 }
+               
+               if(foundIn4H)
+                  priceLabel = StringFormat("H4: %s", DoubleToString(points[i].Value(), _Digits));
+               else
+                  priceLabel = StringFormat("%s: %s", periodShort, DoubleToString(points[i].Value(), _Digits));
+               
+               // 只创建价格标签，不再创建序号标签
                CLabelManager::CreateTextLabel(
                   labelName,
-                  labelText,
+                  priceLabel,
                   points[i].Time(),
                   points[i].Value(),
                   points[i].IsPeak(),
-                  foundIn4H  // 如果在4H周期中找到，则使用4H周期的颜色
+                  foundIn4H
                );
               }
            }
