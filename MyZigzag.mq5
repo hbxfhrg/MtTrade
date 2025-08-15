@@ -247,9 +247,12 @@ int OnCalculate(const int rates_total,
                else
                   priceLabel = StringFormat("%s: %s", periodShort, DoubleToString(points[i].Value(), _Digits));
                
-               // 创建工具提示内容，显示线序和时间
-               string tooltipText = StringFormat("线序: %d\n时间: %s\n价格: %s\n类型: %s", 
-                                               points[i].BarIndex(),
+               // 使用点的时间直接计算K线序号（当前K线为0）
+               int fromCurrentIndex = iBarShift(Symbol(), Period(), points[i].Time());
+               
+               // 创建工具提示内容，显示K线序号和时间
+               string tooltipText = StringFormat("K线序号: %d\n时间: %s\n价格: %s\n类型: %s", 
+                                               fromCurrentIndex,
                                                TimeToString(points[i].Time(), TIME_DATE|TIME_MINUTES|TIME_SECONDS),
                                                DoubleToString(points[i].Value(), _Digits),
                                                points[i].IsPeak() ? "峰值" : "谷值");
