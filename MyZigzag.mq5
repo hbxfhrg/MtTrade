@@ -14,10 +14,10 @@
 #property indicator_chart_window
 #property indicator_buffers 6
 #property indicator_plots   2
-#property indicator_type1   DRAW_COLOR_ZIGZAG  // 当前周期
+#property indicator_type1   DRAW_COLOR_ZIGZAG  // 当前周期(中周期)
 #property indicator_color1  clrDodgerBlue,clrRed
-#property indicator_type2   DRAW_COLOR_ZIGZAG  // 4小时周期
-#property indicator_color2  clrLime,clrMagenta
+#property indicator_type2   DRAW_COLOR_ZIGZAG  // 4小时周期(大周期)
+#property indicator_color2  clrGold,clrPurple
 
 //--- 输入参数
 input int InpDepth    =12;  // 深度
@@ -25,12 +25,14 @@ input int InpDeviation=5;   // 偏差
 input int InpBackstep =3;   // 回溯步数
 input bool InpShowLabels=true; // 显示峰谷值文本标签
 input color InpLabelColor=clrWhite; // 标签文本颜色
-input bool InpShow4H=true;  // 显示4小时周期ZigZag
-input color InpLabel4HColor=clrYellow; // 4小时周期标签颜色
+input bool InpShow5M=true;  // 计算5分钟周期ZigZag(小周期)
+input bool InpShow4H=true;  // 显示4小时周期ZigZag(大周期)
+input color InpLabel4HColor=clrOrange; // 4小时周期标签颜色
 
 //--- 声明ZigZag计算器指针
-CZigzagCalculator *calculator = NULL;      // 当前周期计算器
-CZigzagCalculator *calculator4H = NULL;    // 4H周期计算器
+CZigzagCalculator *calculator = NULL;      // 当前周期计算器(默认对应中周期)
+CZigzagCalculator *calculator5M = NULL;    // 5M周期计算器(小周期)
+CZigzagCalculator *calculator4H = NULL;    // 4H周期计算器(大周期)
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
@@ -38,16 +40,25 @@ CZigzagCalculator *calculator4H = NULL;    // 4H周期计算器
 void OnInit()
   {
 //--- 初始化ZigZag计算器
-   calculator = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep, 3, PERIOD_CURRENT); // 当前周期
-   calculator4H = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep, 3, PERIOD_H4);    // 4H周期
+   calculator = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep, 3, PERIOD_CURRENT); // 当前周期(默认对应中周期)
+   calculator5M = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep, 3, PERIOD_M5);    // 5M周期(小周期)
+   calculator4H = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep, 3, PERIOD_H4);    // 4H周期(大周期)
    
-//--- 初始化标签管理器 - 传入两种不同的颜色
+//--- 初始化标签管理器 - 传入不同的颜色
    CLabelManager::Init(InpLabelColor, InpLabel4HColor);
    
 //--- 指标缓冲区 mapping
    SetIndexBuffer(0, calculator.ZigzagPeakBuffer, INDICATOR_DATA);
    SetIndexBuffer(1, calculator.ZigzagBottomBuffer, INDICATOR_DATA);
    SetIndexBuffer(2, calculator.ColorBuffer, INDICATOR_COLOR_INDEX);
+   
+   // 为5M周期(小周期)分配缓冲区
+   if(calculator5M != NULL && InpShow5M)
+     {
+      SetIndexBuffer(3, calculator5M.ZigzagPeakBuffer, INDICATOR_DATA);
+      SetIndexBuffer(4, calculator5M.ZigzagBottomBuffer, INDICATOR_DATA);
+      SetIndexBuffer(5, calculator5M.ColorBuffer, INDICATOR_COLOR_INDEX);
+     }
    
 //--- 设置精度
    IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
@@ -75,7 +86,15 @@ void OnDeinit(const int reason)
       calculator = NULL;
      }
    
-   // 释放4H周期计算器对象
+   // 释放5M周期计算器对象(小周期)
+   if(calculator5M != NULL)
+     {
+      delete calculator5M;
+      calculator5M = NULL;
+     }
+   
+   
+   // 释放4H周期计算器对象(大周期)
    if(calculator4H != NULL)
      {
       delete calculator4H;
@@ -122,15 +141,40 @@ int OnCalculate(const int rates_total,
      {
       calculator.Calculate(high, low, rates_total, prev_calculated);
       
-      // 声明4H周期极值点数组（提升作用域到整个函数）
-      CZigzagExtremumPoint points4H[];
+      // 声明各周期极值点数组（提升作用域到整个函数）
+      CZigzagExtremumPoint points5M[]; // 小周期(5M)
+      CZigzagExtremumPoint points4H[]; // 大周期(4H)
+      bool has5MPoints = false;
       bool has4HPoints = false;
       
-      // 计算4H周期ZigZag
+      // 计算5M周期ZigZag(小周期)
+      if(calculator5M != NULL && InpShow5M)
+        {
+         // 使用CalculateForSymbol方法直接计算5M周期数据，限制为300根K线
+         int result = calculator5M.CalculateForSymbol(Symbol(), PERIOD_M5, 300);
+         
+         // 检查计算结果
+         if(result < 0)
+           {
+            Print("无法计算5M周期ZigZag，错误代码: ", result);
+           }
+         else
+           {
+            // 获取5M周期极值点
+            has5MPoints = calculator5M.GetExtremumPoints(points5M);
+            if(!has5MPoints)
+              {
+               Print("无法获取5M周期极值点");
+              }
+           }
+        }
+      
+        
+      // 计算4H周期ZigZag(大周期)
       if(calculator4H != NULL && InpShow4H)
         {
-         // 使用CalculateForSymbol方法直接计算4H周期数据
-         int result = calculator4H.CalculateForSymbol(Symbol(), PERIOD_H4, 100);
+         // 使用CalculateForSymbol方法直接计算4H周期数据，限制为200根K线
+         int result = calculator4H.CalculateForSymbol(Symbol(), PERIOD_H4, 200);
          
          // 检查计算结果
          if(result < 0)
@@ -166,11 +210,12 @@ int OnCalculate(const int rates_total,
             // 添加当前周期的标签
             for(int i = 0; i < ArraySize(points); i++)
               {
-               //检查这个值是否在4H小时周期峰谷值列表中出现
-               bool foundIn4H = false;
+               //检查这个值是否在大周期峰谷值列表中出现
+               bool foundIn4H = false; // 大周期
                double tolerance = 0.0001; // 价格匹配的容差
                
-               // 如果4H周期计算器存在且已启用4H显示且有4H点位数据
+               
+               // 检查4H周期(大周期)
                if(calculator4H != NULL && InpShow4H && has4HPoints && ArraySize(points4H) > 0)
                  {
                   // 遍历4H周期的所有极值点
@@ -188,14 +233,14 @@ int OnCalculate(const int rates_total,
                string labelName = "ZigzagLabel_" + IntegerToString(i);
                string labelText;
                
-               // 如果这个价格出现在4H周期中则将标签文本变成H4:价格
-               if(foundIn4H)
+               // 根据价格出现在哪个周期中设置标签文本
+               if(foundIn4H) // 大周期
                  {
                   labelText = StringFormat("H4: %s", 
                      DoubleToString(points[i].Value(), _Digits));
                   labelText += "\n序号: " + IntegerToString(points[i].BarIndex());
                  }
-               else
+               else // 中周期(当前周期)
                  {
                   // 将周期名称转换为简写形式
                   string periodShort = "";
@@ -242,20 +287,25 @@ int OnCalculate(const int rates_total,
                   default: periodShort = EnumToString(currentPeriod); break;
                  }
                
-               if(foundIn4H)
+               if(foundIn4H) // 大周期
                   priceLabel = StringFormat("H4: %s", DoubleToString(points[i].Value(), _Digits));
-               else
+               else // 中周期(当前周期)
                   priceLabel = StringFormat("%s: %s", periodShort, DoubleToString(points[i].Value(), _Digits));
                
                // 使用点的时间直接计算K线序号（当前K线为0）
                int fromCurrentIndex = iBarShift(Symbol(), Period(), points[i].Time());
                
-               // 创建工具提示内容，显示K线序号和时间
-               string tooltipText = StringFormat("K线序号: %d\n时间: %s\n价格: %s\n类型: %s", 
+               // 创建工具提示内容，显示K线序号和时间以及周期信息
+               string periodInfo = "";
+               if(foundIn4H) periodInfo += "H4(大周期) ";
+               if(periodInfo == "") periodInfo = "当前周期(中周期)";
+               
+               string tooltipText = StringFormat("K线序号: %d\n时间: %s\n价格: %s\n类型: %s\n周期: %s", 
                                                fromCurrentIndex,
                                                TimeToString(points[i].Time(), TIME_DATE|TIME_MINUTES|TIME_SECONDS),
                                                DoubleToString(points[i].Value(), _Digits),
-                                               points[i].IsPeak() ? "峰值" : "谷值");
+                                               points[i].IsPeak() ? "峰值" : "谷值",
+                                               periodInfo);
                
                // 只创建价格标签，不再创建序号标签，但添加工具提示
                CLabelManager::CreateTextLabel(

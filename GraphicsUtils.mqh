@@ -19,26 +19,27 @@ private:
    // 默认标签属性
    static string  DefaultFont;
    static int     DefaultFontSize;
-   static color   DefaultColor;      // 当前周期标签颜色
-   static color   Default4HColor;    // 4小时周期标签颜色
+   static color   DefaultColor;      // 当前周期标签颜色(默认对应中周期)
+   static color   Default4HColor;    // 4小时周期标签颜色(大周期)
    static int     DefaultWidth;
    static bool    DefaultSelectable;
 
 public:
    // 初始化静态变量
-   static void Init(color labelColor = clrWhite, color label4HColor = clrYellow)
+   static void Init(color labelColor = clrWhite, color label4HColor = clrOrange)
      {
       DefaultFont = "Arial";
       DefaultFontSize = 8;
-      DefaultColor = labelColor;
-      Default4HColor = label4HColor;
+      DefaultColor = labelColor;     // 当前周期(中周期)
+      Default4HColor = label4HColor; // 大周期
       DefaultWidth = 1;
       DefaultSelectable = false;
      }
      
    // 创建文本标签的方法
    static void CreateTextLabel(string name, string text, datetime time, double price, bool isPeak, 
-                              bool is4HPeriod = false, color textColor = NULL, string font = NULL, int fontSize = 0,
+                              bool is4HPeriod = false, 
+                              color textColor = NULL, string font = NULL, int fontSize = 0,
                               int xOffset = -10, bool centered = true, string tooltip = "")
      {
       // 使用默认值或传入的参数
@@ -47,10 +48,10 @@ public:
       // 根据周期选择颜色
       if(textColor != NULL)
          actualColor = textColor;
-      else if(is4HPeriod)
+      else if(is4HPeriod)  // 大周期
          actualColor = Default4HColor;
       else
-         actualColor = DefaultColor;
+         actualColor = DefaultColor; // 当前周期(中周期)
          
       string actualFont = (font == NULL) ? DefaultFont : font;
       int actualFontSize = (fontSize == 0) ? DefaultFontSize : fontSize;
@@ -114,8 +115,8 @@ public:
 // 初始化静态成员变量
 string CLabelManager::DefaultFont = "Arial";
 int CLabelManager::DefaultFontSize = 8;
-color CLabelManager::DefaultColor = clrWhite;
-color CLabelManager::Default4HColor = clrYellow;
+color CLabelManager::DefaultColor = clrWhite;    // 当前周期(中周期)
+color CLabelManager::Default4HColor = clrOrange; // 大周期
 int CLabelManager::DefaultWidth = 1;
 bool CLabelManager::DefaultSelectable = false;
 
