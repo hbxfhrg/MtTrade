@@ -130,10 +130,22 @@ int OnCalculate(const int rates_total,
       if(calculator4H != NULL && InpShow4H)
         {
          // 使用CalculateForSymbol方法直接计算4H周期数据
-         calculator4H.CalculateForSymbol(Symbol(), PERIOD_H4, 100);         
-         // 获取4H周期极值点
-         has4HPoints = calculator4H.GetExtremumPoints(points4H);
-       
+         int result = calculator4H.CalculateForSymbol(Symbol(), PERIOD_H4, 100);
+         
+         // 检查计算结果
+         if(result < 0)
+           {
+            Print("无法计算4H周期ZigZag，错误代码: ", result);
+           }
+         else
+           {
+            // 获取4H周期极值点
+            has4HPoints = calculator4H.GetExtremumPoints(points4H);
+            if(!has4HPoints)
+              {
+               Print("无法获取4H周期极值点");
+              }
+           }
         }
          
       // 如果需要显示文本标签
@@ -235,14 +247,27 @@ int OnCalculate(const int rates_total,
                else
                   priceLabel = StringFormat("%s: %s", periodShort, DoubleToString(points[i].Value(), _Digits));
                
-               // 只创建价格标签，不再创建序号标签
+               // 创建工具提示内容，显示线序和时间
+               string tooltipText = StringFormat("线序: %d\n时间: %s\n价格: %s\n类型: %s", 
+                                               points[i].BarIndex(),
+                                               TimeToString(points[i].Time(), TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+                                               DoubleToString(points[i].Value(), _Digits),
+                                               points[i].IsPeak() ? "峰值" : "谷值");
+               
+               // 只创建价格标签，不再创建序号标签，但添加工具提示
                CLabelManager::CreateTextLabel(
                   labelName,
                   priceLabel,
                   points[i].Time(),
                   points[i].Value(),
                   points[i].IsPeak(),
-                  foundIn4H
+                  foundIn4H,
+                  NULL,    // 使用默认颜色
+                  NULL,    // 使用默认字体
+                  0,       // 使用默认字体大小
+                  0,       // X轴偏移量为0（居中显示时不需要偏移）
+                  true,    // 启用居中显示
+                  tooltipText  // 添加工具提示
                );
               }
            }

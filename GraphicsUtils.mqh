@@ -38,7 +38,8 @@ public:
      
    // 创建文本标签的方法
    static void CreateTextLabel(string name, string text, datetime time, double price, bool isPeak, 
-                              bool is4HPeriod = false, color textColor = NULL, string font = NULL, int fontSize = 0)
+                              bool is4HPeriod = false, color textColor = NULL, string font = NULL, int fontSize = 0,
+                              int xOffset = -10, bool centered = true, string tooltip = "")
      {
       // 使用默认值或传入的参数
       color actualColor;
@@ -57,8 +58,15 @@ public:
       // 删除可能存在的同名对象
       ObjectDelete(0, name);
       
-      // 创建文本标签
+      // 创建标签对象 - 使用OBJ_TEXT以保持正确的图表位置
       ObjectCreate(0, name, OBJ_TEXT, 0, time, price);
+      
+      // 如果提供了工具提示，则设置它
+      if(tooltip != "")
+        {
+         // 为OBJ_TEXT对象设置工具提示
+         ObjectSetString(0, name, OBJPROP_TOOLTIP, tooltip);
+        }
       
       // 设置标签属性
       ObjectSetString(0, name, OBJPROP_TEXT, text);
@@ -68,11 +76,32 @@ public:
       ObjectSetInteger(0, name, OBJPROP_WIDTH, DefaultWidth);
       ObjectSetInteger(0, name, OBJPROP_SELECTABLE, DefaultSelectable);
       
-      // 设置标签位置（峰值点在上方，谷值点在下方）
+      // 根据是峰值还是谷值设置不同的旋转角度
       if(isPeak)
-         ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_BOTTOM);
+         ObjectSetDouble(0, name, OBJPROP_ANGLE, 0);
       else
-         ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_TOP);
+         ObjectSetDouble(0, name, OBJPROP_ANGLE, 0);
+
+      // 设置标签位置和锚点
+      if(centered)
+      {
+         // 居中显示
+         if(isPeak)
+            ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_LOWER);
+         else
+            ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_UPPER);
+      }
+      else
+      {
+         // 非居中显示，使用左侧锚点
+         if(isPeak)
+            ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+         else
+            ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+      }
+      
+      // 设置X轴偏移量
+      ObjectSetInteger(0, name, OBJPROP_XOFFSET, xOffset);
      }
      
    // 删除指定前缀的所有标签
