@@ -9,6 +9,7 @@
 //--- 包含文件
 #include "ZigzagCalculator.mqh"
 #include "GraphicsUtils.mqh"
+#include "CommonUtils.mqh"
 
 //--- 指标设置
 #property indicator_chart_window
@@ -83,6 +84,7 @@ void OnInit()
 //--- 关闭图表交易水平线显示
    ChartSetInteger(0, CHART_SHOW_TRADE_LEVELS, false);
    
+
    // 重置缓存状态
    cacheInitialized = false;
    lastCalculationTime = 0;
@@ -345,23 +347,8 @@ int OnCalculate(const int rates_total,
                  }
                else // 中周期(当前周期)
                  {
-                  // 将周期名称转换为简写形式
-                  string periodShort = "";
-                  ENUM_TIMEFRAMES currentPeriod = Period();
-                  
-                  switch(currentPeriod)
-                    {
-                     case PERIOD_M1:  periodShort = "M1"; break;
-                     case PERIOD_M5:  periodShort = "M5"; break;
-                     case PERIOD_M15: periodShort = "M15"; break;
-                     case PERIOD_M30: periodShort = "M30"; break;
-                     case PERIOD_H1:  periodShort = "H1"; break;
-                     case PERIOD_H4:  periodShort = "H4"; break;
-                     case PERIOD_D1:  periodShort = "D1"; break;
-                     case PERIOD_W1:  periodShort = "W1"; break;
-                     case PERIOD_MN1: periodShort = "MN"; break;
-                     default: periodShort = EnumToString(currentPeriod); break;
-                    }
+                  // 获取当前周期的简写形式
+                  string periodShort = TimeframeToString(Period());
                   
                   labelText = StringFormat("%s: %s",
                      periodShort,              
@@ -372,23 +359,8 @@ int OnCalculate(const int rates_total,
                // 创建价格标签
                string priceLabel = "";
                
-               // 将周期名称转换为简写形式
-               string periodShort = "";
-               ENUM_TIMEFRAMES currentPeriod = Period();
-               
-               switch(currentPeriod)
-                 {
-                  case PERIOD_M1:  periodShort = "M1"; break;
-                  case PERIOD_M5:  periodShort = "M5"; break;
-                  case PERIOD_M15: periodShort = "M15"; break;
-                  case PERIOD_M30: periodShort = "M30"; break;
-                  case PERIOD_H1:  periodShort = "H1"; break;
-                  case PERIOD_H4:  periodShort = "H4"; break;
-                  case PERIOD_D1:  periodShort = "D1"; break;
-                  case PERIOD_W1:  periodShort = "W1"; break;
-                  case PERIOD_MN1: periodShort = "MN"; break;
-                  default: periodShort = EnumToString(currentPeriod); break;
-                 }
+               // 获取当前周期的简写形式
+               string periodShort = TimeframeToString(Period());
                
                if(foundIn4H) // 大周期
                   priceLabel = StringFormat("H4: %s", DoubleToString(points[i].Value(), _Digits));
