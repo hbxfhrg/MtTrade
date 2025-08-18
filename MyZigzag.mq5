@@ -10,6 +10,11 @@
 #include "ZigzagCalculator.mqh"
 #include "GraphicsUtils.mqh"
 #include "CommonUtils.mqh"
+#include "TradeAnalyzer.mqh"
+#include "TradeInfoPanel.mqh"
+
+//--- 文本区域设置
+#property indicator_chart_window
 
 //--- 指标设置
 #property indicator_chart_window
@@ -33,11 +38,17 @@ input bool InpShow4H=true;  // 显示4小时周期ZigZag(大周期)
 input color InpLabel4HColor=clrOrange; // 4小时周期标签颜色
 input int InpCacheTimeout=300; // 缓存超时时间(秒)
 input int InpMaxBarsH1=200;   // 1小时周期最大计算K线数
+input bool InpShowInfoPanel=true; // 显示信息面板
+input color InpInfoPanelColor=clrWhite; // 信息面板文字颜色
+input color InpInfoPanelBgColor=clrNavy; // 信息面板背景颜色
 
 //--- 声明ZigZag计算器指针
 CZigzagCalculator *calculator = NULL;      // 当前周期计算器(默认对应中周期)
 CZigzagCalculator *calculator5M = NULL;    // 5M周期计算器(小周期)
 CZigzagCalculator *calculator4H = NULL;    // 4H周期计算器(大周期)
+
+//--- 信息面板对象名称
+string infoPanel = "ZigzagInfoPanel";
 
 //--- 缓存变量
 datetime          lastCalculationTime = 0;  // 上次计算的时间
@@ -56,6 +67,15 @@ void OnInit()
    
 //--- 初始化标签管理器 - 传入不同的颜色
    CLabelManager::Init(InpLabelColor, InpLabel4HColor);
+   
+//--- 初始化信息面板管理器
+   CInfoPanelManager::Init(infoPanel, InpInfoPanelColor, InpInfoPanelBgColor);
+   
+//--- 初始化交易分析器
+   CTradeAnalyzer::Init();
+   
+//--- 初始化交易信息面板（现在使用 CInfoPanelManager 替代）
+   // 注意：CInfoPanelManager 已经在前面初始化过了
    
 //--- 指标缓冲区 mapping
    SetIndexBuffer(0, calculator.ZigzagPeakBuffer, INDICATOR_DATA);
@@ -83,8 +103,9 @@ void OnInit()
    ChartSetInteger(0, CHART_SHOW_GRID, 0);   
 //--- 关闭图表交易水平线显示
    ChartSetInteger(0, CHART_SHOW_TRADE_LEVELS, false);
+//--- 打开从右边框转移图表的按钮
+   ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
    
-
    // 重置缓存状态
    cacheInitialized = false;
    lastCalculationTime = 0;
@@ -125,6 +146,7 @@ void OnDeinit(const int reason)
    // 清理图表对象和自定义图形
    ObjectsDeleteAll(0, "ZigzagLabel_");
    ObjectsDeleteAll(0, "ZigzagLabel4H_");
+   ObjectDelete(0, infoPanel); // 删除信息面板
  
   }
 
@@ -155,6 +177,14 @@ int OnCalculate(const int rates_total,
       // 重置缓存状态
       cacheInitialized = false;
      }
+   
+   // 声明各周期极值点数组（提升作用域到整个函数）
+   CZigzagExtremumPoint points5M[]; // 小周期(5M)
+   CZigzagExtremumPoint points4H[]; // 大周期(4H)
+   CZigzagExtremumPoint points[]; // 当前周期
+   bool has5MPoints = false;
+   bool has4HPoints = false;
+   bool hasCurrentPoints = false;
    
    // 计算当前周期ZigZag
    if(calculator != NULL)
@@ -241,11 +271,6 @@ int OnCalculate(const int rates_total,
          calculator.Calculate(high, low, rates_total, prev_calculated);
         }
       
-      // 声明各周期极值点数组（提升作用域到整个函数）
-      CZigzagExtremumPoint points5M[]; // 小周期(5M)
-      CZigzagExtremumPoint points4H[]; // 大周期(4H)
-      bool has5MPoints = false;
-      bool has4HPoints = false;
       
       // 计算5M周期ZigZag(小周期)
       if(calculator5M != NULL && InpShow5M)
@@ -289,6 +314,50 @@ int OnCalculate(const int rates_total,
               {
                Print("无法获取4H周期极值点");
               }
+            else
+              {
+               // 使用交易分析器分析大周期极点数据
+               if(ArraySize(points4H) >= 2)
+                 {
+                  // 对极点数组进行排序，确保最近的点在前面
+                  // 注意：MQL5中的ArraySort不能直接用于自定义类对象数组
+                  // 我们需要手动排序，按时间从新到旧排序
+                  if(ArraySize(points4H) > 1)
+                    {
+                     // 使用冒泡排序按时间排序
+                     for(int i = 0; i < ArraySize(points4H) - 1; i++)
+                       {
+                        for(int j = 0; j < ArraySize(points4H) - i - 1; j++)
+                          {
+                           // 如果当前元素的时间早于下一个元素，则交换它们
+                           if(points4H[j].Time() < points4H[j + 1].Time())
+                             {
+                              CZigzagExtremumPoint temp = points4H[j];
+                              points4H[j] = points4H[j + 1];
+                              points4H[j + 1] = temp;
+                             }
+                          }
+                       }
+                    }
+                  
+                  // 分析区间
+                  if(CTradeAnalyzer::AnalyzeRange(points4H, 2))
+                    {
+                     // 获取当前价格
+                     double currentPrice = CInfoPanelManager::GetCurrentPrice();
+                     
+                     // 打印分析结果
+                     Print("交易区间分析: ", CTradeAnalyzer::GetRangeAnalysisText(currentPrice));
+                     Print("区间高点: ", DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits), 
+                           ", 区间低点: ", DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits));
+                     Print("趋势方向: ", CTradeAnalyzer::GetTrendDirection());
+                     Print("当前价格在区间中的位置: ", DoubleToString(CTradeAnalyzer::GetPricePositionInRange(currentPrice), 2), "%");
+                     
+                     // 创建交易信息面板
+                     CInfoPanelManager::CreateTradeInfoPanel("TradeInfoPanel");
+                    }
+                 }
+              }
            }
         }
          
@@ -303,9 +372,9 @@ int OnCalculate(const int rates_total,
            }
             
          // 获取当前周期极值点数组
-         CZigzagExtremumPoint points[];
          if(calculator.GetExtremumPoints(points))
-           {          
+           {
+            hasCurrentPoints = true;
             // 打印找到的极值点数量
             if(Period() == PERIOD_H1)
               {
@@ -402,8 +471,26 @@ int OnCalculate(const int rates_total,
         }
      }
    
+   // 创建或更新信息面板
+   if(InpShowInfoPanel && calculator4H != NULL && InpShow4H)
+     {
+      // 检查是否有有效的极点数据
+      if(has4HPoints && ArraySize(points4H) >= 1)
+        {
+         // 使用信息面板管理器创建信息面板
+         CInfoPanelManager::CreateInfoPanel(infoPanel, points, points4H, hasCurrentPoints, has4HPoints, InpInfoPanelColor, InpInfoPanelBgColor);
+        }
+      else
+        {
+         // 使用信息面板管理器创建简单信息面板
+         CInfoPanelManager::CreateSimpleInfoPanel(infoPanel, "暂无足够的4小时周期极点数据", InpInfoPanelColor, InpInfoPanelBgColor);
+        }
+     }
+   
    // 返回计算的柱数
    return(rates_total);
   }
 
+
 //+------------------------------------------------------------------+
+

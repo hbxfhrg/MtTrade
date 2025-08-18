@@ -56,6 +56,9 @@ public:
    bool              IsPeak() const { return m_type == EXTREMUM_PEAK; }
    bool              IsBottom() const { return m_type == EXTREMUM_BOTTOM; }
    bool              IsUndefined() const { return m_type == EXTREMUM_UNDEFINED; }
+   
+   // 比较运算符，用于排序
+   int               Compare(const CZigzagExtremumPoint &other) const;
 };
 
 //+------------------------------------------------------------------+
@@ -124,6 +127,27 @@ string CZigzagExtremumPoint::ToString() const
    
    return StringFormat("时间周期: %s, 时间: %s, 序号: %d, 值: %s, 类型: %s", 
                       timeframe_str, time_str, m_bar_index, value_str, type_str);
+}
+
+//+------------------------------------------------------------------+
+//| 比较两个极点，用于排序                                             |
+//+------------------------------------------------------------------+
+int CZigzagExtremumPoint::Compare(const CZigzagExtremumPoint &other) const
+{
+   // 按时间排序，最近的时间在前面
+   if(m_time > other.m_time) return -1;  // 当前对象时间更近，排在前面
+   if(m_time < other.m_time) return 1;   // 当前对象时间更远，排在后面
+   
+   // 如果时间相同，按K线序号排序，最近的K线在前面
+   if(m_bar_index < other.m_bar_index) return -1;  // 当前对象K线序号更小（更近），排在前面
+   if(m_bar_index > other.m_bar_index) return 1;   // 当前对象K线序号更大（更远），排在后面
+   
+   // 如果时间和K线序号都相同，按价格排序
+   if(m_value > other.m_value) return -1;  // 当前对象价格更高，排在前面
+   if(m_value < other.m_value) return 1;   // 当前对象价格更低，排在后面
+   
+   // 完全相同
+   return 0;
 }
 
 //+------------------------------------------------------------------+
