@@ -206,67 +206,229 @@ public:
       // 根据趋势方向计算支撑或压力
       if(m_isUpTrend)
         {
-         // 上涨趋势，计算支撑位
-         CalculateSupport(PERIOD_H1, m_support1H);
-         CalculateSupport(PERIOD_H4, m_support4H);
-         CalculateSupport(PERIOD_D1, m_supportD1);
+         // 上涨趋势，计算支撑位（传入区间高点）
+         CalculateSupport(PERIOD_H1, m_support1H, m_rangeHigh);
+         CalculateSupport(PERIOD_H4, m_support4H, m_rangeHigh);
+         CalculateSupport(PERIOD_D1, m_supportD1, m_rangeHigh);
         }
       else
         {
-         // 下跌趋势，计算压力位
-         CalculateResistance(PERIOD_H1, m_resistance1H);
-         CalculateResistance(PERIOD_H4, m_resistance4H);
-         CalculateResistance(PERIOD_D1, m_resistanceD1);
+         // 下跌趋势，计算压力位（传入区间低点）
+         CalculateResistance(PERIOD_H1, m_resistance1H, m_rangeLow);
+         CalculateResistance(PERIOD_H4, m_resistance4H, m_rangeLow);
+         CalculateResistance(PERIOD_D1, m_resistanceD1, m_rangeLow);
         }
      }
      
    // 计算指定时间周期的支撑位
-   static void CalculateSupport(ENUM_TIMEFRAMES timeframe, double &supportPrice)
+   static void CalculateSupport(ENUM_TIMEFRAMES timeframe, double &supportPrice, double referencePrice)
      {
-      // 获取当前价格
-      double currentPrice = GetCurrentPrice();
-      
-      // 找到当前价格所在的K线
-      int currentShift = 0; // 当前K线的索引
+      // 如果参考价格为0，则不计算支撑位
+      if(referencePrice <= 0)
+        {
+         supportPrice = 0.0;
+         return;
+        }
       
       // 初始化支撑价格
       supportPrice = 0.0;
       
-      // 如果当前K线索引有效且至少有一根前面的K线
-      if(currentShift >= 0 && currentShift + 1 < Bars(Symbol(), timeframe))
+      // 在当前周期的K线中查找与参考价格最接近的K线
+      int bars = Bars(Symbol(), timeframe);
+      int priceShift = -1;
+      
+      // 遍历K线，查找与参考价格匹配的K线
+      for(int i = 0; i < bars; i++)
         {
-         // 直接取前一根K线的最低价作为支撑位
-         supportPrice = iLow(Symbol(), timeframe, currentShift + 1);
+         double high = iHigh(Symbol(), timeframe, i);
+         
+         // 如果找到与参考价格相等或非常接近的高点
+         if(MathAbs(high - referencePrice) < Point() * 10)
+           {
+            priceShift = i;
+            break;
+           }
         }
-      else
+      
+      // 如果找不到匹配的K线，使用时间查找
+      if(priceShift < 0)
+        {
+         priceShift = iBarShift(Symbol(), timeframe, m_rangeHighTime);
+        }
+      
+      // 打印调试信息 - 显示高点所在K线及其前3根K线的数值
+      if(timeframe == PERIOD_H1)
+        {
+         Print("===== 1小时周期支撑位计算调试信息 =====");
+         Print("参考价格: ", DoubleToString(referencePrice, _Digits));
+         Print("区间高点时间: ", TimeToString(m_rangeHighTime));
+         Print("高点所在K线序号: ", priceShift);
+         
+         if(priceShift >= 0)
+           {
+            // 打印高点所在K线的信息
+            datetime barTime = iTime(Symbol(), timeframe, priceShift);
+            double barHigh = iHigh(Symbol(), timeframe, priceShift);
+            double barLow = iLow(Symbol(), timeframe, priceShift);
+            double barOpen = iOpen(Symbol(), timeframe, priceShift);
+            double barClose = iClose(Symbol(), timeframe, priceShift);
+            
+            Print("高点所在K线(", priceShift, ")信息: 时间=", TimeToString(barTime), 
+                  ", 开盘=", DoubleToString(barOpen, _Digits),
+                  ", 最高=", DoubleToString(barHigh, _Digits),
+                  ", 最低=", DoubleToString(barLow, _Digits),
+                  ", 收盘=", DoubleToString(barClose, _Digits));
+            
+            // 打印前3根K线的信息
+            for(int i = 1; i <= 3; i++)
+              {
+               if(priceShift + i < bars)
+                 {
+                  barTime = iTime(Symbol(), timeframe, priceShift + i);
+                  barHigh = iHigh(Symbol(), timeframe, priceShift + i);
+                  barLow = iLow(Symbol(), timeframe, priceShift + i);
+                  barOpen = iOpen(Symbol(), timeframe, priceShift + i);
+                  barClose = iClose(Symbol(), timeframe, priceShift + i);
+                  
+                  Print("前", i, "根K线(", priceShift + i, ")信息: 时间=", TimeToString(barTime), 
+                        ", 开盘=", DoubleToString(barOpen, _Digits),
+                        ", 最高=", DoubleToString(barHigh, _Digits),
+                        ", 最低=", DoubleToString(barLow, _Digits),
+                        ", 收盘=", DoubleToString(barClose, _Digits));
+                 }
+              }
+           }
+        }
+      
+      // 如果价格K线索引有效且至少有一根前面的K线
+      if(priceShift >= 0 && priceShift + 1 < bars)
+        {
+         // 取前一根K线的最低价作为支撑位
+         supportPrice = iLow(Symbol(), timeframe, priceShift + 1);
+         
+         if(timeframe == PERIOD_H1)
+           {
+            Print("计算得到的1小时支撑位: ", DoubleToString(supportPrice, _Digits), 
+                  " (来自K线序号: ", priceShift + 1, ")");
+           }
+        }
+      else if(priceShift >= 0)
         {
          // 如果无法获取前一根K线，使用当前K线的最低价
-         supportPrice = iLow(Symbol(), timeframe, currentShift);
+         supportPrice = iLow(Symbol(), timeframe, priceShift);
+         
+         if(timeframe == PERIOD_H1)
+           {
+            Print("无法获取前一根K线，使用当前K线的最低价作为支撑位: ", 
+                  DoubleToString(supportPrice, _Digits), 
+                  " (来自K线序号: ", priceShift, ")");
+           }
         }
      }
      
    // 计算指定时间周期的压力位
-   static void CalculateResistance(ENUM_TIMEFRAMES timeframe, double &resistancePrice)
+   static void CalculateResistance(ENUM_TIMEFRAMES timeframe, double &resistancePrice, double referencePrice)
      {
-      // 获取当前价格
-      double currentPrice = GetCurrentPrice();
-      
-      // 找到当前价格所在的K线
-      int currentShift = 0; // 当前K线的索引
+      // 如果参考价格为0，则不计算压力位
+      if(referencePrice <= 0)
+        {
+         resistancePrice = 0.0;
+         return;
+        }
       
       // 初始化压力价格
       resistancePrice = 0.0;
       
-      // 如果当前K线索引有效且至少有一根前面的K线
-      if(currentShift >= 0 && currentShift + 1 < Bars(Symbol(), timeframe))
+      // 在当前周期的K线中查找与参考价格最接近的K线
+      int bars = Bars(Symbol(), timeframe);
+      int priceShift = -1;
+      
+      // 遍历K线，查找与参考价格匹配的K线
+      for(int i = 0; i < bars; i++)
         {
-         // 直接取前一根K线的最高价作为压力位
-         resistancePrice = iHigh(Symbol(), timeframe, currentShift + 1);
+         double low = iLow(Symbol(), timeframe, i);
+         
+         // 如果找到与参考价格相等或非常接近的低点
+         if(MathAbs(low - referencePrice) < Point() * 10)
+           {
+            priceShift = i;
+            break;
+           }
         }
-      else
+      
+      // 如果找不到匹配的K线，使用时间查找
+      if(priceShift < 0)
+        {
+         priceShift = iBarShift(Symbol(), timeframe, m_rangeLowTime);
+        }
+      
+      // 打印调试信息 - 显示低点所在K线及其前3根K线的数值
+      if(timeframe == PERIOD_H1)
+        {
+         Print("===== 1小时周期压力位计算调试信息 =====");
+         Print("参考价格: ", DoubleToString(referencePrice, _Digits));
+         Print("区间低点时间: ", TimeToString(m_rangeLowTime));
+         Print("低点所在K线序号: ", priceShift);
+         
+         if(priceShift >= 0)
+           {
+            // 打印低点所在K线的信息
+            datetime barTime = iTime(Symbol(), timeframe, priceShift);
+            double barHigh = iHigh(Symbol(), timeframe, priceShift);
+            double barLow = iLow(Symbol(), timeframe, priceShift);
+            double barOpen = iOpen(Symbol(), timeframe, priceShift);
+            double barClose = iClose(Symbol(), timeframe, priceShift);
+            
+            Print("低点所在K线(", priceShift, ")信息: 时间=", TimeToString(barTime), 
+                  ", 开盘=", DoubleToString(barOpen, _Digits),
+                  ", 最高=", DoubleToString(barHigh, _Digits),
+                  ", 最低=", DoubleToString(barLow, _Digits),
+                  ", 收盘=", DoubleToString(barClose, _Digits));
+            
+            // 打印前3根K线的信息
+            for(int i = 1; i <= 3; i++)
+              {
+               if(priceShift + i < bars)
+                 {
+                  barTime = iTime(Symbol(), timeframe, priceShift + i);
+                  barHigh = iHigh(Symbol(), timeframe, priceShift + i);
+                  barLow = iLow(Symbol(), timeframe, priceShift + i);
+                  barOpen = iOpen(Symbol(), timeframe, priceShift + i);
+                  barClose = iClose(Symbol(), timeframe, priceShift + i);
+                  
+                  Print("前", i, "根K线(", priceShift + i, ")信息: 时间=", TimeToString(barTime), 
+                        ", 开盘=", DoubleToString(barOpen, _Digits),
+                        ", 最高=", DoubleToString(barHigh, _Digits),
+                        ", 最低=", DoubleToString(barLow, _Digits),
+                        ", 收盘=", DoubleToString(barClose, _Digits));
+                 }
+              }
+           }
+        }
+      
+      // 如果价格K线索引有效且至少有一根前面的K线
+      if(priceShift >= 0 && priceShift + 1 < bars)
+        {
+         // 取前一根K线的最高价作为压力位
+         resistancePrice = iHigh(Symbol(), timeframe, priceShift + 1);
+         
+         if(timeframe == PERIOD_H1)
+           {
+            Print("计算得到的1小时压力位: ", DoubleToString(resistancePrice, _Digits), 
+                  " (来自K线序号: ", priceShift + 1, ")");
+           }
+        }
+      else if(priceShift >= 0)
         {
          // 如果无法获取前一根K线，使用当前K线的最高价
-         resistancePrice = iHigh(Symbol(), timeframe, currentShift);
+         resistancePrice = iHigh(Symbol(), timeframe, priceShift);
+         
+         if(timeframe == PERIOD_H1)
+           {
+            Print("无法获取前一根K线，使用当前K线的最高价作为压力位: ", 
+                  DoubleToString(resistancePrice, _Digits), 
+                  " (来自K线序号: ", priceShift, ")");
+           }
         }
      }
      
@@ -314,17 +476,19 @@ public:
          
       if(m_isUpTrend)
         {
-         // 上涨趋势，显示支撑位
+         // 上涨趋势，显示支撑位和参考点
          string support1HText = DoubleToString(m_support1H, _Digits);
+         string referenceText = DoubleToString(m_rangeHigh, _Digits);
          
-         return "1H=" + support1HText;
+         return "支撑：参考点" + referenceText;
         }
       else
         {
-         // 下跌趋势，显示压力位
+         // 下跌趋势，显示压力位和参考点
          string resistance1HText = DoubleToString(m_resistance1H, _Digits);
+         string referenceText = DoubleToString(m_rangeLow, _Digits);
          
-         return "1H=" + resistance1HText;
+         return "压力：参考点" + referenceText;
         }
      }
      

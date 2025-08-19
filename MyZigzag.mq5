@@ -155,7 +155,7 @@ void OnDeinit(const int reason)
   }
 
 //+------------------------------------------------------------------+
-//| ZigZag计算                                                      |
+//| Custom indicator calculation function                             |
 //+------------------------------------------------------------------+
 int OnCalculate(const int rates_total,
                 const int prev_calculated,

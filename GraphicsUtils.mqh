@@ -145,23 +145,13 @@ public:
          // 计算多时间周期支撑和压力
          CTradeAnalyzer::CalculateSupportResistance();
          
-         // 创建支撑或压力标题文本
-         string srTitleName = actualPanelName + "_SRTitle";
-         ObjectCreate(0, srTitleName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, srTitleName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, srTitleName, OBJPROP_YDISTANCE, panelY + 70); // 调整到回撤或反弹文本下方
-         ObjectSetInteger(0, srTitleName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, srTitleName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, srTitleName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, srTitleName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, srTitleName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, srTitleName, OBJPROP_TEXT, CTradeAnalyzer::IsUpTrend() ? "支撑:" : "压力:");
+         // 不再创建单独的支撑或压力标题文本，直接使用GetSupportResistanceDescription的返回值
          
-         // 创建1小时支撑或压力文本
+         // 创建支撑或压力文本（包含参考点）
          string sr1HName = actualPanelName + "_SR1H";
          ObjectCreate(0, sr1HName, OBJ_LABEL, 0, 0, 0);
          ObjectSetInteger(0, sr1HName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, sr1HName, OBJPROP_YDISTANCE, panelY + 90); // 调整到标题下方
+         ObjectSetInteger(0, sr1HName, OBJPROP_YDISTANCE, panelY + 70); // 调整位置
          ObjectSetInteger(0, sr1HName, OBJPROP_COLOR, actualTextColor);
          ObjectSetInteger(0, sr1HName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
          ObjectSetInteger(0, sr1HName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
@@ -169,11 +159,26 @@ public:
          ObjectSetString(0, sr1HName, OBJPROP_FONT, g_InfoPanelFont);
          ObjectSetString(0, sr1HName, OBJPROP_TEXT, CTradeAnalyzer::GetSupportResistanceDescription());
          
+         // 创建1小时支撑或压力文本
+         string sr1HValueName = actualPanelName + "_SR1HValue";
+         ObjectCreate(0, sr1HValueName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, sr1HValueName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, sr1HValueName, OBJPROP_YDISTANCE, panelY + 90); // 调整位置
+         ObjectSetInteger(0, sr1HValueName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, sr1HValueName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, sr1HValueName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, sr1HValueName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, sr1HValueName, OBJPROP_FONT, g_InfoPanelFont);
+         if(CTradeAnalyzer::IsUpTrend())
+            ObjectSetString(0, sr1HValueName, OBJPROP_TEXT, "1H=" + DoubleToString(CTradeAnalyzer::GetSupport1H(), _Digits));
+         else
+            ObjectSetString(0, sr1HValueName, OBJPROP_TEXT, "1H=" + DoubleToString(CTradeAnalyzer::GetResistance1H(), _Digits));
+         
          // 创建4小时支撑或压力文本
          string sr4HName = actualPanelName + "_SR4H";
          ObjectCreate(0, sr4HName, OBJ_LABEL, 0, 0, 0);
          ObjectSetInteger(0, sr4HName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, sr4HName, OBJPROP_YDISTANCE, panelY + 110); // 调整到1小时下方
+         ObjectSetInteger(0, sr4HName, OBJPROP_YDISTANCE, panelY + 110); // 调整位置
          ObjectSetInteger(0, sr4HName, OBJPROP_COLOR, actualTextColor);
          ObjectSetInteger(0, sr4HName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
          ObjectSetInteger(0, sr4HName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
