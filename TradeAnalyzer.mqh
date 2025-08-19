@@ -115,33 +115,7 @@ public:
       return m_isValid;
      }
      
-   // 计算当前价格在区间中的位置（百分比）
-   static double GetPricePositionInRange(double currentPrice)
-     {
-      if(!m_isValid || m_rangeHigh == m_rangeLow)
-         return 0.0;
-         
-      // 计算价格在区间中的位置（0-100%）
-      return (currentPrice - m_rangeLow) / (m_rangeHigh - m_rangeLow) * 100.0;
-     }
-     
-   // 计算当前价格与区间高点的距离（百分比）
-   static double GetDistanceToHigh(double currentPrice)
-     {
-      if(!m_isValid || m_rangeHigh == 0)
-         return 0.0;
-         
-      return (m_rangeHigh - currentPrice) / m_rangeHigh * 100.0;
-     }
-     
-   // 计算当前价格与区间低点的距离（百分比）
-   static double GetDistanceToLow(double currentPrice)
-     {
-      if(!m_isValid || m_rangeLow == 0)
-         return 0.0;
-         
-      return (currentPrice - m_rangeLow) / m_rangeLow * 100.0;
-     }
+   // 这些方法已被移除，不再计算价格位置和距离
      
    // 获取区间分析结果的文本描述
    static string GetRangeAnalysisText(double currentPrice)
@@ -152,10 +126,10 @@ public:
       string direction = GetTrendDirection();
       string highText = DoubleToString(m_rangeHigh, _Digits);
       string lowText = DoubleToString(m_rangeLow, _Digits);
-      string positionText = DoubleToString(GetPricePositionInRange(currentPrice), 2);
       
-      return StringFormat("区间: %s - %s (%s)\n当前位置: 区间的 %s%%", 
-                         lowText, highText, direction, positionText);
+      // 不再计算价格位置百分比
+      return StringFormat("区间: %s - %s (%s)", 
+                         lowText, highText, direction);
      }
      
    // 获取当前价格

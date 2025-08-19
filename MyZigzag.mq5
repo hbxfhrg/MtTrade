@@ -5,18 +5,6 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
-
-//--- 包含文件
-#include "ZigzagCalculator.mqh"
-#include "GraphicsUtils.mqh"
-#include "CommonUtils.mqh"
-#include "TradeAnalyzer.mqh"
-#include "TradeInfoPanel.mqh"
-
-//--- 文本区域设置
-#property indicator_chart_window
-
-//--- 指标设置
 #property indicator_chart_window
 #property indicator_buffers 6
 #property indicator_plots   2
@@ -27,20 +15,27 @@
 #property indicator_color2  clrGold,clrPurple
 #property indicator_width2  2
 
+//--- 包含文件
+#include "ZigzagCalculator.mqh"
+#include "GraphicsUtils.mqh"
+#include "CommonUtils.mqh"
+#include "TradeAnalyzer.mqh"
+#include "TradeInfoPanel.mqh"
+
 //--- 输入参数
-input int InpDepth    =12;  // 深度
-input int InpDeviation=5;   // 偏差
-input int InpBackstep =3;   // 回溯步数
-input bool InpShowLabels=true; // 显示峰谷值文本标签
-input color InpLabelColor=clrWhite; // 标签文本颜色
-input bool InpShow5M=true;  // 计算5分钟周期ZigZag(小周期)
-input bool InpShow4H=true;  // 显示4小时周期ZigZag(大周期)
-input color InpLabel4HColor=clrOrange; // 4小时周期标签颜色
-input int InpCacheTimeout=300; // 缓存超时时间(秒)
-input int InpMaxBarsH1=200;   // 1小时周期最大计算K线数
-input bool InpShowInfoPanel=true; // 显示信息面板
-input color InpInfoPanelColor=clrWhite; // 信息面板文字颜色
-input color InpInfoPanelBgColor=clrNavy; // 信息面板背景颜色
+input int    InpDepth = 12;            // 深度
+input int    InpDeviation = 5;         // 偏差
+input int    InpBackstep = 3;          // 回溯步数
+input bool   InpShowLabels = true;     // 显示峰谷值文本标签
+input color  InpLabelColor = clrWhite; // 标签文本颜色
+input bool   InpShow5M = true;         // 计算5分钟周期ZigZag(小周期)
+input bool   InpShow4H = true;         // 显示4小时周期ZigZag(大周期)
+input color  InpLabel4HColor = clrOrange; // 4小时周期标签颜色
+input int    InpCacheTimeout = 300;    // 缓存超时时间(秒)
+input int    InpMaxBarsH1 = 200;       // 1小时周期最大计算K线数
+input bool   InpShowInfoPanel = true;  // 显示信息面板
+input color  InpInfoPanelColor = clrWhite; // 信息面板文字颜色
+input color  InpInfoPanelBgColor = clrNavy; // 信息面板背景颜色
 
 //--- 声明ZigZag计算器指针
 CZigzagCalculator *calculator = NULL;      // 当前周期计算器(默认对应中周期)
@@ -66,16 +61,23 @@ void OnInit()
    calculator4H = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep, 3, PERIOD_H4);    // 4H周期(大周期)
    
 //--- 初始化标签管理器 - 传入不同的颜色
+   g_LabelColor = InpLabelColor;    // 当前周期(中周期)
+   g_Label4HColor = InpLabel4HColor; // 大周期
    CLabelManager::Init(InpLabelColor, InpLabel4HColor);
    
+//--- 初始化线条管理器
+   CLineManager::Init();
+   
+//--- 初始化图形管理器
+   CShapeManager::Init();
+   
 //--- 初始化信息面板管理器
+   g_InfoPanelTextColor = InpInfoPanelColor;
+   g_InfoPanelBgColor = InpInfoPanelBgColor;
    CInfoPanelManager::Init(infoPanel, InpInfoPanelColor, InpInfoPanelBgColor);
    
 //--- 初始化交易分析器
    CTradeAnalyzer::Init();
-   
-//--- 初始化交易信息面板（现在使用 CInfoPanelManager 替代）
-   // 注意：CInfoPanelManager 已经在前面初始化过了
    
 //--- 指标缓冲区 mapping
    SetIndexBuffer(0, calculator.ZigzagPeakBuffer, INDICATOR_DATA);
@@ -351,10 +353,8 @@ int OnCalculate(const int rates_total,
                      Print("区间高点: ", DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits), 
                            ", 区间低点: ", DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits));
                      Print("趋势方向: ", CTradeAnalyzer::GetTrendDirection());
-                     Print("当前价格在区间中的位置: ", DoubleToString(CTradeAnalyzer::GetPricePositionInRange(currentPrice), 2), "%");
                      
-                     // 创建交易信息面板
-                     CInfoPanelManager::CreateTradeInfoPanel("TradeInfoPanel");
+                     // 交易信息面板将在下面统一创建
                     }
                  }
               }
@@ -364,126 +364,195 @@ int OnCalculate(const int rates_total,
       // 如果需要显示文本标签
       if(InpShowLabels)
         {
+         // 静态变量用于跟踪上次更新时间和最后一个极点
+         static datetime lastLabelUpdateTime = 0;
+         static datetime lastExtremumTime = 0;
+         
+         // 获取当前时间
+         datetime currentLabelTime = TimeCurrent();
+         
          // 清除旧标签
          if(prev_calculated == 0)
            {
             CLabelManager::DeleteAllLabels("ZigzagLabel_");
             CLabelManager::DeleteAllLabels("ZigzagLabel4H_");
+            lastLabelUpdateTime = 0; // 重置更新时间
+            lastExtremumTime = 0;    // 重置最后极点时间
            }
             
          // 获取当前周期极值点数组
          if(calculator.GetExtremumPoints(points))
            {
             hasCurrentPoints = true;
-            // 打印找到的极值点数量
-            if(Period() == PERIOD_H1)
-              {
-               Print("1小时周期找到极值点数量: ", ArraySize(points));
-              }
             
-            // 添加当前周期的标签
-            for(int i = 0; i < ArraySize(points); i++)
+            // 检查是否有新的极点出现
+            bool hasNewExtremum = false;
+            datetime newestExtremumTime = lastExtremumTime;
+            
+            // 获取最新的极点时间（假设极点数组已经按时间排序）
+            // 在ZigzagCalculator.mqh中，GetExtremumPoints方法返回的极点数组是按K线序号排序的
+            // 我们需要找出时间最新的极点
+            if(ArraySize(points) > 0)
               {
-               //检查这个值是否在大周期峰谷值列表中出现
-               bool foundIn4H = false; // 大周期
-               double tolerance = 0.0001; // 价格匹配的容差
+               // 找出时间最新的极点
+               datetime maxTime = points[0].Time();
+               int maxTimeIndex = 0;
                
-               
-               // 检查4H周期(大周期)
-               if(calculator4H != NULL && InpShow4H && has4HPoints && ArraySize(points4H) > 0)
+               for(int i = 1; i < ArraySize(points); i++)
                  {
-                  // 遍历4H周期的所有极值点
-                  for(int j = 0; j < ArraySize(points4H); j++)
+                  if(points[i].Time() > maxTime)
                     {
-                     // 如果价格在容差范围内匹配，则认为是同一个价格点
-                     if(MathAbs(points[i].Value() - points4H[j].Value()) < tolerance)
-                       {
-                        foundIn4H = true;
-                        break;
-                       }
+                     maxTime = points[i].Time();
+                     maxTimeIndex = i;
                     }
                  }
                
-               string labelName = "ZigzagLabel_" + IntegerToString(i);
-               string labelText;
-               
-               // 根据价格出现在哪个周期中设置标签文本
-               if(foundIn4H) // 大周期
+               // 检查是否有新的极点
+               if(maxTime > lastExtremumTime)
                  {
-                  labelText = StringFormat("H4: %s", 
-                     DoubleToString(points[i].Value(), _Digits));
-                  labelText += "\n序号: " + IntegerToString(points[i].BarIndex());
+                  newestExtremumTime = maxTime;
+                  hasNewExtremum = true;
                  }
-               else // 中周期(当前周期)
+              }
+            
+            // 只有在以下情况下才更新标签：
+            // 1. 首次绘制（lastLabelUpdateTime为0）
+            // 2. 有新的极点出现
+            // 3. 距离上次更新已经超过30秒
+            if(lastLabelUpdateTime == 0 || hasNewExtremum || currentLabelTime - lastLabelUpdateTime > 30)
+              {
+               // 打印找到的极值点数量
+               if(Period() == PERIOD_H1)
                  {
+                  Print("1小时周期找到极值点数量: ", ArraySize(points), ", 有新极点: ", hasNewExtremum ? "是" : "否");
+                 }
+               
+               // 更新最后极点时间
+               lastExtremumTime = newestExtremumTime;
+               lastLabelUpdateTime = currentLabelTime;
+               
+               // 添加当前周期的标签
+               for(int i = 0; i < ArraySize(points); i++)
+                 {
+                  //检查这个值是否在大周期峰谷值列表中出现
+                  bool foundIn4H = false; // 大周期
+                  
+                  // 检查4H周期(大周期)
+                  if(calculator4H != NULL && InpShow4H && has4HPoints && ArraySize(points4H) > 0)
+                    {
+                     // 使用公共方法检查价格是否在4H周期极值点数组中出现
+                     foundIn4H = IsPriceInArray(points[i].Value(), points4H);
+                    }
+                  
+                  string labelName = "ZigzagLabel_" + IntegerToString(i);
+                  string labelText;
+                  
+                  // 根据价格出现在哪个周期中设置标签文本
+                  if(foundIn4H) // 大周期
+                    {
+                     labelText = StringFormat("H4: %s", 
+                        DoubleToString(points[i].Value(), _Digits));
+                     labelText += "\n序号: " + IntegerToString(points[i].BarIndex());
+                    }
+                  else // 中周期(当前周期)
+                    {
+                     // 获取当前周期的简写形式
+                     string periodShort = TimeframeToString(Period());
+                     
+                     labelText = StringFormat("%s: %s",
+                        periodShort,              
+                        DoubleToString(points[i].Value(), _Digits));
+                     labelText += "\n序号: " + IntegerToString(points[i].BarIndex());
+                    }
+   
+                  // 创建价格标签
+                  string priceLabel = "";
+                  
                   // 获取当前周期的简写形式
                   string periodShort = TimeframeToString(Period());
                   
-                  labelText = StringFormat("%s: %s",
-                     periodShort,              
-                     DoubleToString(points[i].Value(), _Digits));
-                  labelText += "\n序号: " + IntegerToString(points[i].BarIndex());
+                  if(foundIn4H) // 大周期
+                     priceLabel = StringFormat("H4: %s", DoubleToString(points[i].Value(), _Digits));
+                  else // 中周期(当前周期)
+                     priceLabel = StringFormat("%s: %s", periodShort, DoubleToString(points[i].Value(), _Digits));
+                  
+                  // 使用点的时间直接计算K线序号（当前K线为0）
+                  int fromCurrentIndex = iBarShift(Symbol(), Period(), points[i].Time());
+                  
+                  // 创建工具提示内容，显示K线序号和时间以及周期信息
+                  string periodInfo = "";
+                  if(foundIn4H) periodInfo += "H4(大周期) ";
+                  if(periodInfo == "") periodInfo = "当前周期(中周期)";
+                  
+                  string tooltipText = StringFormat("K线序号: %d\n时间: %s\n价格: %s\n类型: %s\n周期: %s", 
+                                                  fromCurrentIndex,
+                                                  TimeToString(points[i].Time(), TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+                                                  DoubleToString(points[i].Value(), _Digits),
+                                                  points[i].IsPeak() ? "峰值" : "谷值",
+                                                  periodInfo);
+                  
+                  // 只创建价格标签，不再创建序号标签，但添加工具提示
+                  CLabelManager::CreateTextLabel(
+                     labelName,
+                     priceLabel,
+                     points[i].Time(),
+                     points[i].Value(),
+                     points[i].IsPeak(),
+                     foundIn4H,
+                     NULL,    // 使用默认颜色
+                     NULL,    // 使用默认字体
+                     0,       // 使用默认字体大小
+                     0,       // X轴偏移量为0（居中显示时不需要偏移）
+                     true,    // 启用居中显示
+                     tooltipText  // 添加工具提示
+                  );
                  }
-
-               // 创建价格标签
-               string priceLabel = "";
-               
-               // 获取当前周期的简写形式
-               string periodShort = TimeframeToString(Period());
-               
-               if(foundIn4H) // 大周期
-                  priceLabel = StringFormat("H4: %s", DoubleToString(points[i].Value(), _Digits));
-               else // 中周期(当前周期)
-                  priceLabel = StringFormat("%s: %s", periodShort, DoubleToString(points[i].Value(), _Digits));
-               
-               // 使用点的时间直接计算K线序号（当前K线为0）
-               int fromCurrentIndex = iBarShift(Symbol(), Period(), points[i].Time());
-               
-               // 创建工具提示内容，显示K线序号和时间以及周期信息
-               string periodInfo = "";
-               if(foundIn4H) periodInfo += "H4(大周期) ";
-               if(periodInfo == "") periodInfo = "当前周期(中周期)";
-               
-               string tooltipText = StringFormat("K线序号: %d\n时间: %s\n价格: %s\n类型: %s\n周期: %s", 
-                                               fromCurrentIndex,
-                                               TimeToString(points[i].Time(), TIME_DATE|TIME_MINUTES|TIME_SECONDS),
-                                               DoubleToString(points[i].Value(), _Digits),
-                                               points[i].IsPeak() ? "峰值" : "谷值",
-                                               periodInfo);
-               
-               // 只创建价格标签，不再创建序号标签，但添加工具提示
-               CLabelManager::CreateTextLabel(
-                  labelName,
-                  priceLabel,
-                  points[i].Time(),
-                  points[i].Value(),
-                  points[i].IsPeak(),
-                  foundIn4H,
-                  NULL,    // 使用默认颜色
-                  NULL,    // 使用默认字体
-                  0,       // 使用默认字体大小
-                  0,       // X轴偏移量为0（居中显示时不需要偏移）
-                  true,    // 启用居中显示
-                  tooltipText  // 添加工具提示
-               );
               }
            }
         }
      }
    
-   // 创建或更新信息面板
+   // 创建或更新信息面板（只在必要时重绘）
    if(InpShowInfoPanel && calculator4H != NULL && InpShow4H)
      {
-      // 检查是否有有效的极点数据
-      if(has4HPoints && ArraySize(points4H) >= 1)
+      // 静态变量用于跟踪上次更新时间和价格
+      static datetime lastInfoPanelUpdateTime = 0;
+      static double lastInfoPanelPrice = 0;
+      
+      // 获取当前时间和价格
+      datetime currentTime = TimeCurrent();
+      double currentPrice = CInfoPanelManager::GetCurrentPrice();
+      
+      // 只有当时间超过10秒或价格变化超过一定范围时才更新面板
+      if(lastInfoPanelUpdateTime == 0 || 
+         currentTime - lastInfoPanelUpdateTime > 10 || 
+         MathAbs(currentPrice - lastInfoPanelPrice) > Point() * 10)
         {
-         // 使用信息面板管理器创建信息面板
-         CInfoPanelManager::CreateInfoPanel(infoPanel, points, points4H, hasCurrentPoints, has4HPoints, InpInfoPanelColor, InpInfoPanelBgColor);
-        }
-      else
-        {
-         // 使用信息面板管理器创建简单信息面板
-         CInfoPanelManager::CreateSimpleInfoPanel(infoPanel, "暂无足够的4小时周期极点数据", InpInfoPanelColor, InpInfoPanelBgColor);
+         // 检查是否有有效的极点数据和交易分析结果
+         if(has4HPoints && ArraySize(points4H) >= 1)
+           {
+            // 使用信息面板管理器创建统一的信息面板
+            // 这里同时显示交易区间和趋势方向信息，以及其他必要信息
+            if(CTradeAnalyzer::IsValid())
+              {
+               // 创建包含交易分析结果的面板
+               CInfoPanelManager::CreateTradeInfoPanel(infoPanel);
+              }
+            else
+              {
+               // 使用信息面板管理器创建简单信息面板
+               CInfoPanelManager::CreateSimpleInfoPanel(infoPanel, "暂无有效的交易区间数据", InpInfoPanelColor, InpInfoPanelBgColor);
+              }
+           }
+         else
+           {
+            // 使用信息面板管理器创建简单信息面板
+            CInfoPanelManager::CreateSimpleInfoPanel(infoPanel, "暂无足够的4小时周期极点数据", InpInfoPanelColor, InpInfoPanelBgColor);
+           }
+           
+         // 更新上次更新时间和价格
+         lastInfoPanelUpdateTime = currentTime;
+         lastInfoPanelPrice = currentPrice;
         }
      }
    
@@ -493,4 +562,3 @@ int OnCalculate(const int rates_total,
 
 
 //+------------------------------------------------------------------+
-

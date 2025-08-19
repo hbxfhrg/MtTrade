@@ -107,3 +107,21 @@ double PriceDifferenceInPercent(double price1, double price2)
    return (price1 - price2) / price2 * 100.0;
   }
 
+//+------------------------------------------------------------------+
+//| 检查价格点是否在另一个价格点数组中出现                              |
+//+------------------------------------------------------------------+
+bool IsPriceInArray(double price, const CZigzagExtremumPoint &points[], double tolerance = 0.0001)
+  {
+   // 遍历所有极值点
+   for(int i = 0; i < ArraySize(points); i++)
+     {
+      // 如果价格在容差范围内匹配，则认为是同一个价格点
+      if(MathAbs(price - points[i].Value()) < tolerance)
+        {
+         return true;
+        }
+     }
+   
+   return false;
+  }
+
