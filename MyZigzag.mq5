@@ -148,6 +148,8 @@ void OnDeinit(const int reason)
    // 清理图表对象和自定义图形
    ObjectsDeleteAll(0, "ZigzagLabel_");
    ObjectsDeleteAll(0, "ZigzagLabel4H_");
+   ObjectsDeleteAll(0, "SR_Line_"); // 删除支撑/压力线
+   ObjectsDeleteAll(0, "SR_Label_"); // 删除支撑/压力线标签
    ObjectDelete(0, infoPanel); // 删除信息面板
  
   }
@@ -537,6 +539,9 @@ int OnCalculate(const int rates_total,
               {
                // 创建包含交易分析结果的面板
                CInfoPanelManager::CreateTradeInfoPanel(infoPanel);
+               
+               // 绘制支撑或压力线
+               CShapeManager::DrawSupportResistanceLines();
               }
             else
               {

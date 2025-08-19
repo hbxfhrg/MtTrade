@@ -75,7 +75,7 @@ public:
       
       // 面板位置和大小
       int panelWidth = 250;
-      int panelHeight = 80; // 减小高度，只显示两行文本
+      int panelHeight = 180; // 增加高度，显示多行支撑/压力信息
       int panelX = chartWidth - panelWidth - 10; // 右侧边缘留10像素间距
       int panelY = 10; // 顶部边缘留10像素间距
       
@@ -126,6 +126,72 @@ public:
          ObjectSetString(0, trendName, OBJPROP_FONT, g_InfoPanelFont);
          ObjectSetString(0, trendName, OBJPROP_TEXT, StringFormat("趋势方向: %s", 
                                                                 CTradeAnalyzer::GetTrendDirection()));
+         
+         // 计算回撤或反弹
+         CTradeAnalyzer::CalculateRetracement();
+         
+         // 创建回撤或反弹文本 - 调整位置紧跟在趋势方向文本下方
+         string retraceName = actualPanelName + "_Retrace";
+         ObjectCreate(0, retraceName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, retraceName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, retraceName, OBJPROP_YDISTANCE, panelY + 50); // 调整到趋势方向文本下方
+         ObjectSetInteger(0, retraceName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, retraceName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, retraceName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, retraceName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, retraceName, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, retraceName, OBJPROP_TEXT, CTradeAnalyzer::GetRetraceDescription());
+         
+         // 计算多时间周期支撑和压力
+         CTradeAnalyzer::CalculateSupportResistance();
+         
+         // 创建支撑或压力标题文本
+         string srTitleName = actualPanelName + "_SRTitle";
+         ObjectCreate(0, srTitleName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, srTitleName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, srTitleName, OBJPROP_YDISTANCE, panelY + 70); // 调整到回撤或反弹文本下方
+         ObjectSetInteger(0, srTitleName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, srTitleName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, srTitleName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, srTitleName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, srTitleName, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, srTitleName, OBJPROP_TEXT, CTradeAnalyzer::IsUpTrend() ? "支撑:" : "压力:");
+         
+         // 创建1小时支撑或压力文本
+         string sr1HName = actualPanelName + "_SR1H";
+         ObjectCreate(0, sr1HName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, sr1HName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, sr1HName, OBJPROP_YDISTANCE, panelY + 90); // 调整到标题下方
+         ObjectSetInteger(0, sr1HName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, sr1HName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, sr1HName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, sr1HName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, sr1HName, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, sr1HName, OBJPROP_TEXT, CTradeAnalyzer::GetSupportResistanceDescription());
+         
+         // 创建4小时支撑或压力文本
+         string sr4HName = actualPanelName + "_SR4H";
+         ObjectCreate(0, sr4HName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, sr4HName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, sr4HName, OBJPROP_YDISTANCE, panelY + 110); // 调整到1小时下方
+         ObjectSetInteger(0, sr4HName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, sr4HName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, sr4HName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, sr4HName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, sr4HName, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, sr4HName, OBJPROP_TEXT, CTradeAnalyzer::GetSupportResistance4HDescription());
+         
+         // 创建日线支撑或压力文本
+         string srD1Name = actualPanelName + "_SRD1";
+         ObjectCreate(0, srD1Name, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, srD1Name, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, srD1Name, OBJPROP_YDISTANCE, panelY + 130); // 调整到4小时下方
+         ObjectSetInteger(0, srD1Name, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, srD1Name, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, srD1Name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, srD1Name, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, srD1Name, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, srD1Name, OBJPROP_TEXT, CTradeAnalyzer::GetSupportResistanceD1Description());
         }
       else
         {
@@ -373,6 +439,168 @@ public:
       g_ShapeWidth = 1;
       g_ShapeStyle = STYLE_SOLID;
       g_ShapeSelectable = false;
+     }
+     
+   // 绘制支撑或压力线
+   static void DrawSupportResistanceLines()
+     {
+      if(!CTradeAnalyzer::IsValid())
+         return;
+         
+      // 删除旧的支撑/压力线
+      ObjectsDeleteAll(0, "SR_Line_");
+      
+      // 获取图表时间范围
+      datetime time1 = TimeCurrent() - PeriodSeconds(PERIOD_D1) * 30; // 30天前
+      datetime time2 = TimeCurrent() + PeriodSeconds(PERIOD_D1) * 5;  // 未来5天
+      
+      // 根据趋势方向绘制支撑或压力线
+      if(CTradeAnalyzer::IsUpTrend())
+        {
+         // 上涨趋势，绘制支撑线
+         
+         // 1小时支撑线 - 绿色
+         double support1H = CTradeAnalyzer::GetSupport1H();
+         if(support1H > 0)
+           {
+            // 获取支撑位对应的时间 - 使用区间高点时间作为起点
+            datetime supportTime1H = CTradeAnalyzer::GetRangeHighTime();
+            
+            string name1H = "SR_Line_1H";
+            ObjectCreate(0, name1H, OBJ_TREND, 0, supportTime1H, support1H, time2, support1H);
+            ObjectSetInteger(0, name1H, OBJPROP_COLOR, clrGreen);
+            ObjectSetInteger(0, name1H, OBJPROP_WIDTH, 1);
+            ObjectSetInteger(0, name1H, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, name1H, OBJPROP_RAY_RIGHT, true); // 设置为向右射线
+            ObjectSetInteger(0, name1H, OBJPROP_SELECTABLE, false);
+            
+            // 添加标签
+            string labelName1H = "SR_Label_1H";
+            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, supportTime1H, support1H);
+            ObjectSetString(0, labelName1H, OBJPROP_TEXT, "1H支撑=" + DoubleToString(support1H, _Digits));
+            ObjectSetString(0, labelName1H, OBJPROP_FONT, "Arial");
+            ObjectSetInteger(0, labelName1H, OBJPROP_FONTSIZE, 8);
+            ObjectSetInteger(0, labelName1H, OBJPROP_COLOR, clrGreen);
+            ObjectSetInteger(0, labelName1H, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+           }
+           
+         // 4小时支撑线 - 蓝色
+         double support4H = CTradeAnalyzer::GetSupport4H();
+         if(support4H > 0)
+           {
+            // 获取支撑位对应的时间
+            datetime supportTime4H = CTradeAnalyzer::GetRangeHighTime(); // 使用高点时间作为起点
+            
+            string name4H = "SR_Line_4H";
+            ObjectCreate(0, name4H, OBJ_TREND, 0, supportTime4H, support4H, time2, support4H);
+            ObjectSetInteger(0, name4H, OBJPROP_COLOR, clrBlue);
+            ObjectSetInteger(0, name4H, OBJPROP_WIDTH, 1);
+            ObjectSetInteger(0, name4H, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, name4H, OBJPROP_RAY_RIGHT, true); // 设置为向右射线
+            ObjectSetInteger(0, name4H, OBJPROP_SELECTABLE, false);
+            
+            // 添加标签
+            string labelName4H = "SR_Label_4H";
+            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, supportTime4H, support4H);
+            ObjectSetString(0, labelName4H, OBJPROP_TEXT, "4H支撑");
+            ObjectSetString(0, labelName4H, OBJPROP_FONT, "Arial");
+            ObjectSetInteger(0, labelName4H, OBJPROP_FONTSIZE, 8);
+            ObjectSetInteger(0, labelName4H, OBJPROP_COLOR, clrBlue);
+            ObjectSetInteger(0, labelName4H, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+           }
+           
+         // 日线支撑线 - 红色
+         double supportD1 = CTradeAnalyzer::GetSupportD1();
+         if(supportD1 > 0)
+           {
+            // 获取支撑位对应的时间
+            datetime supportTimeD1 = CTradeAnalyzer::GetRangeHighTime(); // 使用高点时间作为起点
+            
+            string nameD1 = "SR_Line_D1";
+            ObjectCreate(0, nameD1, OBJ_TREND, 0, supportTimeD1, supportD1, time2, supportD1);
+            ObjectSetInteger(0, nameD1, OBJPROP_COLOR, clrRed);
+            ObjectSetInteger(0, nameD1, OBJPROP_WIDTH, 1);
+            ObjectSetInteger(0, nameD1, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, nameD1, OBJPROP_RAY_RIGHT, true); // 设置为向右射线
+            ObjectSetInteger(0, nameD1, OBJPROP_SELECTABLE, false);
+            
+            // 添加标签
+            string labelNameD1 = "SR_Label_D1";
+            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, supportTimeD1, supportD1);
+            ObjectSetString(0, labelNameD1, OBJPROP_TEXT, "D1支撑");
+            ObjectSetString(0, labelNameD1, OBJPROP_FONT, "Arial");
+            ObjectSetInteger(0, labelNameD1, OBJPROP_FONTSIZE, 8);
+            ObjectSetInteger(0, labelNameD1, OBJPROP_COLOR, clrRed);
+            ObjectSetInteger(0, labelNameD1, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+           }
+        }
+      else
+        {
+         // 下跌趋势，绘制压力线
+         
+         // 1小时压力线 - 绿色
+         double resistance1H = CTradeAnalyzer::GetResistance1H();
+         if(resistance1H > 0)
+           {
+            string name1H = "SR_Line_1H";
+            ObjectCreate(0, name1H, OBJ_HLINE, 0, 0, resistance1H);
+            ObjectSetInteger(0, name1H, OBJPROP_COLOR, clrGreen);
+            ObjectSetInteger(0, name1H, OBJPROP_WIDTH, 1);
+            ObjectSetInteger(0, name1H, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, name1H, OBJPROP_SELECTABLE, false);
+            
+            // 添加标签
+            string labelName1H = "SR_Label_1H";
+            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, time1, resistance1H);
+            ObjectSetString(0, labelName1H, OBJPROP_TEXT, "1H压力");
+            ObjectSetString(0, labelName1H, OBJPROP_FONT, "Arial");
+            ObjectSetInteger(0, labelName1H, OBJPROP_FONTSIZE, 8);
+            ObjectSetInteger(0, labelName1H, OBJPROP_COLOR, clrGreen);
+            ObjectSetInteger(0, labelName1H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+           }
+           
+         // 4小时压力线 - 蓝色
+         double resistance4H = CTradeAnalyzer::GetResistance4H();
+         if(resistance4H > 0)
+           {
+            string name4H = "SR_Line_4H";
+            ObjectCreate(0, name4H, OBJ_HLINE, 0, 0, resistance4H);
+            ObjectSetInteger(0, name4H, OBJPROP_COLOR, clrBlue);
+            ObjectSetInteger(0, name4H, OBJPROP_WIDTH, 1);
+            ObjectSetInteger(0, name4H, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, name4H, OBJPROP_SELECTABLE, false);
+            
+            // 添加标签
+            string labelName4H = "SR_Label_4H";
+            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, time1, resistance4H);
+            ObjectSetString(0, labelName4H, OBJPROP_TEXT, "4H压力");
+            ObjectSetString(0, labelName4H, OBJPROP_FONT, "Arial");
+            ObjectSetInteger(0, labelName4H, OBJPROP_FONTSIZE, 8);
+            ObjectSetInteger(0, labelName4H, OBJPROP_COLOR, clrBlue);
+            ObjectSetInteger(0, labelName4H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+           }
+           
+         // 日线压力线 - 红色
+         double resistanceD1 = CTradeAnalyzer::GetResistanceD1();
+         if(resistanceD1 > 0)
+           {
+            string nameD1 = "SR_Line_D1";
+            ObjectCreate(0, nameD1, OBJ_HLINE, 0, 0, resistanceD1);
+            ObjectSetInteger(0, nameD1, OBJPROP_COLOR, clrRed);
+            ObjectSetInteger(0, nameD1, OBJPROP_WIDTH, 1);
+            ObjectSetInteger(0, nameD1, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, nameD1, OBJPROP_SELECTABLE, false);
+            
+            // 添加标签
+            string labelNameD1 = "SR_Label_D1";
+            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, time1, resistanceD1);
+            ObjectSetString(0, labelNameD1, OBJPROP_TEXT, "D1压力");
+            ObjectSetString(0, labelNameD1, OBJPROP_FONT, "Arial");
+            ObjectSetInteger(0, labelNameD1, OBJPROP_FONTSIZE, 8);
+            ObjectSetInteger(0, labelNameD1, OBJPROP_COLOR, clrRed);
+            ObjectSetInteger(0, labelNameD1, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+           }
+        }
      }
      
    // 创建矩形
