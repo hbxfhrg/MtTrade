@@ -446,18 +446,22 @@ public:
       g_ShapeSelectable = false;
      }
      
-   // 绘制支撑或压力线
+   // 绘制支撑或压力线（矩形显示）
    static void DrawSupportResistanceLines()
      {
       if(!CTradeAnalyzer::IsValid())
          return;
          
-      // 删除旧的支撑/压力线
+      // 删除旧的支撑/压力线和矩形
       ObjectsDeleteAll(0, "SR_Line_");
+      ObjectsDeleteAll(0, "SR_Rect_");
       
       // 获取图表时间范围
       datetime time1 = TimeCurrent() - PeriodSeconds(PERIOD_D1) * 30; // 30天前
       datetime time2 = TimeCurrent() + PeriodSeconds(PERIOD_D1) * 5;  // 未来5天
+      
+      // 矩形高度（价格单位）- 大幅增加高度使其更明显
+      double rectHeight = 100 * _Point; // 矩形高度为100个点，可以根据需要调整
       
       // 根据趋势方向绘制支撑或压力线
       if(CTradeAnalyzer::IsUpTrend())
@@ -471,22 +475,30 @@ public:
             // 获取支撑位对应的时间 - 使用区间高点时间作为起点
             datetime supportTime1H = CTradeAnalyzer::GetRangeHighTime();
             
-            string name1H = "SR_Line_1H";
-            ObjectCreate(0, name1H, OBJ_TREND, 0, supportTime1H, support1H, time2, support1H);
-            ObjectSetInteger(0, name1H, OBJPROP_COLOR, clrGreen);
-            ObjectSetInteger(0, name1H, OBJPROP_WIDTH, 1);
-            ObjectSetInteger(0, name1H, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, name1H, OBJPROP_RAY_RIGHT, true); // 设置为向右射线
-            ObjectSetInteger(0, name1H, OBJPROP_SELECTABLE, false);
+            // 创建矩形
+            string rectName1H = "SR_Rect_1H";
+            ObjectCreate(0, rectName1H, OBJ_RECTANGLE, 0, supportTime1H, support1H + rectHeight/2, time2, support1H - rectHeight/2);
+            ObjectSetInteger(0, rectName1H, OBJPROP_COLOR, clrGreen);
+            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
+            color greenWithAlpha = clrGreen & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
+            ObjectSetInteger(0, rectName1H, OBJPROP_BGCOLOR, greenWithAlpha);
+            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
+            ObjectSetInteger(0, rectName1H, OBJPROP_WIDTH, 2); // 增加边框宽度
+            ObjectSetInteger(0, rectName1H, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, rectName1H, OBJPROP_BACK, false); // 放在前景，使其更明显
+            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, rectName1H, OBJPROP_HIDDEN, false); // 确保不隐藏
+            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
             
             // 添加标签
             string labelName1H = "SR_Label_1H";
-            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, supportTime1H, support1H);
+            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, supportTime1H, support1H + rectHeight);
             ObjectSetString(0, labelName1H, OBJPROP_TEXT, "1H支撑=" + DoubleToString(support1H, _Digits));
             ObjectSetString(0, labelName1H, OBJPROP_FONT, "Arial");
             ObjectSetInteger(0, labelName1H, OBJPROP_FONTSIZE, 8);
             ObjectSetInteger(0, labelName1H, OBJPROP_COLOR, clrGreen);
-            ObjectSetInteger(0, labelName1H, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+            ObjectSetInteger(0, labelName1H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
            }
            
          // 4小时支撑线 - 蓝色
@@ -496,22 +508,30 @@ public:
             // 获取支撑位对应的时间
             datetime supportTime4H = CTradeAnalyzer::GetRangeHighTime(); // 使用高点时间作为起点
             
-            string name4H = "SR_Line_4H";
-            ObjectCreate(0, name4H, OBJ_TREND, 0, supportTime4H, support4H, time2, support4H);
-            ObjectSetInteger(0, name4H, OBJPROP_COLOR, clrBlue);
-            ObjectSetInteger(0, name4H, OBJPROP_WIDTH, 1);
-            ObjectSetInteger(0, name4H, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, name4H, OBJPROP_RAY_RIGHT, true); // 设置为向右射线
-            ObjectSetInteger(0, name4H, OBJPROP_SELECTABLE, false);
+            // 创建矩形
+            string rectName4H = "SR_Rect_4H";
+            ObjectCreate(0, rectName4H, OBJ_RECTANGLE, 0, supportTime4H, support4H + rectHeight/2, time2, support4H - rectHeight/2);
+            ObjectSetInteger(0, rectName4H, OBJPROP_COLOR, clrBlue);
+            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
+            color blueWithAlpha = clrBlue & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
+            ObjectSetInteger(0, rectName4H, OBJPROP_BGCOLOR, blueWithAlpha);
+            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
+            ObjectSetInteger(0, rectName4H, OBJPROP_WIDTH, 2); // 增加边框宽度
+            ObjectSetInteger(0, rectName4H, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, rectName4H, OBJPROP_BACK, false); // 放在前景，使其更明显
+            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, rectName4H, OBJPROP_HIDDEN, false); // 确保不隐藏
+            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
             
             // 添加标签
             string labelName4H = "SR_Label_4H";
-            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, supportTime4H, support4H);
+            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, supportTime4H, support4H + rectHeight);
             ObjectSetString(0, labelName4H, OBJPROP_TEXT, "4H支撑");
             ObjectSetString(0, labelName4H, OBJPROP_FONT, "Arial");
             ObjectSetInteger(0, labelName4H, OBJPROP_FONTSIZE, 8);
             ObjectSetInteger(0, labelName4H, OBJPROP_COLOR, clrBlue);
-            ObjectSetInteger(0, labelName4H, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+            ObjectSetInteger(0, labelName4H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
            }
            
          // 日线支撑线 - 红色
@@ -521,22 +541,30 @@ public:
             // 获取支撑位对应的时间
             datetime supportTimeD1 = CTradeAnalyzer::GetRangeHighTime(); // 使用高点时间作为起点
             
-            string nameD1 = "SR_Line_D1";
-            ObjectCreate(0, nameD1, OBJ_TREND, 0, supportTimeD1, supportD1, time2, supportD1);
-            ObjectSetInteger(0, nameD1, OBJPROP_COLOR, clrRed);
-            ObjectSetInteger(0, nameD1, OBJPROP_WIDTH, 1);
-            ObjectSetInteger(0, nameD1, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, nameD1, OBJPROP_RAY_RIGHT, true); // 设置为向右射线
-            ObjectSetInteger(0, nameD1, OBJPROP_SELECTABLE, false);
+            // 创建矩形
+            string rectNameD1 = "SR_Rect_D1";
+            ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, supportTimeD1, supportD1 + rectHeight/2, time2, supportD1 - rectHeight/2);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrRed);
+            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
+            color redWithAlpha = clrRed & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
+            ObjectSetInteger(0, rectNameD1, OBJPROP_BGCOLOR, redWithAlpha);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_WIDTH, 2); // 增加边框宽度
+            ObjectSetInteger(0, rectNameD1, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_BACK, false); // 放在前景，使其更明显
+            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_HIDDEN, false); // 确保不隐藏
+            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
             
             // 添加标签
             string labelNameD1 = "SR_Label_D1";
-            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, supportTimeD1, supportD1);
+            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, supportTimeD1, supportD1 + rectHeight);
             ObjectSetString(0, labelNameD1, OBJPROP_TEXT, "D1支撑");
             ObjectSetString(0, labelNameD1, OBJPROP_FONT, "Arial");
             ObjectSetInteger(0, labelNameD1, OBJPROP_FONTSIZE, 8);
             ObjectSetInteger(0, labelNameD1, OBJPROP_COLOR, clrRed);
-            ObjectSetInteger(0, labelNameD1, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+            ObjectSetInteger(0, labelNameD1, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
            }
         }
       else
@@ -547,17 +575,26 @@ public:
          double resistance1H = CTradeAnalyzer::GetResistance1H();
          if(resistance1H > 0)
            {
-            string name1H = "SR_Line_1H";
-            ObjectCreate(0, name1H, OBJ_HLINE, 0, 0, resistance1H);
-            ObjectSetInteger(0, name1H, OBJPROP_COLOR, clrGreen);
-            ObjectSetInteger(0, name1H, OBJPROP_WIDTH, 1);
-            ObjectSetInteger(0, name1H, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, name1H, OBJPROP_SELECTABLE, false);
+            // 创建矩形
+            string rectName1H = "SR_Rect_1H";
+            ObjectCreate(0, rectName1H, OBJ_RECTANGLE, 0, time1, resistance1H + rectHeight/2, time2, resistance1H - rectHeight/2);
+            ObjectSetInteger(0, rectName1H, OBJPROP_COLOR, clrGreen);
+            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
+            color greenWithAlpha = clrGreen & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
+            ObjectSetInteger(0, rectName1H, OBJPROP_BGCOLOR, greenWithAlpha);
+            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
+            ObjectSetInteger(0, rectName1H, OBJPROP_WIDTH, 2); // 增加边框宽度
+            ObjectSetInteger(0, rectName1H, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, rectName1H, OBJPROP_BACK, false); // 放在前景，使其更明显
+            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, rectName1H, OBJPROP_HIDDEN, false); // 确保不隐藏
+            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
             
             // 添加标签
             string labelName1H = "SR_Label_1H";
-            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, time1, resistance1H);
-            ObjectSetString(0, labelName1H, OBJPROP_TEXT, "1H压力");
+            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, time1, resistance1H + rectHeight);
+            ObjectSetString(0, labelName1H, OBJPROP_TEXT, "1H压力=" + DoubleToString(resistance1H, _Digits));
             ObjectSetString(0, labelName1H, OBJPROP_FONT, "Arial");
             ObjectSetInteger(0, labelName1H, OBJPROP_FONTSIZE, 8);
             ObjectSetInteger(0, labelName1H, OBJPROP_COLOR, clrGreen);
@@ -568,16 +605,25 @@ public:
          double resistance4H = CTradeAnalyzer::GetResistance4H();
          if(resistance4H > 0)
            {
-            string name4H = "SR_Line_4H";
-            ObjectCreate(0, name4H, OBJ_HLINE, 0, 0, resistance4H);
-            ObjectSetInteger(0, name4H, OBJPROP_COLOR, clrBlue);
-            ObjectSetInteger(0, name4H, OBJPROP_WIDTH, 1);
-            ObjectSetInteger(0, name4H, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, name4H, OBJPROP_SELECTABLE, false);
+            // 创建矩形
+            string rectName4H = "SR_Rect_4H";
+            ObjectCreate(0, rectName4H, OBJ_RECTANGLE, 0, time1, resistance4H + rectHeight/2, time2, resistance4H - rectHeight/2);
+            ObjectSetInteger(0, rectName4H, OBJPROP_COLOR, clrBlue);
+            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
+            color blueWithAlpha = clrBlue & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
+            ObjectSetInteger(0, rectName4H, OBJPROP_BGCOLOR, blueWithAlpha);
+            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
+            ObjectSetInteger(0, rectName4H, OBJPROP_WIDTH, 2); // 增加边框宽度
+            ObjectSetInteger(0, rectName4H, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, rectName4H, OBJPROP_BACK, false); // 放在前景，使其更明显
+            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, rectName4H, OBJPROP_HIDDEN, false); // 确保不隐藏
+            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
             
             // 添加标签
             string labelName4H = "SR_Label_4H";
-            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, time1, resistance4H);
+            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, time1, resistance4H + rectHeight);
             ObjectSetString(0, labelName4H, OBJPROP_TEXT, "4H压力");
             ObjectSetString(0, labelName4H, OBJPROP_FONT, "Arial");
             ObjectSetInteger(0, labelName4H, OBJPROP_FONTSIZE, 8);
@@ -589,16 +635,25 @@ public:
          double resistanceD1 = CTradeAnalyzer::GetResistanceD1();
          if(resistanceD1 > 0)
            {
-            string nameD1 = "SR_Line_D1";
-            ObjectCreate(0, nameD1, OBJ_HLINE, 0, 0, resistanceD1);
-            ObjectSetInteger(0, nameD1, OBJPROP_COLOR, clrRed);
-            ObjectSetInteger(0, nameD1, OBJPROP_WIDTH, 1);
-            ObjectSetInteger(0, nameD1, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, nameD1, OBJPROP_SELECTABLE, false);
+            // 创建矩形
+            string rectNameD1 = "SR_Rect_D1";
+            ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, time1, resistanceD1 + rectHeight/2, time2, resistanceD1 - rectHeight/2);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrRed);
+            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
+            color redWithAlpha = clrRed & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
+            ObjectSetInteger(0, rectNameD1, OBJPROP_BGCOLOR, redWithAlpha);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_WIDTH, 2); // 增加边框宽度
+            ObjectSetInteger(0, rectNameD1, OBJPROP_STYLE, STYLE_SOLID);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_BACK, false); // 放在前景，使其更明显
+            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, rectNameD1, OBJPROP_HIDDEN, false); // 确保不隐藏
+            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
             
             // 添加标签
             string labelNameD1 = "SR_Label_D1";
-            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, time1, resistanceD1);
+            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, time1, resistanceD1 + rectHeight);
             ObjectSetString(0, labelNameD1, OBJPROP_TEXT, "D1压力");
             ObjectSetString(0, labelNameD1, OBJPROP_FONT, "Arial");
             ObjectSetInteger(0, labelNameD1, OBJPROP_FONTSIZE, 8);

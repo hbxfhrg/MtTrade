@@ -149,6 +149,7 @@ void OnDeinit(const int reason)
    ObjectsDeleteAll(0, "ZigzagLabel_");
    ObjectsDeleteAll(0, "ZigzagLabel4H_");
    ObjectsDeleteAll(0, "SR_Line_"); // 删除支撑/压力线
+   ObjectsDeleteAll(0, "SR_Rect_"); // 删除支撑/压力矩形
    ObjectsDeleteAll(0, "SR_Label_"); // 删除支撑/压力线标签
    ObjectDelete(0, infoPanel); // 删除信息面板
  
