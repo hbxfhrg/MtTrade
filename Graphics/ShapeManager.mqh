@@ -43,7 +43,7 @@ public:
       ObjectsDeleteAll(0, "SR_Rect_");
       
       // 矩形高度（价格单位）
-      double rectHeight = 20 * _Point; // 矩形高度为20个点，可以根据需要调整
+      double rectHeight = 800 * _Point; // 矩形高度为20个点，可以根据需要调整
       
       // 根据趋势方向绘制支撑或压力线
       if(CTradeAnalyzer::IsUpTrend())
@@ -54,12 +54,16 @@ public:
          double support1H = CTradeAnalyzer::GetSupport1H();
          if(support1H > 0)
            {
-            // 获取支撑位对应的时间 - 使用区间高点时间作为中心点
-            datetime supportTime1H = CTradeAnalyzer::GetRangeHighTime();
+            // 获取支撑位对应的1小时K线时间
+            datetime supportTime1H = CTradeAnalyzer::GetSupport1HTime();
             
-            // 计算矩形的开始和结束时间（以中心点为基准，向左右各延伸10个1小时周期）
-            datetime startTime1H = supportTime1H - PeriodSeconds(PERIOD_H1) * 10;
-            datetime endTime1H = supportTime1H + PeriodSeconds(PERIOD_H1) * 10;
+            // 如果没有有效的支撑时间，则使用区间高点时间
+            if(supportTime1H == 0)
+               supportTime1H = CTradeAnalyzer::GetRangeHighTime();
+            
+            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+            datetime startTime1H = supportTime1H;
+            datetime endTime1H = supportTime1H + PeriodSeconds(PERIOD_H1) * 20;
             
             // 创建矩形
             string rectName1H = "SR_Rect_1H";
@@ -91,12 +95,16 @@ public:
          double support4H = CTradeAnalyzer::GetSupport4H();
          if(support4H > 0)
            {
-            // 获取支撑位对应的时间 - 使用高点时间作为中心点
-            datetime supportTime4H = CTradeAnalyzer::GetRangeHighTime();
+            // 获取支撑位对应的1小时K线时间
+            datetime supportTime4H = CTradeAnalyzer::GetSupport4HTime();
             
-            // 计算矩形的开始和结束时间（以中心点为基准，向左右各延伸10个1小时周期）
-            datetime startTime4H = supportTime4H - PeriodSeconds(PERIOD_H1) * 10;
-            datetime endTime4H = supportTime4H + PeriodSeconds(PERIOD_H1) * 10;
+            // 如果没有有效的支撑时间，则使用区间高点时间
+            if(supportTime4H == 0)
+               supportTime4H = CTradeAnalyzer::GetRangeHighTime();
+            
+            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+            datetime startTime4H = supportTime4H;
+            datetime endTime4H = supportTime4H + PeriodSeconds(PERIOD_H1) * 20;
             
             // 创建矩形
             string rectName4H = "SR_Rect_4H";
@@ -128,16 +136,21 @@ public:
          double supportD1 = CTradeAnalyzer::GetSupportD1();
          if(supportD1 > 0)
            {
-            // 获取支撑位对应的时间 - 使用高点时间作为中心点
-            datetime supportTimeD1 = CTradeAnalyzer::GetRangeHighTime();
+            // 获取支撑位对应的1小时K线时间
+            datetime supportTimeD1 = CTradeAnalyzer::GetSupportD1Time();
             
-            // 计算矩形的开始和结束时间（以中心点为基准，向左右各延伸10个1小时周期）
-            datetime startTimeD1 = supportTimeD1 - PeriodSeconds(PERIOD_H1) * 10;
-            datetime endTimeD1 = supportTimeD1 + PeriodSeconds(PERIOD_H1) * 10;
+            // 如果没有有效的支撑时间，则使用区间高点时间
+            if(supportTimeD1 == 0)
+               supportTimeD1 = CTradeAnalyzer::GetRangeHighTime();
             
-            // 创建矩形
+            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+            datetime startTimeD1 = supportTimeD1;
+            datetime endTimeD1 = supportTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
+            
+            // 创建矩形 - 确保日线支撑区正确显示
             string rectNameD1 = "SR_Rect_D1";
             ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, startTimeD1, supportD1 + rectHeight/2, endTimeD1, supportD1 - rectHeight/2);
+            Print("创建日线支撑区: 开始时间=", TimeToString(startTimeD1), ", 结束时间=", TimeToString(endTimeD1), ", 价格=", DoubleToString(supportD1, _Digits));
             ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrRed);
             // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
             color redWithAlpha = clrRed & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
@@ -169,12 +182,16 @@ public:
          double resistance1H = CTradeAnalyzer::GetResistance1H();
          if(resistance1H > 0)
            {
-            // 获取压力位对应的时间 - 使用低点时间作为中心点
-            datetime resistanceTime1H = CTradeAnalyzer::GetRangeLowTime();
+            // 获取压力位对应的1小时K线时间
+            datetime resistanceTime1H = CTradeAnalyzer::GetResistance1HTime();
             
-            // 计算矩形的开始和结束时间（以中心点为基准，向左右各延伸10个1小时周期）
-            datetime startTime1H = resistanceTime1H - PeriodSeconds(PERIOD_H1) * 10;
-            datetime endTime1H = resistanceTime1H + PeriodSeconds(PERIOD_H1) * 10;
+            // 如果没有有效的压力时间，则使用区间低点时间
+            if(resistanceTime1H == 0)
+               resistanceTime1H = CTradeAnalyzer::GetRangeLowTime();
+            
+            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+            datetime startTime1H = resistanceTime1H;
+            datetime endTime1H = resistanceTime1H + PeriodSeconds(PERIOD_H1) * 20;
             
             // 创建矩形
             string rectName1H = "SR_Rect_1H";
@@ -206,12 +223,16 @@ public:
          double resistance4H = CTradeAnalyzer::GetResistance4H();
          if(resistance4H > 0)
            {
-            // 获取压力位对应的时间 - 使用低点时间作为中心点
-            datetime resistanceTime4H = CTradeAnalyzer::GetRangeLowTime();
+            // 获取压力位对应的1小时K线时间
+            datetime resistanceTime4H = CTradeAnalyzer::GetResistance4HTime();
             
-            // 计算矩形的开始和结束时间（以中心点为基准，向左右各延伸10个1小时周期）
-            datetime startTime4H = resistanceTime4H - PeriodSeconds(PERIOD_H1) * 10;
-            datetime endTime4H = resistanceTime4H + PeriodSeconds(PERIOD_H1) * 10;
+            // 如果没有有效的压力时间，则使用区间低点时间
+            if(resistanceTime4H == 0)
+               resistanceTime4H = CTradeAnalyzer::GetRangeLowTime();
+            
+            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+            datetime startTime4H = resistanceTime4H;
+            datetime endTime4H = resistanceTime4H + PeriodSeconds(PERIOD_H1) * 20;
             
             // 创建矩形
             string rectName4H = "SR_Rect_4H";
@@ -243,22 +264,30 @@ public:
          double resistanceD1 = CTradeAnalyzer::GetResistanceD1();
          if(resistanceD1 > 0)
            {
-            // 获取压力位对应的时间 - 使用低点时间作为中心点
-            datetime resistanceTimeD1 = CTradeAnalyzer::GetRangeLowTime();
+            // 获取压力位对应的1小时K线时间
+            datetime resistanceTimeD1 = CTradeAnalyzer::GetResistanceD1Time();
             
-            // 计算矩形的开始和结束时间（以中心点为基准，向左右各延伸10个1小时周期）
-            datetime startTimeD1 = resistanceTimeD1 - PeriodSeconds(PERIOD_H1) * 10;
-            datetime endTimeD1 = resistanceTimeD1 + PeriodSeconds(PERIOD_H1) * 10;
+            // 如果没有有效的压力时间，则使用区间低点时间
+            if(resistanceTimeD1 == 0)
+               resistanceTimeD1 = CTradeAnalyzer::GetRangeLowTime();
             
-            // 创建矩形
+            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+            datetime startTimeD1 = resistanceTimeD1;
+            datetime endTimeD1 = startTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
+            
+            Print("日线压力值: ", DoubleToString(resistanceD1, _Digits), 
+                  ", 时间: ", TimeToString(resistanceTimeD1));
+            
+            // 创建矩形 - 确保日线压力区正确显示，使用更明显的颜色和更宽的边框
             string rectNameD1 = "SR_Rect_D1";
             ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, startTimeD1, resistanceD1 + rectHeight/2, endTimeD1, resistanceD1 - rectHeight/2);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrRed);
+            Print("创建日线压力区: 开始时间=", TimeToString(startTimeD1), ", 结束时间=", TimeToString(endTimeD1), ", 价格=", DoubleToString(resistanceD1, _Digits));
+            ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrCrimson); // 使用更明显的红色
             // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
-            color redWithAlpha = clrRed & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
+            color redWithAlpha = clrCrimson & 0x00FFFFFF | (60 << 24); // 60是透明度(0-255)，更不透明
             ObjectSetInteger(0, rectNameD1, OBJPROP_BGCOLOR, redWithAlpha);
             ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_WIDTH, 2); // 增加边框宽度
+            ObjectSetInteger(0, rectNameD1, OBJPROP_WIDTH, 3); // 增加边框宽度到3
             ObjectSetInteger(0, rectNameD1, OBJPROP_STYLE, STYLE_SOLID);
             ObjectSetInteger(0, rectNameD1, OBJPROP_BACK, false); // 放在前景，使其更明显
             ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTABLE, false);

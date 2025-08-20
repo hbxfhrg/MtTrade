@@ -37,6 +37,14 @@ private:
    static double    m_resistance1H;    // 1小时压力
    static double    m_resistance4H;    // 4小时压力
    static double    m_resistanceD1;    // 日线压力
+   
+   // 支撑和压力对应的1小时K线时间
+   static datetime  m_support1HTime;   // 1小时支撑对应的1小时K线时间
+   static datetime  m_support4HTime;   // 4小时支撑对应的1小时K线时间
+   static datetime  m_supportD1Time;   // 日线支撑对应的1小时K线时间
+   static datetime  m_resistance1HTime; // 1小时压力对应的1小时K线时间
+   static datetime  m_resistance4HTime; // 4小时压力对应的1小时K线时间
+   static datetime  m_resistanceD1Time; // 日线压力对应的1小时K线时间
 
 public:
    // 初始化方法
@@ -58,6 +66,12 @@ public:
       m_resistance1H = 0.0;
       m_resistance4H = 0.0;
       m_resistanceD1 = 0.0;
+      m_support1HTime = 0;
+      m_support4HTime = 0;
+      m_supportD1Time = 0;
+      m_resistance1HTime = 0;
+      m_resistance4HTime = 0;
+      m_resistanceD1Time = 0;
      }
      
    // 从极点数组中分析区间
@@ -211,10 +225,29 @@ public:
          // 取前一根K线的最低价作为支撑位
          supportPrice = iLow(Symbol(), timeframe, priceShift + 1);
          
+         // 获取支撑位对应的K线时间
+         datetime supportTime = iTime(Symbol(), timeframe, priceShift + 1);
+         
+         // 根据时间周期保存对应的1小时K线时间
          if(timeframe == PERIOD_H1)
            {
+            m_support1HTime = supportTime;
             Print("计算得到的1小时支撑位: ", DoubleToString(supportPrice, _Digits), 
-                  " (来自K线序号: ", priceShift + 1, ")");
+                  " (来自K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime), ")");
+           }
+         else if(timeframe == PERIOD_H4)
+           {
+            // 将4小时K线时间转换为对应的1小时K线时间
+            m_support4HTime = supportTime;
+            Print("计算得到的4小时支撑位: ", DoubleToString(supportPrice, _Digits), 
+                  " (来自K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime), ")");
+           }
+         else if(timeframe == PERIOD_D1)
+           {
+            // 将日线K线时间转换为对应的1小时K线时间
+            m_supportD1Time = supportTime;
+            Print("计算得到的日线支撑位: ", DoubleToString(supportPrice, _Digits), 
+                  " (来自K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime), ")");
            }
         }
       else if(priceShift >= 0)
@@ -222,11 +255,88 @@ public:
          // 如果无法获取前一根K线，使用当前K线的最低价
          supportPrice = iLow(Symbol(), timeframe, priceShift);
          
+         // 获取支撑位对应的K线时间
+         datetime supportTime = iTime(Symbol(), timeframe, priceShift);
+         
+         // 根据时间周期保存对应的1小时K线时间
          if(timeframe == PERIOD_H1)
            {
+            m_support1HTime = supportTime;
             Print("无法获取前一根K线，使用当前K线的最低价作为支撑位: ", 
                   DoubleToString(supportPrice, _Digits), 
-                  " (来自K线序号: ", priceShift, ")");
+                  " (来自K线序号: ", priceShift, ", 时间: ", TimeToString(supportTime), ")");
+           }
+         else if(timeframe == PERIOD_H4)
+           {
+            // 在1小时周期上查找与4小时支撑价格最接近的K线
+            int h1Bars = Bars(Symbol(), PERIOD_H1);
+            int h1Shift = -1;
+            
+            // 遍历1小时K线，查找与4小时支撑价格匹配的K线
+            for(int i = 0; i < h1Bars; i++)
+              {
+               double h1Low = iLow(Symbol(), PERIOD_H1, i);
+               
+               // 如果找到与支撑价格相等或非常接近的低点
+               if(MathAbs(h1Low - supportPrice) < Point() * 10)
+                 {
+                  h1Shift = i;
+                  break;
+                 }
+              }
+            
+            // 如果找到了匹配的1小时K线
+            if(h1Shift >= 0)
+              {
+               m_support4HTime = iTime(Symbol(), PERIOD_H1, h1Shift);
+               Print("计算得到的4小时支撑位: ", DoubleToString(supportPrice, _Digits), 
+                     " (来自4H K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime),
+                     ", 在1H周期找到匹配K线序号: ", h1Shift, ", 时间: ", TimeToString(m_support4HTime), ")");
+              }
+            else
+              {
+               // 如果没有找到匹配的K线，使用当前时间
+               m_support4HTime = TimeCurrent();
+               Print("计算得到的4小时支撑位: ", DoubleToString(supportPrice, _Digits), 
+                     " (来自4H K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime),
+                     ", 在1H周期未找到匹配K线，使用当前时间)");
+              }
+           }
+         else if(timeframe == PERIOD_D1)
+           {
+            // 在1小时周期上查找与日线支撑价格最接近的K线
+            int h1Bars = Bars(Symbol(), PERIOD_H1);
+            int h1Shift = -1;
+            
+            // 遍历1小时K线，查找与日线支撑价格匹配的K线
+            for(int i = 0; i < h1Bars; i++)
+              {
+               double h1Low = iLow(Symbol(), PERIOD_H1, i);
+               
+               // 如果找到与支撑价格相等或非常接近的低点
+               if(MathAbs(h1Low - supportPrice) < Point() * 10)
+                 {
+                  h1Shift = i;
+                  break;
+                 }
+              }
+            
+            // 如果找到了匹配的1小时K线
+            if(h1Shift >= 0)
+              {
+               m_supportD1Time = iTime(Symbol(), PERIOD_H1, h1Shift);
+               Print("计算得到的日线支撑位: ", DoubleToString(supportPrice, _Digits), 
+                     " (来自D1 K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime),
+                     ", 在1H周期找到匹配K线序号: ", h1Shift, ", 时间: ", TimeToString(m_supportD1Time), ")");
+              }
+            else
+              {
+               // 如果没有找到匹配的K线，使用当前时间
+               m_supportD1Time = TimeCurrent();
+               Print("计算得到的日线支撑位: ", DoubleToString(supportPrice, _Digits), 
+                     " (来自D1 K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime),
+                     ", 在1H周期未找到匹配K线，使用当前时间)");
+              }
            }
         }
      }
@@ -267,19 +377,93 @@ public:
          priceShift = iBarShift(Symbol(), timeframe, m_rangeLowTime);
         }
       
-      // 打印调试信息 - 显示低点所在K线及其前3根K线的数值
-   
-      
       // 如果价格K线索引有效且至少有一根前面的K线
       if(priceShift >= 0 && priceShift + 1 < bars)
         {
          // 取前一根K线的最高价作为压力位
          resistancePrice = iHigh(Symbol(), timeframe, priceShift + 1);
          
+         // 获取压力位对应的K线时间
+         datetime resistanceTime = iTime(Symbol(), timeframe, priceShift + 1);
+         
+         // 根据时间周期保存对应的1小时K线时间
          if(timeframe == PERIOD_H1)
            {
+            m_resistance1HTime = resistanceTime;
             Print("计算得到的1小时压力位: ", DoubleToString(resistancePrice, _Digits), 
-                  " (来自K线序号: ", priceShift + 1, ")");
+                  " (来自K线序号: ", priceShift + 1, ", 时间: ", TimeToString(resistanceTime), ")");
+           }
+         else if(timeframe == PERIOD_H4)
+           {
+            // 在1小时周期上查找与4小时压力价格最接近的K线
+            int h1Bars = Bars(Symbol(), PERIOD_H1);
+            int h1Shift = -1;
+            
+            // 遍历1小时K线，查找与4小时压力价格匹配的K线
+            for(int i = 0; i < h1Bars; i++)
+              {
+               double h1High = iHigh(Symbol(), PERIOD_H1, i);
+               
+               // 如果找到与压力价格相等或非常接近的高点
+               if(MathAbs(h1High - resistancePrice) < Point() * 10)
+                 {
+                  h1Shift = i;
+                  break;
+                 }
+              }
+            
+            // 如果找到了匹配的1小时K线
+            if(h1Shift >= 0)
+              {
+               m_resistance4HTime = iTime(Symbol(), PERIOD_H1, h1Shift);
+               Print("计算得到的4小时压力位: ", DoubleToString(resistancePrice, _Digits), 
+                     " (来自4H K线序号: ", priceShift + 1, ", 时间: ", TimeToString(resistanceTime),
+                     ", 在1H周期找到匹配K线序号: ", h1Shift, ", 时间: ", TimeToString(m_resistance4HTime), ")");
+              }
+            else
+              {
+               // 如果没有找到匹配的K线，使用当前时间
+               m_resistance4HTime = TimeCurrent();
+               Print("计算得到的4小时压力位: ", DoubleToString(resistancePrice, _Digits), 
+                     " (来自4H K线序号: ", priceShift + 1, ", 时间: ", TimeToString(resistanceTime),
+                     ", 在1H周期未找到匹配K线，使用当前时间)");
+              }
+           }
+         else if(timeframe == PERIOD_D1)
+           {
+            // 在1小时周期上查找与日线压力价格最接近的K线
+            int h1Bars = Bars(Symbol(), PERIOD_H1);
+            int h1Shift = -1;
+            
+            // 遍历1小时K线，查找与日线压力价格匹配的K线
+            for(int i = 0; i < h1Bars; i++)
+              {
+               double h1High = iHigh(Symbol(), PERIOD_H1, i);
+               
+               // 如果找到与压力价格相等或非常接近的高点
+               if(MathAbs(h1High - resistancePrice) < Point() * 10)
+                 {
+                  h1Shift = i;
+                  break;
+                 }
+              }
+            
+            // 如果找到了匹配的1小时K线
+            if(h1Shift >= 0)
+              {
+               m_resistanceD1Time = iTime(Symbol(), PERIOD_H1, h1Shift);
+               Print("计算得到的日线压力位: ", DoubleToString(resistancePrice, _Digits), 
+                     " (来自D1 K线序号: ", priceShift + 1, ", 时间: ", TimeToString(resistanceTime),
+                     ", 在1H周期找到匹配K线序号: ", h1Shift, ", 时间: ", TimeToString(m_resistanceD1Time), ")");
+              }
+            else
+              {
+               // 如果没有找到匹配的K线，使用当前时间
+               m_resistanceD1Time = TimeCurrent();
+               Print("计算得到的日线压力位: ", DoubleToString(resistancePrice, _Digits), 
+                     " (来自D1 K线序号: ", priceShift + 1, ", 时间: ", TimeToString(resistanceTime),
+                     ", 在1H周期未找到匹配K线，使用当前时间)");
+              }
            }
         }
       else if(priceShift >= 0)
@@ -287,11 +471,26 @@ public:
          // 如果无法获取前一根K线，使用当前K线的最高价
          resistancePrice = iHigh(Symbol(), timeframe, priceShift);
          
+         // 获取压力位对应的K线时间
+         datetime resistanceTime = iTime(Symbol(), timeframe, priceShift);
+         
+         // 根据时间周期保存对应的1小时K线时间
          if(timeframe == PERIOD_H1)
            {
+            m_resistance1HTime = resistanceTime;
             Print("无法获取前一根K线，使用当前K线的最高价作为压力位: ", 
                   DoubleToString(resistancePrice, _Digits), 
-                  " (来自K线序号: ", priceShift, ")");
+                  " (来自K线序号: ", priceShift, ", 时间: ", TimeToString(resistanceTime), ")");
+           }
+         else if(timeframe == PERIOD_H4)
+           {
+            // 将4小时K线时间转换为对应的1小时K线时间
+            m_resistance4HTime = resistanceTime;
+           }
+         else if(timeframe == PERIOD_D1)
+           {
+            // 将日线K线时间转换为对应的1小时K线时间
+            m_resistanceD1Time = resistanceTime;
            }
         }
      }
@@ -329,7 +528,44 @@ public:
    // 获取日线压力
    static double GetResistanceD1()
      {
+      Print("获取日线压力值: ", DoubleToString(m_resistanceD1, _Digits), ", 时间: ", TimeToString(m_resistanceD1Time));
       return m_resistanceD1;
+     }
+     
+   // 获取1小时支撑时间
+   static datetime GetSupport1HTime()
+     {
+      return m_support1HTime;
+     }
+     
+   // 获取4小时支撑时间
+   static datetime GetSupport4HTime()
+     {
+      return m_support4HTime;
+     }
+     
+   // 获取日线支撑时间
+   static datetime GetSupportD1Time()
+     {
+      return m_supportD1Time;
+     }
+     
+   // 获取1小时压力时间
+   static datetime GetResistance1HTime()
+     {
+      return m_resistance1HTime;
+     }
+     
+   // 获取4小时压力时间
+   static datetime GetResistance4HTime()
+     {
+      return m_resistance4HTime;
+     }
+     
+   // 获取日线压力时间
+   static datetime GetResistanceD1Time()
+     {
+      return m_resistanceD1Time;
      }
      
    // 获取支撑压力描述
@@ -566,3 +802,10 @@ double CTradeAnalyzer::m_supportD1 = 0.0;
 double CTradeAnalyzer::m_resistance1H = 0.0;
 double CTradeAnalyzer::m_resistance4H = 0.0;
 double CTradeAnalyzer::m_resistanceD1 = 0.0;
+datetime CTradeAnalyzer::m_support1HTime = 0;
+datetime CTradeAnalyzer::m_support4HTime = 0;
+datetime CTradeAnalyzer::m_supportD1Time = 0;
+datetime CTradeAnalyzer::m_resistance1HTime = 0;
+datetime CTradeAnalyzer::m_resistance4HTime = 0;
+datetime CTradeAnalyzer::m_resistanceD1Time = 0;
+
