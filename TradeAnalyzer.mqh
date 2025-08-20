@@ -8,6 +8,7 @@
 
 // 引入极值点类定义
 #include "ZigzagExtremumPoint.mqh"
+#include "CommonUtils.mqh"
 
 //+------------------------------------------------------------------+
 //| 交易分析类 - 用于分析价格区间和趋势方向                            |
@@ -116,36 +117,9 @@ public:
       if(m_isUpTrend)
         {
          // 上涨趋势，计算回撤（从最高点到当前的最低点）
-         // 获取从高点时间到现在的最低价格
-         m_retracePrice = currentPrice; // 初始化为当前价格
-         m_retraceTime = TimeCurrent();
+         // 使用通用函数查找高点之后的最低价格
+         m_retracePrice = FindLowestPriceAfterHighPrice(m_rangeHigh, m_retraceTime, PERIOD_CURRENT, PERIOD_M1, m_rangeHighTime);
          
-         // 遍历从高点时间到现在的K线，找出最低价
-         int bars = Bars(Symbol(), PERIOD_CURRENT);
-         datetime currentTime = TimeCurrent();
-         
-         for(int i = 0; i < bars; i++)
-           {
-            datetime barTime = iTime(Symbol(), PERIOD_CURRENT, i);
-            
-            // 如果K线时间在高点之后且在当前时间之前
-            if(barTime >= m_rangeHighTime && barTime <= currentTime)
-              {
-               double lowPrice = iLow(Symbol(), PERIOD_CURRENT, i);
-               
-               // 更新最低价
-               if(lowPrice < m_retracePrice)
-                 {
-                  m_retracePrice = lowPrice;
-                  m_retraceTime = barTime;
-                 }
-              }
-              
-            // 如果K线时间早于高点时间，则停止遍历
-            if(barTime < m_rangeHighTime)
-               break;
-           }
-           
          // 计算回撤绝对值
          m_retraceDiff = m_rangeHigh - m_retracePrice;
            
@@ -157,36 +131,9 @@ public:
       else
         {
          // 下跌趋势，计算反弹（从最低点到当前的最高点）
-         // 获取从低点时间到现在的最高价格
-         m_retracePrice = currentPrice; // 初始化为当前价格
-         m_retraceTime = TimeCurrent();
+         // 使用通用函数查找低点之后的最高价格
+         m_retracePrice = FindHighestPriceAfterLowPrice(m_rangeLow, m_retraceTime, PERIOD_CURRENT, PERIOD_M1, m_rangeLowTime);
          
-         // 遍历从低点时间到现在的K线，找出最高价
-         int bars = Bars(Symbol(), PERIOD_CURRENT);
-         datetime currentTime = TimeCurrent();
-         
-         for(int i = 0; i < bars; i++)
-           {
-            datetime barTime = iTime(Symbol(), PERIOD_CURRENT, i);
-            
-            // 如果K线时间在低点之后且在当前时间之前
-            if(barTime >= m_rangeLowTime && barTime <= currentTime)
-              {
-               double highPrice = iHigh(Symbol(), PERIOD_CURRENT, i);
-               
-               // 更新最高价
-               if(highPrice > m_retracePrice)
-                 {
-                  m_retracePrice = highPrice;
-                  m_retraceTime = barTime;
-                 }
-              }
-              
-            // 如果K线时间早于低点时间，则停止遍历
-            if(barTime < m_rangeLowTime)
-               break;
-           }
-           
          // 计算反弹绝对值
          m_retraceDiff = m_retracePrice - m_rangeLow;
            
@@ -196,6 +143,7 @@ public:
             m_retracePercent = m_retraceDiff / rangeDiff * 100.0;
         }
      }
+     
      
    // 计算多时间周期的支撑和压力
    static void CalculateSupportResistance()
@@ -254,51 +202,8 @@ public:
       if(priceShift < 0)
         {
          priceShift = iBarShift(Symbol(), timeframe, m_rangeHighTime);
-        }
-      
-      // 打印调试信息 - 显示高点所在K线及其前3根K线的数值
-      if(timeframe == PERIOD_H1)
-        {
-         Print("===== 1小时周期支撑位计算调试信息 =====");
-         Print("参考价格: ", DoubleToString(referencePrice, _Digits));
-         Print("区间高点时间: ", TimeToString(m_rangeHighTime));
-         Print("高点所在K线序号: ", priceShift);
-         
-         if(priceShift >= 0)
-           {
-            // 打印高点所在K线的信息
-            datetime barTime = iTime(Symbol(), timeframe, priceShift);
-            double barHigh = iHigh(Symbol(), timeframe, priceShift);
-            double barLow = iLow(Symbol(), timeframe, priceShift);
-            double barOpen = iOpen(Symbol(), timeframe, priceShift);
-            double barClose = iClose(Symbol(), timeframe, priceShift);
-            
-            Print("高点所在K线(", priceShift, ")信息: 时间=", TimeToString(barTime), 
-                  ", 开盘=", DoubleToString(barOpen, _Digits),
-                  ", 最高=", DoubleToString(barHigh, _Digits),
-                  ", 最低=", DoubleToString(barLow, _Digits),
-                  ", 收盘=", DoubleToString(barClose, _Digits));
-            
-            // 打印前3根K线的信息
-            for(int i = 1; i <= 3; i++)
-              {
-               if(priceShift + i < bars)
-                 {
-                  barTime = iTime(Symbol(), timeframe, priceShift + i);
-                  barHigh = iHigh(Symbol(), timeframe, priceShift + i);
-                  barLow = iLow(Symbol(), timeframe, priceShift + i);
-                  barOpen = iOpen(Symbol(), timeframe, priceShift + i);
-                  barClose = iClose(Symbol(), timeframe, priceShift + i);
-                  
-                  Print("前", i, "根K线(", priceShift + i, ")信息: 时间=", TimeToString(barTime), 
-                        ", 开盘=", DoubleToString(barOpen, _Digits),
-                        ", 最高=", DoubleToString(barHigh, _Digits),
-                        ", 最低=", DoubleToString(barLow, _Digits),
-                        ", 收盘=", DoubleToString(barClose, _Digits));
-                 }
-              }
-           }
-        }
+        }          
+       
       
       // 如果价格K线索引有效且至少有一根前面的K线
       if(priceShift >= 0 && priceShift + 1 < bars)
@@ -363,48 +268,7 @@ public:
         }
       
       // 打印调试信息 - 显示低点所在K线及其前3根K线的数值
-      if(timeframe == PERIOD_H1)
-        {
-         Print("===== 1小时周期压力位计算调试信息 =====");
-         Print("参考价格: ", DoubleToString(referencePrice, _Digits));
-         Print("区间低点时间: ", TimeToString(m_rangeLowTime));
-         Print("低点所在K线序号: ", priceShift);
-         
-         if(priceShift >= 0)
-           {
-            // 打印低点所在K线的信息
-            datetime barTime = iTime(Symbol(), timeframe, priceShift);
-            double barHigh = iHigh(Symbol(), timeframe, priceShift);
-            double barLow = iLow(Symbol(), timeframe, priceShift);
-            double barOpen = iOpen(Symbol(), timeframe, priceShift);
-            double barClose = iClose(Symbol(), timeframe, priceShift);
-            
-            Print("低点所在K线(", priceShift, ")信息: 时间=", TimeToString(barTime), 
-                  ", 开盘=", DoubleToString(barOpen, _Digits),
-                  ", 最高=", DoubleToString(barHigh, _Digits),
-                  ", 最低=", DoubleToString(barLow, _Digits),
-                  ", 收盘=", DoubleToString(barClose, _Digits));
-            
-            // 打印前3根K线的信息
-            for(int i = 1; i <= 3; i++)
-              {
-               if(priceShift + i < bars)
-                 {
-                  barTime = iTime(Symbol(), timeframe, priceShift + i);
-                  barHigh = iHigh(Symbol(), timeframe, priceShift + i);
-                  barLow = iLow(Symbol(), timeframe, priceShift + i);
-                  barOpen = iOpen(Symbol(), timeframe, priceShift + i);
-                  barClose = iClose(Symbol(), timeframe, priceShift + i);
-                  
-                  Print("前", i, "根K线(", priceShift + i, ")信息: 时间=", TimeToString(barTime), 
-                        ", 开盘=", DoubleToString(barOpen, _Digits),
-                        ", 最高=", DoubleToString(barHigh, _Digits),
-                        ", 最低=", DoubleToString(barLow, _Digits),
-                        ", 收盘=", DoubleToString(barClose, _Digits));
-                 }
-              }
-           }
-        }
+   
       
       // 如果价格K线索引有效且至少有一根前面的K线
       if(priceShift >= 0 && priceShift + 1 < bars)
@@ -625,9 +489,19 @@ public:
       string highText = DoubleToString(m_rangeHigh, _Digits);
       string lowText = DoubleToString(m_rangeLow, _Digits);
       
-      // 不再计算价格位置百分比
-      return StringFormat("区间: %s - %s (%s)", 
-                         lowText, highText, direction);
+      // 根据趋势方向调整显示顺序
+      if(m_isUpTrend)
+        {
+         // 上涨趋势，显示从低到高
+         return StringFormat("区间: %s - %s (%s)", 
+                           lowText, highText, direction);
+        }
+      else
+        {
+         // 下跌趋势，显示从高到低
+         return StringFormat("区间: %s - %s (%s)", 
+                           highText, lowText, direction);
+        }
      }
      
    // 获取当前价格
@@ -650,6 +524,28 @@ public:
         }
       
       return price;
+     }
+     
+   // 在1分钟K线上查找反弹高点 - 使用CommonUtils中的通用函数
+   static double FindReboundHighOnM1(int lowestBarIndex, datetime &highTime)
+     {
+      // 检查参数
+      if(lowestBarIndex < 0)
+        {
+         Print("无效的K线索引");
+         highTime = 0;
+         return 0.0;
+        }
+        
+      // 获取当前周期的最低点时间
+      datetime lowestTime = iTime(Symbol(), Period(), lowestBarIndex);
+      Print("最低点出现在序号为", lowestBarIndex, "的K线上，时间为", TimeToString(lowestTime));
+      
+      // 获取1分钟周期上的最低价
+      double lowestPrice = iLow(Symbol(), PERIOD_M1, iBarShift(Symbol(), PERIOD_M1, lowestTime));
+      
+      // 使用通用函数查找最高价格
+      return FindHighestPriceAfterLowPrice(lowestPrice, highTime, PERIOD_M1, PERIOD_M1, lowestTime);
      }
   };
 

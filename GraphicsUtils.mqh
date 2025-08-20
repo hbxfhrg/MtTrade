@@ -110,9 +110,22 @@ public:
          ObjectSetInteger(0, rangeName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
          ObjectSetInteger(0, rangeName, OBJPROP_ZORDER, 100); // 确保文本在最上层
          ObjectSetString(0, rangeName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s", 
-                                                                DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits),
-                                                                DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits)));
+         
+         // 根据趋势方向调整区间显示顺序
+         if(CTradeAnalyzer::IsUpTrend())
+           {
+            // 上涨趋势，显示从低到高
+            ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s", 
+                                                                   DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits),
+                                                                   DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits)));
+           }
+         else
+           {
+            // 下跌趋势，显示从高到低
+            ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s", 
+                                                                   DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits),
+                                                                   DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits)));
+           }
          
          // 创建趋势方向文本 - 调整位置紧跟在区间分析文本下方
          string trendName = actualPanelName + "_Trend";
@@ -575,9 +588,12 @@ public:
          double resistance1H = CTradeAnalyzer::GetResistance1H();
          if(resistance1H > 0)
            {
+            // 获取压力位对应的时间
+            datetime resistanceTime1H = CTradeAnalyzer::GetRangeLowTime(); // 使用低点时间作为起点
+            
             // 创建矩形
             string rectName1H = "SR_Rect_1H";
-            ObjectCreate(0, rectName1H, OBJ_RECTANGLE, 0, time1, resistance1H + rectHeight/2, time2, resistance1H - rectHeight/2);
+            ObjectCreate(0, rectName1H, OBJ_RECTANGLE, 0, resistanceTime1H, resistance1H + rectHeight/2, time2, resistance1H - rectHeight/2);
             ObjectSetInteger(0, rectName1H, OBJPROP_COLOR, clrGreen);
             // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
             color greenWithAlpha = clrGreen & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
@@ -605,9 +621,12 @@ public:
          double resistance4H = CTradeAnalyzer::GetResistance4H();
          if(resistance4H > 0)
            {
+            // 获取压力位对应的时间
+            datetime resistanceTime4H = CTradeAnalyzer::GetRangeLowTime(); // 使用低点时间作为起点
+            
             // 创建矩形
             string rectName4H = "SR_Rect_4H";
-            ObjectCreate(0, rectName4H, OBJ_RECTANGLE, 0, time1, resistance4H + rectHeight/2, time2, resistance4H - rectHeight/2);
+            ObjectCreate(0, rectName4H, OBJ_RECTANGLE, 0, resistanceTime4H, resistance4H + rectHeight/2, time2, resistance4H - rectHeight/2);
             ObjectSetInteger(0, rectName4H, OBJPROP_COLOR, clrBlue);
             // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
             color blueWithAlpha = clrBlue & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
@@ -635,9 +654,12 @@ public:
          double resistanceD1 = CTradeAnalyzer::GetResistanceD1();
          if(resistanceD1 > 0)
            {
+            // 获取压力位对应的时间
+            datetime resistanceTimeD1 = CTradeAnalyzer::GetRangeLowTime(); // 使用低点时间作为起点
+            
             // 创建矩形
             string rectNameD1 = "SR_Rect_D1";
-            ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, time1, resistanceD1 + rectHeight/2, time2, resistanceD1 - rectHeight/2);
+            ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, resistanceTimeD1, resistanceD1 + rectHeight/2, time2, resistanceD1 - rectHeight/2);
             ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrRed);
             // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
             color redWithAlpha = clrRed & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
