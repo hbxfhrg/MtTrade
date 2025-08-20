@@ -17,10 +17,13 @@
 
 //--- 包含文件
 #include "ZigzagCalculator.mqh"
-#include "GraphicsUtils.mqh"
+#include "Graphics/InfoPanelManager.mqh"
+#include "Graphics/LabelManager.mqh"
+#include "Graphics/LineManager.mqh"
+#include "Graphics/ShapeManager.mqh"
 #include "CommonUtils.mqh"
 #include "TradeAnalyzer.mqh"
-#include "TradeInfoPanel.mqh"
+
 
 //--- 输入参数
 input int    InpDepth = 12;            // 深度
