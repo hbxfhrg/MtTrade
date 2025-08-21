@@ -174,20 +174,12 @@ public:
                // 支撑点 - 如果当前价格低于支撑价格，则被穿越
                double currentPrice = CTradeAnalyzer::GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice < price);
-               
-               // 输出调试信息
-               CLogUtil::Log(StringFormat("支撑点检查: %s 价格=%.5f, 当前价格=%.5f, 穿越=%s", 
-                                        timeframeNames[i], price, currentPrice, isPenetrated ? "是" : "否"));
               }
             else if(pointType == SR_RESISTANCE_RETRACE || pointType == SR_RESISTANCE_RANGE_LOW || pointType == SR_RESISTANCE)
               {
                // 压力点 - 如果当前价格高于压力价格，则被穿越
                double currentPrice = CTradeAnalyzer::GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice > price);
-               
-               // 输出调试信息
-               CLogUtil::Log(StringFormat("压力点检查: %s 价格=%.5f, 当前价格=%.5f, 穿越=%s", 
-                                        timeframeNames[i], price, currentPrice, isPenetrated ? "是" : "否"));
               }
               
             // 如果价格有效且满足绘制条件，并且（未被穿越或设置为显示已穿越的点）
@@ -246,8 +238,7 @@ public:
                lineStyle = STYLE_DOT;
                transparency = 90; // 更高的透明度
                
-               // 输出日志，用于调试
-               CLogUtil::Log(StringFormat("绘制被穿越的价格点: %s, 价格: %.5f", timeframeNames[i], price));
+               // 被穿越的点使用特殊标记和颜色
               }
             else
               {

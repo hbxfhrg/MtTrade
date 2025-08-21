@@ -168,7 +168,6 @@ public:
    // 获取是否被穿越
    bool IsPenetrated() const
      {
-      CLogUtil::Log(StringFormat("检查价格点 %.5f 是否被穿越: %s", m_price, m_isPenetrated ? "是" : "否"));
       return m_isPenetrated;
      }
      
