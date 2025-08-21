@@ -244,10 +244,39 @@ public:
            }
          else if(timeframe == PERIOD_D1)
            {
-            // 将日线K线时间转换为对应的1小时K线时间
-            m_supportD1Time = supportTime;
-            Print("计算得到的日线支撑位: ", DoubleToString(supportPrice, _Digits), 
-                  " (来自K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime), ")");
+            // 在1小时周期上查找与日线支撑价格最接近的K线
+            int h1Bars = Bars(Symbol(), PERIOD_H1);
+            int h1Shift = -1;
+            
+            // 遍历1小时K线，查找与日线支撑价格匹配的K线
+            for(int i = 0; i < h1Bars; i++)
+              {
+               double h1Low = iLow(Symbol(), PERIOD_H1, i);
+               
+               // 如果找到与支撑价格相等或非常接近的低点
+               if(MathAbs(h1Low - supportPrice) < Point() * 10)
+                 {
+                  h1Shift = i;
+                  break;
+                 }
+              }
+            
+            // 如果找到了匹配的1小时K线
+            if(h1Shift >= 0)
+              {
+               m_supportD1Time = iTime(Symbol(), PERIOD_H1, h1Shift);
+               Print("计算得到的日线支撑位: ", DoubleToString(supportPrice, _Digits), 
+                     " (来自D1 K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime),
+                     ", 在1H周期找到匹配K线序号: ", h1Shift, ", 时间: ", TimeToString(m_supportD1Time), ")");
+              }
+            else
+              {
+               // 如果没有找到匹配的K线，使用当前时间
+               m_supportD1Time = supportTime;
+               Print("计算得到的日线支撑位: ", DoubleToString(supportPrice, _Digits), 
+                     " (来自D1 K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime),
+                     ", 在1H周期未找到匹配K线，使用原始时间)");
+              }
            }
         }
       else if(priceShift >= 0)
