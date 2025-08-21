@@ -211,7 +211,6 @@ public:
    static double GetResistanceD1()
      {
       double price = m_resistancePoints.GetPriceD1();
-      Print("获取日线压力值: ", DoubleToString(price, _Digits), ", 时间: ", TimeToString(m_resistancePoints.GetTimeD1()));
       return price;
      }
      
@@ -449,14 +448,12 @@ public:
       // 检查参数
       if(lowestBarIndex < 0)
         {
-         Print("无效的K线索引");
          highTime = 0;
          return 0.0;
         }
         
       // 获取当前周期的最低点时间
       datetime lowestTime = iTime(Symbol(), Period(), lowestBarIndex);
-      Print("最低点出现在序号为", lowestBarIndex, "的K线上，时间为", TimeToString(lowestTime));
       
       // 获取1分钟周期上的最低价
       double lowestPrice = iLow(Symbol(), PERIOD_M1, iBarShift(Symbol(), PERIOD_M1, lowestTime));

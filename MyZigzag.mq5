@@ -241,16 +241,14 @@ int OnCalculate(const int rates_total,
                   // 计算ZigZag
                   calculator.Calculate(temp_high, temp_low, rates_total, 0);
                   
-                  // 打印调试信息
-                  Print("1小时周期ZigZag完全重新计算，总K线数: ", rates_total);
+                  // 完全重新计算
                  }
                else
                  {
                   // 正常计算所有K线
                   calculator.Calculate(high, low, rates_total, 0);
                   
-                  // 打印调试信息
-                  Print("1小时周期ZigZag完全重新计算，总K线数: ", rates_total);
+               // 完全重新计算
                  }
               }
             else
@@ -258,8 +256,7 @@ int OnCalculate(const int rates_total,
                // 增量计算，只计算新增的K线
                calculator.Calculate(high, low, rates_total, prev_calculated);
                
-               // 打印调试信息
-               Print("1小时周期ZigZag增量计算，总K线数: ", rates_total, ", 新增K线数: ", rates_total - prev_calculated);
+               // 增量计算
               }
             
             // 更新缓存状态
@@ -270,7 +267,6 @@ int OnCalculate(const int rates_total,
          else
            {
             // 使用缓存结果，不需要重新计算
-            Print("1小时周期ZigZag使用缓存结果，总K线数: ", rates_total);
            }
         }
       else
@@ -289,7 +285,7 @@ int OnCalculate(const int rates_total,
          // 检查计算结果
          if(result < 0)
            {
-            Print("无法计算5M周期ZigZag，错误代码: ", result);
+            // 无法计算5M周期ZigZag
            }
          else
            {
@@ -297,7 +293,7 @@ int OnCalculate(const int rates_total,
             has5MPoints = calculator5M.GetExtremumPoints(points5M);
             if(!has5MPoints)
               {
-               Print("无法获取5M周期极值点");
+               // 无法获取5M周期极值点
               }
            }
         }
@@ -312,7 +308,7 @@ int OnCalculate(const int rates_total,
          // 检查计算结果
          if(result < 0)
            {
-            Print("无法计算4H周期ZigZag，错误代码: ", result);
+            // 无法计算4H周期ZigZag
            }
          else
            {
@@ -320,7 +316,7 @@ int OnCalculate(const int rates_total,
             has4HPoints = calculator4H.GetExtremumPoints(points4H);
             if(!has4HPoints)
               {
-               Print("无法获取4H周期极值点");
+               // 无法获取4H周期极值点
               }
             else
               {
@@ -354,11 +350,7 @@ int OnCalculate(const int rates_total,
                      // 获取当前价格
                      double currentPrice = CInfoPanelManager::GetCurrentPrice();
                      
-                     // 打印分析结果
-                     Print("交易区间分析: ", CTradeAnalyzer::GetRangeAnalysisText(currentPrice));
-                     Print("区间高点: ", DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits), 
-                           ", 区间低点: ", DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits));
-                     Print("趋势方向: ", CTradeAnalyzer::GetTrendDirection());
+                     // 分析结果
                      
                      // 交易信息面板将在下面统一创建
                     }
@@ -430,7 +422,7 @@ int OnCalculate(const int rates_total,
                // 打印找到的极值点数量
                if(Period() == PERIOD_H1)
                  {
-                  Print("1小时周期找到极值点数量: ", ArraySize(points), ", 有新极点: ", hasNewExtremum ? "是" : "否");
+                  // 1小时周期找到极值点
                  }
                
                // 更新最后极点时间

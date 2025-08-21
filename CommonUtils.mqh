@@ -163,8 +163,7 @@ double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_T
       return 0.0;
      }
    
-   Print("在", EnumToString(timeframe), "周期上找到最接近的K线: 索引=", barIndex, ", 时间=", TimeToString(iTime(Symbol(), timeframe, barIndex)), ", 最低价=", DoubleToString(closestPrice, _Digits));
-   
+  
    // 如果是当前K线（索引为0），则切换到更小的周期
    if(barIndex == 0 && smallerTimeframe != timeframe)
      {
@@ -193,8 +192,7 @@ double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_T
    // 记录最高点的时间
    highTime = iTime(Symbol(), timeframe, highestPriceIndex);
    
-   Print("在", EnumToString(timeframe), "周期上找到最高点: 索引=", highestPriceIndex, ", 时间=", TimeToString(highTime), ", 价格=", DoubleToString(highestPrice, _Digits));
-   
+  
    return highestPrice;
   }
 
@@ -236,8 +234,7 @@ double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_T
       return 0.0;
      }
    
-   Print("在", EnumToString(timeframe), "周期上找到最接近的K线: 索引=", barIndex, ", 时间=", TimeToString(iTime(Symbol(), timeframe, barIndex)), ", 最高价=", DoubleToString(closestPrice, _Digits));
-   
+  
    // 如果是当前K线（索引为0），则切换到更小的周期
    if(barIndex == 0 && smallerTimeframe != timeframe)
      {
@@ -266,7 +263,6 @@ double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_T
    // 记录最低点的时间
    lowTime = iTime(Symbol(), timeframe, lowestPriceIndex);
    
-   Print("在", EnumToString(timeframe), "周期上找到最低点: 索引=", lowestPriceIndex, ", 时间=", TimeToString(lowTime), ", 价格=", DoubleToString(lowestPrice, _Digits));
    
    return lowestPrice;
   }
