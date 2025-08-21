@@ -236,59 +236,33 @@ public:
       CalculateSupportResistanceLevel(timeframe, resistancePoint, false, SR_RESISTANCE);
      }
      
-   // 获取1小时支撑或压力点
-   CSupportResistancePoint* GetPointH1()
+   // 根据时间周期获取支撑或压力点
+   CSupportResistancePoint* GetPoint(ENUM_TIMEFRAMES timeframe)
      {
-      return &m_pointH1;
+      switch(timeframe)
+        {
+         case PERIOD_H1: return &m_pointH1;
+         case PERIOD_H4: return &m_pointH4;
+         case PERIOD_D1: return &m_pointD1;
+         default: return NULL;
+        }
      }
      
-   // 获取4小时支撑或压力点
-   CSupportResistancePoint* GetPointH4()
+   // 根据时间周期获取支撑或压力价格
+   double GetPrice(ENUM_TIMEFRAMES timeframe)
      {
-      return &m_pointH4;
+      CSupportResistancePoint* point = GetPoint(timeframe);
+      return point != NULL ? point.m_price : 0.0;
      }
      
-   // 获取日线支撑或压力点
-   CSupportResistancePoint* GetPointD1()
+   // 根据时间周期获取支撑或压力时间
+   datetime GetTime(ENUM_TIMEFRAMES timeframe)
      {
-      return &m_pointD1;
+      CSupportResistancePoint* point = GetPoint(timeframe);
+      return point != NULL ? point.m_time : 0;
      }
      
-   // 获取1小时支撑或压力价格
-   double GetPriceH1()
-     {
-      return m_pointH1.m_price;
-     }
-     
-   // 获取4小时支撑或压力价格
-   double GetPriceH4()
-     {
-      return m_pointH4.m_price;
-     }
-     
-   // 获取日线支撑或压力价格
-   double GetPriceD1()
-     {
-      return m_pointD1.m_price;
-     }
-     
-   // 获取1小时支撑或压力时间
-   datetime GetTimeH1()
-     {
-      return m_pointH1.m_time;
-     }
-     
-   // 获取4小时支撑或压力时间
-   datetime GetTimeH4()
-     {
-      return m_pointH4.m_time;
-     }
-     
-   // 获取日线支撑或压力时间
-   datetime GetTimeD1()
-     {
-      return m_pointD1.m_time;
-     }
+   // 不再需要特定时间周期的兼容方法，直接使用通用方法
      
    // 计算区间高点支撑（上涨行情）
    void CalculateRangeHighSupport(ENUM_TIMEFRAMES timeframe, CSupportResistancePoint &supportPoint)
@@ -326,34 +300,36 @@ public:
         }
      }
      
-   // 获取1小时支撑或压力描述
-   string GetDescriptionH1(int digits = 5)
+   // 根据时间周期获取支撑或压力描述
+   string GetDescription(ENUM_TIMEFRAMES timeframe, int digits = 5)
      {
-      return m_pointH1.GetDescription(digits);
-     }
-     
-   // 获取4小时支撑或压力描述
-   string GetDescriptionH4(int digits = 5)
-     {
-      return m_pointH4.GetDescription(digits);
-     }
-     
-   // 获取日线支撑或压力描述
-   string GetDescriptionD1(int digits = 5)
-     {
-      return m_pointD1.GetDescription(digits);
+      CSupportResistancePoint* point = GetPoint(timeframe);
+      return point != NULL ? point.GetDescription(digits) : "";
      }
      
    // 获取所有支撑或压力点的完整描述
    string GetFullDescription(int digits = 5)
      {
       string typeDesc = GetTypeDescription();
-      string h1Desc = DoubleToString(m_pointH1.m_price, digits);
-      string h4Desc = DoubleToString(m_pointH4.m_price, digits);
-      string d1Desc = DoubleToString(m_pointD1.m_price, digits);
       
-      return StringFormat("%s: H1=%s, H4=%s, D1=%s", 
-                         typeDesc, h1Desc, h4Desc, d1Desc);
+      // 创建一个包含所有时间周期的数组
+      ENUM_TIMEFRAMES timeframes[] = {PERIOD_H1, PERIOD_H4, PERIOD_D1};
+      string timeframeNames[] = {"H1", "H4", "D1"};
+      string result = typeDesc + ": ";
+      
+      // 遍历所有时间周期，添加到描述中
+      for(int i = 0; i < ArraySize(timeframes); i++)
+        {
+         double price = GetPrice(timeframes[i]);
+         string priceStr = DoubleToString(price, digits);
+         result += timeframeNames[i] + "=" + priceStr;
+         
+         // 如果不是最后一个元素，添加分隔符
+         if(i < ArraySize(timeframes) - 1)
+            result += ", ";
+        }
+      
+      return result;
      }
      
    // 是否为上涨趋势

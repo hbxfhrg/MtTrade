@@ -177,141 +177,81 @@ public:
      }
      
      
-   // 获取1小时支撑
-   static double GetSupport1H()
+   // 获取指定时间周期的支撑
+   static double GetSupportPrice(ENUM_TIMEFRAMES timeframe)
      {
-      return m_supportPoints.GetPriceH1();
+      return m_supportPoints.GetPrice(timeframe);
      }
      
-   // 获取4小时支撑
-   static double GetSupport4H()
+   // 获取指定时间周期的压力
+   static double GetResistancePrice(ENUM_TIMEFRAMES timeframe)
      {
-      return m_supportPoints.GetPriceH4();
+      return m_resistancePoints.GetPrice(timeframe);
      }
      
-   // 获取日线支撑
-   static double GetSupportD1()
+   // 获取指定时间周期的支撑时间
+   static datetime GetSupportTime(ENUM_TIMEFRAMES timeframe)
      {
-      return m_supportPoints.GetPriceD1();
+      return m_supportPoints.GetTime(timeframe);
      }
      
-   // 获取1小时压力
-   static double GetResistance1H()
+   // 获取指定时间周期的压力时间
+   static datetime GetResistanceTime(ENUM_TIMEFRAMES timeframe)
      {
-      return m_resistancePoints.GetPriceH1();
+      return m_resistancePoints.GetTime(timeframe);
      }
      
-   // 获取4小时压力
-   static double GetResistance4H()
-     {
-      return m_resistancePoints.GetPriceH4();
-     }
-     
-   // 获取日线压力
-   static double GetResistanceD1()
-     {
-      double price = m_resistancePoints.GetPriceD1();
-      return price;
-     }
-     
-   // 获取1小时支撑时间
-   static datetime GetSupport1HTime()
-     {
-      return m_supportPoints.GetTimeH1();
-     }
-     
-   // 获取4小时支撑时间
-   static datetime GetSupport4HTime()
-     {
-      return m_supportPoints.GetTimeH4();
-     }
-     
-   // 获取日线支撑时间
-   static datetime GetSupportD1Time()
-     {
-      return m_supportPoints.GetTimeD1();
-     }
-     
-   // 获取1小时压力时间
-   static datetime GetResistance1HTime()
-     {
-      return m_resistancePoints.GetTimeH1();
-     }
-     
-   // 获取4小时压力时间
-   static datetime GetResistance4HTime()
-     {
-      return m_resistancePoints.GetTimeH4();
-     }
-     
-   // 获取日线压力时间
-   static datetime GetResistanceD1Time()
-     {
-      return m_resistancePoints.GetTimeD1();
-     }
-     
-   // 获取支撑压力描述
-   static string GetSupportResistanceDescription()
+   // 获取指定时间周期的支撑/压力描述
+   static string GetSupportResistanceDescription(ENUM_TIMEFRAMES timeframe = PERIOD_H1, string prefix = "")
      {
       if(!m_isValid)
          return "";
          
       if(m_isUpTrend)
         {
-         // 上涨趋势，显示支撑位和参考点
-         string support1HText = DoubleToString(m_supportPoints.GetPriceH1(), _Digits);
-         string referenceText = DoubleToString(m_rangeHigh, _Digits);
-         
-         return "支撑：参考点" + referenceText;
+         // 上涨趋势，显示支撑位
+         string supportText = DoubleToString(m_supportPoints.GetPrice(timeframe), _Digits);
+         if(timeframe == PERIOD_H1 && prefix == "")
+           {
+            string referenceText = DoubleToString(m_rangeHigh, _Digits);
+            return "支撑：参考点" + referenceText;
+           }
+         else
+           {
+            string tfName = (timeframe == PERIOD_H1) ? "H1" : 
+                           (timeframe == PERIOD_H4) ? "4H" : 
+                           (timeframe == PERIOD_D1) ? "D1" : "未知";
+            return prefix + tfName + "=" + supportText;
+           }
         }
       else
         {
-         // 下跌趋势，显示压力位和参考点
-         string resistance1HText = DoubleToString(m_resistancePoints.GetPriceH1(), _Digits);
-         string referenceText = DoubleToString(m_rangeLow, _Digits);
-         
-         return "压力：参考点" + referenceText;
+         // 下跌趋势，显示压力位
+         string resistanceText = DoubleToString(m_resistancePoints.GetPrice(timeframe), _Digits);
+         if(timeframe == PERIOD_H1 && prefix == "")
+           {
+            string referenceText = DoubleToString(m_rangeLow, _Digits);
+            return "压力：参考点" + referenceText;
+           }
+         else
+           {
+            string tfName = (timeframe == PERIOD_H1) ? "H1" : 
+                           (timeframe == PERIOD_H4) ? "4H" : 
+                           (timeframe == PERIOD_D1) ? "D1" : "未知";
+            return prefix + tfName + "=" + resistanceText;
+           }
         }
      }
      
-   // 获取4小时支撑/压力描述
+   // 以下方法保留以兼容现有代码
    static string GetSupportResistance4HDescription()
      {
-      if(!m_isValid)
-         return "";
-         
-      if(m_isUpTrend)
-        {
-         // 上涨趋势，显示支撑位
-         string support4HText = DoubleToString(m_supportPoints.GetPriceH4(), _Digits);
-         return "4H=" + support4HText;
-        }
-      else
-        {
-         // 下跌趋势，显示压力位
-         string resistance4HText = DoubleToString(m_resistancePoints.GetPriceH4(), _Digits);
-         return "4H=" + resistance4HText;
-        }
+      return GetSupportResistanceDescription(PERIOD_H4);
      }
      
-   // 获取日线支撑/压力描述
    static string GetSupportResistanceD1Description()
      {
-      if(!m_isValid)
-         return "";
-         
-      if(m_isUpTrend)
-        {
-         // 上涨趋势，显示支撑位
-         string supportD1Text = DoubleToString(m_supportPoints.GetPriceD1(), _Digits);
-         return "D1=" + supportD1Text;
-        }
-      else
-        {
-         // 下跌趋势，显示压力位
-         string resistanceD1Text = DoubleToString(m_resistancePoints.GetPriceD1(), _Digits);
-         return "D1=" + resistanceD1Text;
-        }
+      return GetSupportResistanceDescription(PERIOD_D1);
      }
      
    // 获取回撤或反弹价格

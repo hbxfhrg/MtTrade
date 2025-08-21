@@ -118,9 +118,9 @@ public:
          // 上涨趋势，绘制回撤点压力 (H1, H4, D1三个级别)
          
          // 获取支撑位价格
-         double support1H = CTradeAnalyzer::GetSupport1H();
-         double support4H = CTradeAnalyzer::GetSupport4H();
-         double supportD1 = CTradeAnalyzer::GetSupportD1();
+         double support1H = CTradeAnalyzer::GetSupportPrice(PERIOD_H1);
+         double support4H = CTradeAnalyzer::GetSupportPrice(PERIOD_H4);
+         double supportD1 = CTradeAnalyzer::GetSupportPrice(PERIOD_D1);
          
          // 获取回撤点的动态支撑压力点对象
          CDynamicSupportResistancePoints retracePoints(retracePrice, SR_RESISTANCE_RETRACE);
@@ -128,11 +128,11 @@ public:
          // 只有当回撤价格低于对应级别的支撑价格时，才绘制该级别的回撤点压力
          
          // 1小时回撤点压力 - 紫色
-         double retrace1H = retracePoints.GetPriceH1();
+         double retrace1H = retracePoints.GetPrice(PERIOD_H1);
          if(retrace1H > 0 && retracePrice < support1H)
            {
             // 获取回撤点对应的时间
-            datetime retraceTime1H = retracePoints.GetTimeH1();
+            datetime retraceTime1H = retracePoints.GetTime(PERIOD_H1);
             if(retraceTime1H == 0) retraceTime1H = retraceTime;
             
             // 计算矩形的开始和结束时间
@@ -140,18 +140,18 @@ public:
             datetime endTime1H = retraceTime1H + PeriodSeconds(PERIOD_H1) * 15;
             
             // 创建矩形和标签
-            string labelText1H = "1H回撤点压力 " + DoubleToString(retrace1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)";
+            string labelText1H = "H1回撤点压力 " + DoubleToString(retrace1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)";
             CreateSupportResistanceRect("SR_Retrace_H1", "SR_Retrace_Label_H1", 
                                       startTime1H, endTime1H, retrace1H, rectHeight, 
                                       clrMagenta, labelText1H, STYLE_DASH, 70);
            }
            
          // 4小时回撤点压力 - 深紫色 - 只有当回撤价格低于4小时支撑价格时才绘制
-         double retrace4H = retracePoints.GetPriceH4();
+         double retrace4H = retracePoints.GetPrice(PERIOD_H4);
          if(retrace4H > 0 && retracePrice < support4H)
            {
             // 获取回撤点对应的时间
-            datetime retraceTime4H = retracePoints.GetTimeH4();
+            datetime retraceTime4H = retracePoints.GetTime(PERIOD_H4);
             if(retraceTime4H == 0) retraceTime4H = retraceTime;
             
             // 计算矩形的开始和结束时间
@@ -159,18 +159,18 @@ public:
             datetime endTime4H = retraceTime4H + PeriodSeconds(PERIOD_H1) * 15;
             
             // 创建矩形和标签
-            string labelText4H = "4H回撤点压力 " + DoubleToString(retrace4H, _Digits);
+            string labelText4H = "H4回撤点压力 " + DoubleToString(retrace4H, _Digits);
             CreateSupportResistanceRect("SR_Retrace_H4", "SR_Retrace_Label_H4", 
                                       startTime4H, endTime4H, retrace4H, rectHeight, 
                                       clrDarkMagenta, labelText4H, STYLE_DASH, 70);
            }
            
          // 日线回撤点压力 - 紫红色 - 只有当回撤价格低于日线支撑价格时才绘制
-         double retraceD1 = retracePoints.GetPriceD1();
+         double retraceD1 = retracePoints.GetPrice(PERIOD_D1);
          if(retraceD1 > 0 && retracePrice < supportD1)
            {
             // 获取回撤点对应的时间
-            datetime retraceTimeD1 = retracePoints.GetTimeD1();
+            datetime retraceTimeD1 = retracePoints.GetTime(PERIOD_D1);
             if(retraceTimeD1 == 0) retraceTimeD1 = retraceTime;
             
             // 计算矩形的开始和结束时间
@@ -189,19 +189,19 @@ public:
          // 下跌趋势，绘制反弹点支撑 (H1, H4, D1三个级别)
          
          // 获取压力位价格
-         double resistance1H = CTradeAnalyzer::GetResistance1H();
-         double resistance4H = CTradeAnalyzer::GetResistance4H();
-         double resistanceD1 = CTradeAnalyzer::GetResistanceD1();
+         double resistance1H = CTradeAnalyzer::GetResistancePrice(PERIOD_H1);
+         double resistance4H = CTradeAnalyzer::GetResistancePrice(PERIOD_H4);
+         double resistanceD1 = CTradeAnalyzer::GetResistancePrice(PERIOD_D1);
          
          // 获取反弹点的动态支撑压力点对象
          CDynamicSupportResistancePoints reboundPoints(retracePrice, SR_SUPPORT_REBOUND);
          
          // 1小时反弹点支撑 - 金色 - 只有当反弹价格高于1小时压力价格时才绘制
-         double rebound1H = reboundPoints.GetPriceH1();
+         double rebound1H = reboundPoints.GetPrice(PERIOD_H1);
          if(rebound1H > 0 && retracePrice > resistance1H)
            {
             // 获取反弹点对应的时间
-            datetime reboundTime1H = reboundPoints.GetTimeH1();
+            datetime reboundTime1H = reboundPoints.GetTime(PERIOD_H1);
             if(reboundTime1H == 0) reboundTime1H = retraceTime;
             
             // 计算矩形的开始和结束时间
@@ -209,18 +209,18 @@ public:
             datetime endTime1H = reboundTime1H + PeriodSeconds(PERIOD_H1) * 15;
             
             // 创建矩形和标签
-            string labelText1H = "1H反弹点支撑 " + DoubleToString(rebound1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)";
+            string labelText1H = "H1反弹点支撑 " + DoubleToString(rebound1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)";
             CreateSupportResistanceRect("SR_Rebound_H1", "SR_Rebound_Label_H1", 
                                       startTime1H, endTime1H, rebound1H, rectHeight, 
                                       clrGold, labelText1H, STYLE_DASH, 70);
            }
            
          // 4小时反弹点支撑 - 橙色 - 只有当反弹价格高于4小时压力价格时才绘制
-         double rebound4H = reboundPoints.GetPriceH4();
+         double rebound4H = reboundPoints.GetPrice(PERIOD_H4);
          if(rebound4H > 0 && retracePrice > resistance4H)
            {
             // 获取反弹点对应的时间
-            datetime reboundTime4H = reboundPoints.GetTimeH4();
+            datetime reboundTime4H = reboundPoints.GetTime(PERIOD_H4);
             if(reboundTime4H == 0) reboundTime4H = retraceTime;
             
             // 计算矩形的开始和结束时间
@@ -228,18 +228,18 @@ public:
             datetime endTime4H = reboundTime4H + PeriodSeconds(PERIOD_H1) * 15;
             
             // 创建矩形和标签
-            string labelText4H = "4H反弹点支撑 " + DoubleToString(rebound4H, _Digits);
+            string labelText4H = "H4反弹点支撑 " + DoubleToString(rebound4H, _Digits);
             CreateSupportResistanceRect("SR_Rebound_H4", "SR_Rebound_Label_H4", 
                                       startTime4H, endTime4H, rebound4H, rectHeight, 
                                       clrOrange, labelText4H, STYLE_DASH, 70);
            }
            
          // 日线反弹点支撑 - 深橙色 - 只有当反弹价格高于日线压力价格时才绘制
-         double reboundD1 = reboundPoints.GetPriceD1();
+         double reboundD1 = reboundPoints.GetPrice(PERIOD_D1);
          if(reboundD1 > 0 && retracePrice > resistanceD1)
            {
             // 获取反弹点对应的时间
-            datetime reboundTimeD1 = reboundPoints.GetTimeD1();
+            datetime reboundTimeD1 = reboundPoints.GetTime(PERIOD_D1);
             if(reboundTimeD1 == 0) reboundTimeD1 = retraceTime;
             
             // 计算矩形的开始和结束时间
@@ -254,146 +254,146 @@ public:
            }
         }
       
-      // 根据趋势方向绘制支撑或压力线
-      if(CTradeAnalyzer::IsUpTrend())
-        {
-         // 上涨趋势，绘制支撑线
-         
-         // 1小时支撑线 - 绿色
-         double support1H = CTradeAnalyzer::GetSupport1H();
-         if(support1H > 0)
+         // 根据趋势方向绘制支撑或压力线
+         if(CTradeAnalyzer::IsUpTrend())
            {
-            // 获取支撑位对应的1小时K线时间
-            datetime supportTime1H = CTradeAnalyzer::GetSupport1HTime();
+            // 上涨趋势，绘制支撑线
             
-            // 如果没有有效的支撑时间，则使用区间高点时间
-            if(supportTime1H == 0)
-               supportTime1H = CTradeAnalyzer::GetRangeHighTime();
-            
-            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-            datetime startTime1H = supportTime1H;
-            datetime endTime1H = supportTime1H + PeriodSeconds(PERIOD_H1) * 20;
-            
-            // 创建矩形和标签
-            string labelText1H = "1H支撑=" + DoubleToString(support1H, _Digits);
-            CreateSupportResistanceRect("SR_Rect_1H", "SR_Label_1H", 
-                                      startTime1H, endTime1H, support1H, rectHeight, 
-                                      clrGreen, labelText1H);
+            // 1小时支撑线 - 绿色
+            double support1H = CTradeAnalyzer::GetSupportPrice(PERIOD_H1);
+            if(support1H > 0)
+              {
+               // 获取支撑位对应的1小时K线时间
+               datetime supportTime1H = CTradeAnalyzer::GetSupportTime(PERIOD_H1);
+               
+               // 如果没有有效的支撑时间，则使用区间高点时间
+               if(supportTime1H == 0)
+                  supportTime1H = CTradeAnalyzer::GetRangeHighTime();
+               
+               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+               datetime startTime1H = supportTime1H;
+               datetime endTime1H = supportTime1H + PeriodSeconds(PERIOD_H1) * 20;
+               
+               // 创建矩形和标签 - 浅蓝色表示H1支撑
+               string labelText1H = "H1支撑=" + DoubleToString(support1H, _Digits);
+               CreateSupportResistanceRect("SR_Rect_H1", "SR_Label_H1", 
+                                         startTime1H, endTime1H, support1H, rectHeight, 
+                                         clrSkyBlue, labelText1H);
+              }
+              
+            // 4小时支撑线 - 中蓝色
+            double support4H = CTradeAnalyzer::GetSupportPrice(PERIOD_H4);
+            if(support4H > 0)
+              {
+               // 获取支撑位对应的4小时K线时间
+               datetime supportTime4H = CTradeAnalyzer::GetSupportTime(PERIOD_H4);
+               
+               // 如果没有有效的支撑时间，则使用区间高点时间
+               if(supportTime4H == 0)
+                  supportTime4H = CTradeAnalyzer::GetRangeHighTime();
+               
+               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+               datetime startTime4H = supportTime4H;
+               datetime endTime4H = supportTime4H + PeriodSeconds(PERIOD_H1) * 20;
+               
+               // 创建矩形和标签 - 中蓝色表示H4支撑
+               string labelText4H = "H4支撑";
+               CreateSupportResistanceRect("SR_Rect_H4", "SR_Label_H4", 
+                                         startTime4H, endTime4H, support4H, rectHeight, 
+                                         clrMediumBlue, labelText4H);
+              }
+              
+            // 日线支撑线 - 深蓝色
+            double supportD1 = CTradeAnalyzer::GetSupportPrice(PERIOD_D1);
+            if(supportD1 > 0)
+              {
+               // 获取支撑位对应的日线K线时间
+               datetime supportTimeD1 = CTradeAnalyzer::GetSupportTime(PERIOD_D1);
+               
+               // 如果没有有效的支撑时间，则使用区间高点时间
+               if(supportTimeD1 == 0)
+                  supportTimeD1 = CTradeAnalyzer::GetRangeHighTime();
+               
+               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+               datetime startTimeD1 = supportTimeD1;
+               datetime endTimeD1 = supportTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
+               
+               // 创建矩形和标签 - 深蓝色表示D1支撑
+               string labelTextD1 = "D1支撑";
+               CreateSupportResistanceRect("SR_Rect_D1", "SR_Label_D1", 
+                                         startTimeD1, endTimeD1, supportD1, rectHeight, 
+                                         clrDarkBlue, labelTextD1);
+              }
            }
-           
-         // 4小时支撑线 - 蓝色
-         double support4H = CTradeAnalyzer::GetSupport4H();
-         if(support4H > 0)
+         else
            {
-            // 获取支撑位对应的1小时K线时间
-            datetime supportTime4H = CTradeAnalyzer::GetSupport4HTime();
+            // 下跌趋势，绘制压力线
             
-            // 如果没有有效的支撑时间，则使用区间高点时间
-            if(supportTime4H == 0)
-               supportTime4H = CTradeAnalyzer::GetRangeHighTime();
-            
-            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-            datetime startTime4H = supportTime4H;
-            datetime endTime4H = supportTime4H + PeriodSeconds(PERIOD_H1) * 20;
-            
-            // 创建矩形和标签
-            string labelText4H = "4H支撑";
-            CreateSupportResistanceRect("SR_Rect_4H", "SR_Label_4H", 
-                                      startTime4H, endTime4H, support4H, rectHeight, 
-                                      clrBlue, labelText4H);
+            // 1小时压力线 - 浅红色
+            double resistance1H = CTradeAnalyzer::GetResistancePrice(PERIOD_H1);
+            if(resistance1H > 0)
+              {
+               // 获取压力位对应的1小时K线时间
+               datetime resistanceTime1H = CTradeAnalyzer::GetResistanceTime(PERIOD_H1);
+               
+               // 如果没有有效的压力时间，则使用区间低点时间
+               if(resistanceTime1H == 0)
+                  resistanceTime1H = CTradeAnalyzer::GetRangeLowTime();
+               
+               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+               datetime startTime1H = resistanceTime1H;
+               datetime endTime1H = resistanceTime1H + PeriodSeconds(PERIOD_H1) * 20;
+               
+               // 创建矩形和标签 - 浅红色表示H1压力
+               string labelText1H = "H1压力=" + DoubleToString(resistance1H, _Digits);
+               CreateSupportResistanceRect("SR_Rect_H1", "SR_Label_H1", 
+                                         startTime1H, endTime1H, resistance1H, rectHeight, 
+                                         clrLightCoral, labelText1H);
+              }
+              
+            // 4小时压力线 - 中红色
+            double resistance4H = CTradeAnalyzer::GetResistancePrice(PERIOD_H4);
+            if(resistance4H > 0)
+              {
+               // 获取压力位对应的4小时K线时间
+               datetime resistanceTime4H = CTradeAnalyzer::GetResistanceTime(PERIOD_H4);
+               
+               // 如果没有有效的压力时间，则使用区间低点时间
+               if(resistanceTime4H == 0)
+                  resistanceTime4H = CTradeAnalyzer::GetRangeLowTime();
+               
+               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+               datetime startTime4H = resistanceTime4H;
+               datetime endTime4H = resistanceTime4H + PeriodSeconds(PERIOD_H1) * 20;
+               
+               // 创建矩形和标签 - 中红色表示H4压力
+               string labelText4H = "H4压力";
+               CreateSupportResistanceRect("SR_Rect_H4", "SR_Label_H4", 
+                                         startTime4H, endTime4H, resistance4H, rectHeight, 
+                                         clrFireBrick, labelText4H);
+              }
+              
+            // 日线压力线 - 深红色
+            double resistanceD1 = CTradeAnalyzer::GetResistancePrice(PERIOD_D1);
+            if(resistanceD1 > 0)
+              {
+               // 获取压力位对应的日线K线时间
+               datetime resistanceTimeD1 = CTradeAnalyzer::GetResistanceTime(PERIOD_D1);
+               
+               // 如果没有有效的压力时间，则使用区间低点时间
+               if(resistanceTimeD1 == 0)
+                  resistanceTimeD1 = CTradeAnalyzer::GetRangeLowTime();
+               
+               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
+               datetime startTimeD1 = resistanceTimeD1;
+               datetime endTimeD1 = startTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
+               
+               // 创建矩形和标签 - 深红色表示D1压力，使用更宽的边框
+               string labelTextD1 = "D1压力";
+               CreateSupportResistanceRect("SR_Rect_D1", "SR_Label_D1", 
+                                         startTimeD1, endTimeD1, resistanceD1, rectHeight, 
+                                         clrDarkRed, labelTextD1, STYLE_SOLID, 60);
+              }
            }
-           
-         // 日线支撑线 - 红色
-         double supportD1 = CTradeAnalyzer::GetSupportD1();
-         if(supportD1 > 0)
-           {
-            // 获取支撑位对应的1小时K线时间
-            datetime supportTimeD1 = CTradeAnalyzer::GetSupportD1Time();
-            
-            // 如果没有有效的支撑时间，则使用区间高点时间
-            if(supportTimeD1 == 0)
-               supportTimeD1 = CTradeAnalyzer::GetRangeHighTime();
-            
-            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-            datetime startTimeD1 = supportTimeD1;
-            datetime endTimeD1 = supportTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
-            
-            // 创建矩形和标签
-            string labelTextD1 = "D1支撑";
-            CreateSupportResistanceRect("SR_Rect_D1", "SR_Label_D1", 
-                                      startTimeD1, endTimeD1, supportD1, rectHeight, 
-                                      clrRed, labelTextD1);
-           }
-        }
-      else
-        {
-         // 下跌趋势，绘制压力线
-         
-         // 1小时压力线 - 绿色
-         double resistance1H = CTradeAnalyzer::GetResistance1H();
-         if(resistance1H > 0)
-           {
-            // 获取压力位对应的1小时K线时间
-            datetime resistanceTime1H = CTradeAnalyzer::GetResistance1HTime();
-            
-            // 如果没有有效的压力时间，则使用区间低点时间
-            if(resistanceTime1H == 0)
-               resistanceTime1H = CTradeAnalyzer::GetRangeLowTime();
-            
-            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-            datetime startTime1H = resistanceTime1H;
-            datetime endTime1H = resistanceTime1H + PeriodSeconds(PERIOD_H1) * 20;
-            
-            // 创建矩形和标签
-            string labelText1H = "1H压力=" + DoubleToString(resistance1H, _Digits);
-            CreateSupportResistanceRect("SR_Rect_1H", "SR_Label_1H", 
-                                      startTime1H, endTime1H, resistance1H, rectHeight, 
-                                      clrGreen, labelText1H);
-           }
-           
-         // 4小时压力线 - 蓝色
-         double resistance4H = CTradeAnalyzer::GetResistance4H();
-         if(resistance4H > 0)
-           {
-            // 获取压力位对应的1小时K线时间
-            datetime resistanceTime4H = CTradeAnalyzer::GetResistance4HTime();
-            
-            // 如果没有有效的压力时间，则使用区间低点时间
-            if(resistanceTime4H == 0)
-               resistanceTime4H = CTradeAnalyzer::GetRangeLowTime();
-            
-            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-            datetime startTime4H = resistanceTime4H;
-            datetime endTime4H = resistanceTime4H + PeriodSeconds(PERIOD_H1) * 20;
-            
-            // 创建矩形和标签
-            string labelText4H = "4H压力";
-            CreateSupportResistanceRect("SR_Rect_4H", "SR_Label_4H", 
-                                      startTime4H, endTime4H, resistance4H, rectHeight, 
-                                      clrBlue, labelText4H);
-           }
-           
-         // 日线压力线 - 红色
-         double resistanceD1 = CTradeAnalyzer::GetResistanceD1();
-         if(resistanceD1 > 0)
-           {
-            // 获取压力位对应的1小时K线时间
-            datetime resistanceTimeD1 = CTradeAnalyzer::GetResistanceD1Time();
-            
-            // 如果没有有效的压力时间，则使用区间低点时间
-            if(resistanceTimeD1 == 0)
-               resistanceTimeD1 = CTradeAnalyzer::GetRangeLowTime();
-            
-            // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-            datetime startTimeD1 = resistanceTimeD1;
-            datetime endTimeD1 = startTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
-            
-            // 创建矩形和标签 - 日线压力使用更明显的红色和更宽的边框
-            string labelTextD1 = "D1压力";
-            CreateSupportResistanceRect("SR_Rect_D1", "SR_Label_D1", 
-                                      startTimeD1, endTimeD1, resistanceD1, rectHeight, 
-                                      clrCrimson, labelTextD1, STYLE_SOLID, 60);
-           }
-        }
      }
   };

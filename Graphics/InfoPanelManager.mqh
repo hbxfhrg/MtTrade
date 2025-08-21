@@ -156,9 +156,9 @@ public:
          ObjectSetInteger(0, sr1HValueName, OBJPROP_ZORDER, 100); // 确保文本在最上层
          ObjectSetString(0, sr1HValueName, OBJPROP_FONT, g_InfoPanelFont);
          if(CTradeAnalyzer::IsUpTrend())
-            ObjectSetString(0, sr1HValueName, OBJPROP_TEXT, "1H=" + DoubleToString(CTradeAnalyzer::GetSupport1H(), _Digits));
+            ObjectSetString(0, sr1HValueName, OBJPROP_TEXT, "1H=" + DoubleToString(CTradeAnalyzer::GetSupportPrice(PERIOD_H1), _Digits));
          else
-            ObjectSetString(0, sr1HValueName, OBJPROP_TEXT, "1H=" + DoubleToString(CTradeAnalyzer::GetResistance1H(), _Digits));
+            ObjectSetString(0, sr1HValueName, OBJPROP_TEXT, "1H=" + DoubleToString(CTradeAnalyzer::GetResistancePrice(PERIOD_H1), _Digits));
          
          // 创建4小时支撑或压力文本
          string sr4HName = actualPanelName + "_SR4H";
