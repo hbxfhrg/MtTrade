@@ -20,6 +20,7 @@ public:
    ENUM_TIMEFRAMES   m_timeframe;       // 时间周期
    int               m_barIndex;        // K线序号
    ENUM_SR_POINT_TYPE m_type;           // 点类型（支撑或压力）
+   bool              m_isPenetrated;    // 是否被穿越（支撑点被向下穿越或压力点被向上穿越）
    
    // 构造函数
    CSupportResistancePoint(double price = 0.0, 
@@ -33,6 +34,7 @@ public:
       m_timeframe = timeframe;
       m_barIndex = barIndex;
       m_type = isSupport ? SR_SUPPORT : SR_RESISTANCE;
+      m_isPenetrated = false;
      }
      
    // 重载构造函数，直接使用枚举类型
@@ -47,6 +49,7 @@ public:
       m_timeframe = timeframe;
       m_barIndex = barIndex;
       m_type = type;
+      m_isPenetrated = false;
      }
      
    // 获取价格
@@ -151,7 +154,41 @@ public:
       string priceText = DoubleToString(m_price, digits);
       string typeText = GetTypeDescription();
       string timeframeText = GetTimeframeDescription();
+      string penetratedText = m_isPenetrated ? " (已穿越)" : "";
       
-      return StringFormat("%s(%s): %s", typeText, timeframeText, priceText);
+      return StringFormat("%s(%s): %s%s", typeText, timeframeText, priceText, penetratedText);
+     }
+     
+   // 设置是否被穿越
+   void SetPenetrated(bool isPenetrated)
+     {
+      m_isPenetrated = isPenetrated;
+     }
+     
+   // 获取是否被穿越
+   bool IsPenetrated() const
+     {
+      CLogUtil::Log(StringFormat("检查价格点 %.5f 是否被穿越: %s", m_price, m_isPenetrated ? "是" : "否"));
+      return m_isPenetrated;
+     }
+     
+   // 检查价格是否穿越了此点
+   bool CheckPenetration(double price)
+     {
+      // 如果是支撑点，则价格低于支撑点表示被穿越
+      if(IsSupport() && price < m_price)
+        {
+         m_isPenetrated = true;
+         return true;
+        }
+      
+      // 如果是压力点，则价格高于压力点表示被穿越
+      if(!IsSupport() && price > m_price)
+        {
+         m_isPenetrated = true;
+         return true;
+        }
+      
+      return false;
      }
   };

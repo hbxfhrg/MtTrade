@@ -64,3 +64,7 @@ enum ENUM_PRICE_TYPE
   };
 
 // 注意：TimeframeToString 函数已在 CommonUtils.mqh 中定义
+
+// 全局变量 - 控制是否显示已被穿越的价格点
+bool g_ShowPenetratedPoints = false;
+

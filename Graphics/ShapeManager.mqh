@@ -8,6 +8,7 @@
 
 // 引入交易分析类
 #include "../TradeAnalyzer.mqh"
+#include "../DynamicPricePoint.mqh"
 
 // 全局变量 - 图形管理器默认属性
 color   g_ShapeBorderColor = clrBlue;
@@ -29,7 +30,7 @@ private:
      {
       ObjectSetInteger(0, objectName, OBJPROP_COLOR, borderColor);
       // 使用带透明度的颜色
-      color colorWithAlpha = fillColor & 0x00FFFFFF | (transparency << 24);
+      color colorWithAlpha = (color)(fillColor & 0x00FFFFFF | (transparency << 24));
       ObjectSetInteger(0, objectName, OBJPROP_BGCOLOR, colorWithAlpha);
       ObjectSetInteger(0, objectName, OBJPROP_FILL, true);
       ObjectSetInteger(0, objectName, OBJPROP_WIDTH, width);
@@ -42,7 +43,7 @@ private:
      
    // 设置文本标签的属性
    static void SetTextProperties(string objectName, string text, color textColor, 
-                               string font = "Arial", int fontSize = 8, 
+                               string font = "Arial", int fontSize = 9, 
                                ENUM_ANCHOR_POINT anchor = ANCHOR_LEFT_LOWER)
      {
       ObjectSetString(0, objectName, OBJPROP_TEXT, text);
@@ -50,6 +51,11 @@ private:
       ObjectSetInteger(0, objectName, OBJPROP_FONTSIZE, fontSize);
       ObjectSetInteger(0, objectName, OBJPROP_COLOR, textColor);
       ObjectSetInteger(0, objectName, OBJPROP_ANCHOR, anchor);
+      ObjectSetInteger(0, objectName, OBJPROP_BACK, false);
+      ObjectSetInteger(0, objectName, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, objectName, OBJPROP_HIDDEN, false);
+      // 确保文本在前景显示
+      ObjectSetInteger(0, objectName, OBJPROP_ZORDER, 100);
      }
      
    // 创建支撑/压力矩形和标签
@@ -95,7 +101,207 @@ public:
       DrawRetraceReboundPoint();
      }
      
-   // 绘制回撤点或反弹点
+   // 绘制动态价格点（支撑/压力/回撤/反弹/区间高低点）
+   static void DrawDynamicPricePoint(CDynamicPricePoint &pricePoint, double referencePrice, 
+                                   double comparePrice, bool shouldDraw, 
+                                   string baseName, color pointColor, 
+                                   double retracePercent = 0.0)
+     {
+      if(!CTradeAnalyzer::IsValid() || referencePrice <= 0)
+         return;
+         
+      // 矩形高度（价格单位）
+      double rectHeight = 600 * _Point; // 矩形高度为15个点
+      
+      // 获取点类型
+      ENUM_SR_POINT_TYPE pointType = pricePoint.GetPointType();
+      
+      // 分离点的类型和作用
+      string pointTypeDesc = ""; // 点的类型描述（区间高点、区间低点、回撤点、反弹点）
+      string pointRoleDesc = ""; // 点的作用描述（支撑、压力）
+      
+      // 确定点的类型
+      switch(pointType)
+        {
+         case SR_SUPPORT_RANGE_HIGH:
+            pointTypeDesc = "区间高点";
+            pointRoleDesc = "支撑";
+            break;
+         case SR_RESISTANCE_RETRACE:
+            pointTypeDesc = "回撤点";
+            pointRoleDesc = "压力";
+            break;
+         case SR_RESISTANCE_RANGE_LOW:
+            pointTypeDesc = "区间低点";
+            pointRoleDesc = "压力";
+            break;
+         case SR_SUPPORT_REBOUND:
+            pointTypeDesc = "反弹点";
+            pointRoleDesc = "支撑";
+            break;
+         case SR_SUPPORT:
+            pointTypeDesc = "";
+            pointRoleDesc = "支撑";
+            break;
+         case SR_RESISTANCE:
+            pointTypeDesc = "";
+            pointRoleDesc = "压力";
+            break;
+        }
+      
+      // 定义需要绘制的时间周期数组
+      ENUM_TIMEFRAMES timeframes[] = {PERIOD_H1, PERIOD_H4, PERIOD_D1};
+      string timeframeNames[] = {"H1", "H4", "D1"};
+      // 颜色由浅到深：H1最浅，D1最深
+      color timeframeColors[] = {ColorBrighten(pointColor, 30), pointColor, ColorBrighten(pointColor, -30)};
+      
+      // 对每个时间周期进行绘制
+      for(int i = 0; i < ArraySize(timeframes); i++)
+        {
+         // 获取当前时间周期的价格和时间
+         double price = pricePoint.GetPrice(timeframes[i]);
+         datetime time = pricePoint.GetTime(timeframes[i]);
+         
+         // 获取价格点对象
+         CSupportResistancePoint* point = pricePoint.GetPoint(timeframes[i]);
+         
+            // 强制重新检查穿越状态
+            bool isPenetrated = false;
+            
+            // 根据点类型和当前价格检查穿越状态
+            if(pointType == SR_SUPPORT_RANGE_HIGH || pointType == SR_SUPPORT_REBOUND || pointType == SR_SUPPORT)
+              {
+               // 支撑点 - 如果当前价格低于支撑价格，则被穿越
+               double currentPrice = CTradeAnalyzer::GetRetracePrice();
+               isPenetrated = (currentPrice > 0 && currentPrice < price);
+               
+               // 输出调试信息
+               CLogUtil::Log(StringFormat("支撑点检查: %s 价格=%.5f, 当前价格=%.5f, 穿越=%s", 
+                                        timeframeNames[i], price, currentPrice, isPenetrated ? "是" : "否"));
+              }
+            else if(pointType == SR_RESISTANCE_RETRACE || pointType == SR_RESISTANCE_RANGE_LOW || pointType == SR_RESISTANCE)
+              {
+               // 压力点 - 如果当前价格高于压力价格，则被穿越
+               double currentPrice = CTradeAnalyzer::GetRetracePrice();
+               isPenetrated = (currentPrice > 0 && currentPrice > price);
+               
+               // 输出调试信息
+               CLogUtil::Log(StringFormat("压力点检查: %s 价格=%.5f, 当前价格=%.5f, 穿越=%s", 
+                                        timeframeNames[i], price, currentPrice, isPenetrated ? "是" : "否"));
+              }
+              
+            // 如果价格有效且满足绘制条件，并且（未被穿越或设置为显示已穿越的点）
+            if(price > 0 && shouldDraw && point != NULL && (!isPenetrated || g_ShowPenetratedPoints))
+           {
+            // 如果时间无效，使用参考时间
+            if(time == 0)
+               time = CTradeAnalyzer::GetRetraceTime();
+               
+            // 计算矩形的开始和结束时间
+            datetime startTime = time;
+            datetime endTime = time + PeriodSeconds(PERIOD_H1) * 15;
+            
+            // 创建对象名称
+            string rectName = StringFormat("SR_%s_%s", baseName, timeframeNames[i]);
+            string labelName = StringFormat("SR_%s_Label_%s", baseName, timeframeNames[i]);
+            
+            // 创建标签文本，显示时间周期、价格和穿越状态
+            string labelText;
+            color labelColor;
+            ENUM_LINE_STYLE lineStyle;
+            int transparency;
+            
+            // 强制重新检查穿越状态
+            bool isPenetrated = false;
+            
+            // 根据点类型和当前价格检查穿越状态
+            if(pointType == SR_SUPPORT_RANGE_HIGH || pointType == SR_SUPPORT_REBOUND || pointType == SR_SUPPORT)
+              {
+               // 支撑点 - 如果当前价格低于支撑价格，则被穿越
+               double currentPrice = CTradeAnalyzer::GetRetracePrice();
+               isPenetrated = (currentPrice > 0 && currentPrice < price);
+               
+               // 输出调试信息
+               CLogUtil::Log(StringFormat("支撑点检查: %s 价格=%.5f, 当前价格=%.5f, 穿越=%s", 
+                                        timeframeNames[i], price, currentPrice, isPenetrated ? "是" : "否"));
+              }
+            else if(pointType == SR_RESISTANCE_RETRACE || pointType == SR_RESISTANCE_RANGE_LOW || pointType == SR_RESISTANCE)
+              {
+               // 压力点 - 如果当前价格高于压力价格，则被穿越
+               double currentPrice = CTradeAnalyzer::GetRetracePrice();
+               isPenetrated = (currentPrice > 0 && currentPrice > price);
+               
+               // 输出调试信息
+               CLogUtil::Log(StringFormat("压力点检查: %s 价格=%.5f, 当前价格=%.5f, 穿越=%s", 
+                                        timeframeNames[i], price, currentPrice, isPenetrated ? "是" : "否"));
+              }
+            
+            if(isPenetrated)
+              {
+               // 被穿越的点使用特殊标记和颜色
+               labelText = StringFormat("%s-> %s [穿]", 
+                                      timeframeNames[i], 
+                                      DoubleToString(price, _Digits));
+               labelColor = clrRed; // 使用红色标记已穿越
+               lineStyle = STYLE_DOT;
+               transparency = 90; // 更高的透明度
+               
+               // 输出日志，用于调试
+               CLogUtil::Log(StringFormat("绘制被穿越的价格点: %s, 价格: %.5f", timeframeNames[i], price));
+              }
+            else
+              {
+               // 正常点
+               labelText = StringFormat("%s-> %s", 
+                                      timeframeNames[i], 
+                                      DoubleToString(price, _Digits));
+               labelColor = timeframeColors[i];
+               lineStyle = STYLE_DASH;
+               transparency = 70;
+              }
+            
+            // 创建矩形和标签
+            CreateSupportResistanceRect(rectName, labelName, 
+                                      startTime, endTime, price, rectHeight, 
+                                      labelColor, labelText, lineStyle, transparency);
+           }
+        }
+     }
+     
+   // 辅助函数：调整颜色亮度
+   static color ColorBrighten(color clr, int percent)
+     {
+      // 提取RGB分量
+      int r = (clr >> 16) & 0xFF;
+      int g = (clr >> 8) & 0xFF;
+      int b = clr & 0xFF;
+      
+      // 调整亮度
+      if(percent > 0)
+        {
+         // 增加亮度
+         r = r + (255 - r) * percent / 100;
+         g = g + (255 - g) * percent / 100;
+         b = b + (255 - b) * percent / 100;
+        }
+      else if(percent < 0)
+        {
+         // 减少亮度
+         r = r * (100 + percent) / 100;
+         g = g * (100 + percent) / 100;
+         b = b * (100 + percent) / 100;
+        }
+      
+      // 确保值在0-255范围内
+      r = MathMax(0, MathMin(255, r));
+      g = MathMax(0, MathMin(255, g));
+      b = MathMax(0, MathMin(255, b));
+      
+      // 重新组合RGB分量
+      return (color)((r << 16) | (g << 8) | b);
+     }
+     
+   // 绘制回撤点、反弹点和区间高低点
    static void DrawRetraceReboundPoint()
      {
       if(!CTradeAnalyzer::IsValid())
@@ -115,285 +321,47 @@ public:
       // 根据趋势方向确定是回撤点还是反弹点
       if(CTradeAnalyzer::IsUpTrend())
         {
-         // 上涨趋势，绘制回撤点压力 (H1, H4, D1三个级别)
+         // 上涨趋势，绘制回撤点压力
          
          // 获取支撑位价格
          double support1H = CTradeAnalyzer::GetSupportPrice(PERIOD_H1);
-         double support4H = CTradeAnalyzer::GetSupportPrice(PERIOD_H4);
-         double supportD1 = CTradeAnalyzer::GetSupportPrice(PERIOD_D1);
          
-         // 获取回撤点的动态支撑压力点对象
-         CDynamicSupportResistancePoints retracePoints(retracePrice, SR_RESISTANCE_RETRACE);
+         // 创建回撤点动态价格点对象
+         CDynamicPricePoint retracePoints(retracePrice, SR_RESISTANCE_RETRACE);
          
-         // 只有当回撤价格低于对应级别的支撑价格时，才绘制该级别的回撤点压力
+         // 绘制回撤点压力 - 紫色系
+         DrawDynamicPricePoint(retracePoints, retracePrice, support1H, 
+                             retracePrice < support1H, "Retrace", clrMagenta, 
+                             retracePercent);
+                             
+         // 绘制区间高点支撑 - 蓝色系
+         double rangeHigh = CTradeAnalyzer::GetRangeHigh();
+         CDynamicPricePoint rangeHighPoints(rangeHigh, SR_SUPPORT_RANGE_HIGH);
          
-         // 1小时回撤点压力 - 紫色
-         double retrace1H = retracePoints.GetPrice(PERIOD_H1);
-         if(retrace1H > 0 && retracePrice < support1H)
-           {
-            // 获取回撤点对应的时间
-            datetime retraceTime1H = retracePoints.GetTime(PERIOD_H1);
-            if(retraceTime1H == 0) retraceTime1H = retraceTime;
-            
-            // 计算矩形的开始和结束时间
-            datetime startTime1H = retraceTime1H;
-            datetime endTime1H = retraceTime1H + PeriodSeconds(PERIOD_H1) * 15;
-            
-            // 创建矩形和标签
-            string labelText1H = "H1回撤点压力 " + DoubleToString(retrace1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)";
-            CreateSupportResistanceRect("SR_Retrace_H1", "SR_Retrace_Label_H1", 
-                                      startTime1H, endTime1H, retrace1H, rectHeight, 
-                                      clrMagenta, labelText1H, STYLE_DASH, 70);
-           }
-           
-         // 4小时回撤点压力 - 深紫色 - 只有当回撤价格低于4小时支撑价格时才绘制
-         double retrace4H = retracePoints.GetPrice(PERIOD_H4);
-         if(retrace4H > 0 && retracePrice < support4H)
-           {
-            // 获取回撤点对应的时间
-            datetime retraceTime4H = retracePoints.GetTime(PERIOD_H4);
-            if(retraceTime4H == 0) retraceTime4H = retraceTime;
-            
-            // 计算矩形的开始和结束时间
-            datetime startTime4H = retraceTime4H;
-            datetime endTime4H = retraceTime4H + PeriodSeconds(PERIOD_H1) * 15;
-            
-            // 创建矩形和标签
-            string labelText4H = "H4回撤点压力 " + DoubleToString(retrace4H, _Digits);
-            CreateSupportResistanceRect("SR_Retrace_H4", "SR_Retrace_Label_H4", 
-                                      startTime4H, endTime4H, retrace4H, rectHeight, 
-                                      clrDarkMagenta, labelText4H, STYLE_DASH, 70);
-           }
-           
-         // 日线回撤点压力 - 紫红色 - 只有当回撤价格低于日线支撑价格时才绘制
-         double retraceD1 = retracePoints.GetPrice(PERIOD_D1);
-         if(retraceD1 > 0 && retracePrice < supportD1)
-           {
-            // 获取回撤点对应的时间
-            datetime retraceTimeD1 = retracePoints.GetTime(PERIOD_D1);
-            if(retraceTimeD1 == 0) retraceTimeD1 = retraceTime;
-            
-            // 计算矩形的开始和结束时间
-            datetime startTimeD1 = retraceTimeD1;
-            datetime endTimeD1 = retraceTimeD1 + PeriodSeconds(PERIOD_H1) * 15;
-            
-            // 创建矩形和标签
-            string labelTextD1 = "D1回撤点压力 " + DoubleToString(retraceD1, _Digits);
-            CreateSupportResistanceRect("SR_Retrace_D1", "SR_Retrace_Label_D1", 
-                                      startTimeD1, endTimeD1, retraceD1, rectHeight, 
-                                      clrPurple, labelTextD1, STYLE_DASH, 70);
-           }
+         DrawDynamicPricePoint(rangeHighPoints, rangeHigh, 0, true, 
+                             "RangeHigh", clrSkyBlue);
         }
       else
         {
-         // 下跌趋势，绘制反弹点支撑 (H1, H4, D1三个级别)
+         // 下跌趋势，绘制反弹点支撑
          
          // 获取压力位价格
          double resistance1H = CTradeAnalyzer::GetResistancePrice(PERIOD_H1);
-         double resistance4H = CTradeAnalyzer::GetResistancePrice(PERIOD_H4);
-         double resistanceD1 = CTradeAnalyzer::GetResistancePrice(PERIOD_D1);
          
-         // 获取反弹点的动态支撑压力点对象
-         CDynamicSupportResistancePoints reboundPoints(retracePrice, SR_SUPPORT_REBOUND);
+         // 创建反弹点动态价格点对象
+         CDynamicPricePoint reboundPoints(retracePrice, SR_SUPPORT_REBOUND);
          
-         // 1小时反弹点支撑 - 金色 - 只有当反弹价格高于1小时压力价格时才绘制
-         double rebound1H = reboundPoints.GetPrice(PERIOD_H1);
-         if(rebound1H > 0 && retracePrice > resistance1H)
-           {
-            // 获取反弹点对应的时间
-            datetime reboundTime1H = reboundPoints.GetTime(PERIOD_H1);
-            if(reboundTime1H == 0) reboundTime1H = retraceTime;
-            
-            // 计算矩形的开始和结束时间
-            datetime startTime1H = reboundTime1H;
-            datetime endTime1H = reboundTime1H + PeriodSeconds(PERIOD_H1) * 15;
-            
-            // 创建矩形和标签
-            string labelText1H = "H1反弹点支撑 " + DoubleToString(rebound1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)";
-            CreateSupportResistanceRect("SR_Rebound_H1", "SR_Rebound_Label_H1", 
-                                      startTime1H, endTime1H, rebound1H, rectHeight, 
-                                      clrGold, labelText1H, STYLE_DASH, 70);
-           }
-           
-         // 4小时反弹点支撑 - 橙色 - 只有当反弹价格高于4小时压力价格时才绘制
-         double rebound4H = reboundPoints.GetPrice(PERIOD_H4);
-         if(rebound4H > 0 && retracePrice > resistance4H)
-           {
-            // 获取反弹点对应的时间
-            datetime reboundTime4H = reboundPoints.GetTime(PERIOD_H4);
-            if(reboundTime4H == 0) reboundTime4H = retraceTime;
-            
-            // 计算矩形的开始和结束时间
-            datetime startTime4H = reboundTime4H;
-            datetime endTime4H = reboundTime4H + PeriodSeconds(PERIOD_H1) * 15;
-            
-            // 创建矩形和标签
-            string labelText4H = "H4反弹点支撑 " + DoubleToString(rebound4H, _Digits);
-            CreateSupportResistanceRect("SR_Rebound_H4", "SR_Rebound_Label_H4", 
-                                      startTime4H, endTime4H, rebound4H, rectHeight, 
-                                      clrOrange, labelText4H, STYLE_DASH, 70);
-           }
-           
-         // 日线反弹点支撑 - 深橙色 - 只有当反弹价格高于日线压力价格时才绘制
-         double reboundD1 = reboundPoints.GetPrice(PERIOD_D1);
-         if(reboundD1 > 0 && retracePrice > resistanceD1)
-           {
-            // 获取反弹点对应的时间
-            datetime reboundTimeD1 = reboundPoints.GetTime(PERIOD_D1);
-            if(reboundTimeD1 == 0) reboundTimeD1 = retraceTime;
-            
-            // 计算矩形的开始和结束时间
-            datetime startTimeD1 = reboundTimeD1;
-            datetime endTimeD1 = reboundTimeD1 + PeriodSeconds(PERIOD_H1) * 15;
-            
-            // 创建矩形和标签
-            string labelTextD1 = "D1反弹点支撑 " + DoubleToString(reboundD1, _Digits);
-            CreateSupportResistanceRect("SR_Rebound_D1", "SR_Rebound_Label_D1", 
-                                      startTimeD1, endTimeD1, reboundD1, rectHeight, 
-                                      clrDarkOrange, labelTextD1, STYLE_DASH, 70);
-           }
+         // 绘制反弹点支撑 - 金色系
+         DrawDynamicPricePoint(reboundPoints, retracePrice, resistance1H, 
+                             retracePrice > resistance1H, "Rebound", clrGold, 
+                             retracePercent);
+                             
+         // 绘制区间低点压力 - 红色系
+         double rangeLow = CTradeAnalyzer::GetRangeLow();
+         CDynamicPricePoint rangeLowPoints(rangeLow, SR_RESISTANCE_RANGE_LOW);
+         
+         DrawDynamicPricePoint(rangeLowPoints, rangeLow, 0, true, 
+                             "RangeLow", clrLightCoral);
         }
-      
-         // 根据趋势方向绘制支撑或压力线
-         if(CTradeAnalyzer::IsUpTrend())
-           {
-            // 上涨趋势，绘制支撑线
-            
-            // 1小时支撑线 - 绿色
-            double support1H = CTradeAnalyzer::GetSupportPrice(PERIOD_H1);
-            if(support1H > 0)
-              {
-               // 获取支撑位对应的1小时K线时间
-               datetime supportTime1H = CTradeAnalyzer::GetSupportTime(PERIOD_H1);
-               
-               // 如果没有有效的支撑时间，则使用区间高点时间
-               if(supportTime1H == 0)
-                  supportTime1H = CTradeAnalyzer::GetRangeHighTime();
-               
-               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-               datetime startTime1H = supportTime1H;
-               datetime endTime1H = supportTime1H + PeriodSeconds(PERIOD_H1) * 20;
-               
-               // 创建矩形和标签 - 浅蓝色表示H1支撑
-               string labelText1H = "H1支撑=" + DoubleToString(support1H, _Digits);
-               CreateSupportResistanceRect("SR_Rect_H1", "SR_Label_H1", 
-                                         startTime1H, endTime1H, support1H, rectHeight, 
-                                         clrSkyBlue, labelText1H);
-              }
-              
-            // 4小时支撑线 - 中蓝色
-            double support4H = CTradeAnalyzer::GetSupportPrice(PERIOD_H4);
-            if(support4H > 0)
-              {
-               // 获取支撑位对应的4小时K线时间
-               datetime supportTime4H = CTradeAnalyzer::GetSupportTime(PERIOD_H4);
-               
-               // 如果没有有效的支撑时间，则使用区间高点时间
-               if(supportTime4H == 0)
-                  supportTime4H = CTradeAnalyzer::GetRangeHighTime();
-               
-               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-               datetime startTime4H = supportTime4H;
-               datetime endTime4H = supportTime4H + PeriodSeconds(PERIOD_H1) * 20;
-               
-               // 创建矩形和标签 - 中蓝色表示H4支撑
-               string labelText4H = "H4支撑";
-               CreateSupportResistanceRect("SR_Rect_H4", "SR_Label_H4", 
-                                         startTime4H, endTime4H, support4H, rectHeight, 
-                                         clrMediumBlue, labelText4H);
-              }
-              
-            // 日线支撑线 - 深蓝色
-            double supportD1 = CTradeAnalyzer::GetSupportPrice(PERIOD_D1);
-            if(supportD1 > 0)
-              {
-               // 获取支撑位对应的日线K线时间
-               datetime supportTimeD1 = CTradeAnalyzer::GetSupportTime(PERIOD_D1);
-               
-               // 如果没有有效的支撑时间，则使用区间高点时间
-               if(supportTimeD1 == 0)
-                  supportTimeD1 = CTradeAnalyzer::GetRangeHighTime();
-               
-               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-               datetime startTimeD1 = supportTimeD1;
-               datetime endTimeD1 = supportTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
-               
-               // 创建矩形和标签 - 深蓝色表示D1支撑
-               string labelTextD1 = "D1支撑";
-               CreateSupportResistanceRect("SR_Rect_D1", "SR_Label_D1", 
-                                         startTimeD1, endTimeD1, supportD1, rectHeight, 
-                                         clrDarkBlue, labelTextD1);
-              }
-           }
-         else
-           {
-            // 下跌趋势，绘制压力线
-            
-            // 1小时压力线 - 浅红色
-            double resistance1H = CTradeAnalyzer::GetResistancePrice(PERIOD_H1);
-            if(resistance1H > 0)
-              {
-               // 获取压力位对应的1小时K线时间
-               datetime resistanceTime1H = CTradeAnalyzer::GetResistanceTime(PERIOD_H1);
-               
-               // 如果没有有效的压力时间，则使用区间低点时间
-               if(resistanceTime1H == 0)
-                  resistanceTime1H = CTradeAnalyzer::GetRangeLowTime();
-               
-               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-               datetime startTime1H = resistanceTime1H;
-               datetime endTime1H = resistanceTime1H + PeriodSeconds(PERIOD_H1) * 20;
-               
-               // 创建矩形和标签 - 浅红色表示H1压力
-               string labelText1H = "H1压力=" + DoubleToString(resistance1H, _Digits);
-               CreateSupportResistanceRect("SR_Rect_H1", "SR_Label_H1", 
-                                         startTime1H, endTime1H, resistance1H, rectHeight, 
-                                         clrLightCoral, labelText1H);
-              }
-              
-            // 4小时压力线 - 中红色
-            double resistance4H = CTradeAnalyzer::GetResistancePrice(PERIOD_H4);
-            if(resistance4H > 0)
-              {
-               // 获取压力位对应的4小时K线时间
-               datetime resistanceTime4H = CTradeAnalyzer::GetResistanceTime(PERIOD_H4);
-               
-               // 如果没有有效的压力时间，则使用区间低点时间
-               if(resistanceTime4H == 0)
-                  resistanceTime4H = CTradeAnalyzer::GetRangeLowTime();
-               
-               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-               datetime startTime4H = resistanceTime4H;
-               datetime endTime4H = resistanceTime4H + PeriodSeconds(PERIOD_H1) * 20;
-               
-               // 创建矩形和标签 - 中红色表示H4压力
-               string labelText4H = "H4压力";
-               CreateSupportResistanceRect("SR_Rect_H4", "SR_Label_H4", 
-                                         startTime4H, endTime4H, resistance4H, rectHeight, 
-                                         clrFireBrick, labelText4H);
-              }
-              
-            // 日线压力线 - 深红色
-            double resistanceD1 = CTradeAnalyzer::GetResistancePrice(PERIOD_D1);
-            if(resistanceD1 > 0)
-              {
-               // 获取压力位对应的日线K线时间
-               datetime resistanceTimeD1 = CTradeAnalyzer::GetResistanceTime(PERIOD_D1);
-               
-               // 如果没有有效的压力时间，则使用区间低点时间
-               if(resistanceTimeD1 == 0)
-                  resistanceTimeD1 = CTradeAnalyzer::GetRangeLowTime();
-               
-               // 计算矩形的开始和结束时间（以当前价格点为起点，向未来方向延伸20个1小时周期）
-               datetime startTimeD1 = resistanceTimeD1;
-               datetime endTimeD1 = startTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
-               
-               // 创建矩形和标签 - 深红色表示D1压力，使用更宽的边框
-               string labelTextD1 = "D1压力";
-               CreateSupportResistanceRect("SR_Rect_D1", "SR_Label_D1", 
-                                         startTimeD1, endTimeD1, resistanceD1, rectHeight, 
-                                         clrDarkRed, labelTextD1, STYLE_SOLID, 60);
-              }
-           }
      }
   };

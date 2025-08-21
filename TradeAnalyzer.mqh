@@ -11,7 +11,7 @@
 #include "CommonUtils.mqh"
 #include "LogUtil.mqh"
 #include "SupportResistancePoint.mqh"
-#include "DynamicSupportResistancePoints.mqh"
+#include "DynamicPricePoint.mqh"
 #include "EnumDefinitions.mqh"
 
 //+------------------------------------------------------------------+
@@ -34,9 +34,9 @@ private:
    static double    m_retracePercent;  // 回撤或反弹的百分比
    static double    m_retraceDiff;     // 回撤或反弹的绝对值差距
    
-   // 动态支撑和压力点
-   static CDynamicSupportResistancePoints m_supportPoints;    // 支撑点集合
-   static CDynamicSupportResistancePoints m_resistancePoints; // 压力点集合
+   // 动态价格点
+   static CDynamicPricePoint m_supportPoints;    // 支撑点集合
+   static CDynamicPricePoint m_resistancePoints; // 压力点集合
 
 public:
    // 初始化方法
@@ -53,9 +53,9 @@ public:
       m_retracePercent = 0.0;
       m_retraceDiff = 0.0;
       
-      // 初始化动态支撑和压力点
-      m_supportPoints = CDynamicSupportResistancePoints(0.0, SR_SUPPORT);
-      m_resistancePoints = CDynamicSupportResistancePoints(0.0, SR_RESISTANCE);
+      // 初始化动态价格点
+      m_supportPoints = CDynamicPricePoint(0.0, SR_SUPPORT);
+      m_resistancePoints = CDynamicPricePoint(0.0, SR_RESISTANCE);
      }
      
    // 从极点数组中分析区间
@@ -125,6 +125,50 @@ public:
          double rangeDiff = m_rangeHigh - m_rangeLow;
          if(rangeDiff > 0)
             m_retracePercent = m_retraceDiff / rangeDiff * 100.0;
+            
+         // 检查回撤点是否穿越了支撑点
+         if(m_retracePrice > 0)
+           {
+            // 检查各个时间周期的支撑点是否被穿越
+            // 对于支撑点，如果回撤价格低于支撑价格，则支撑点被穿越
+            double supportH1 = m_supportPoints.GetPrice(PERIOD_H1);
+            double supportH4 = m_supportPoints.GetPrice(PERIOD_H4);
+            double supportD1 = m_supportPoints.GetPrice(PERIOD_D1);
+            
+            // 输出日志，用于调试
+            CLogUtil::Log(StringFormat("回撤价格: %.5f, H1支撑: %.5f, H4支撑: %.5f, D1支撑: %.5f", 
+                                     m_retracePrice, supportH1, supportH4, supportD1));
+            
+            if(supportH1 > 0 && m_retracePrice < supportH1)
+              {
+               CSupportResistancePoint* pointH1 = m_supportPoints.GetPoint(PERIOD_H1);
+               if(pointH1 != NULL) 
+                 {
+                  pointH1.SetPenetrated(true);
+                  CLogUtil::Log("H1支撑点已被穿越");
+                 }
+              }
+              
+            if(supportH4 > 0 && m_retracePrice < supportH4)
+              {
+               CSupportResistancePoint* pointH4 = m_supportPoints.GetPoint(PERIOD_H4);
+               if(pointH4 != NULL) 
+                 {
+                  pointH4.SetPenetrated(true);
+                  CLogUtil::Log("H4支撑点已被穿越");
+                 }
+              }
+              
+            if(supportD1 > 0 && m_retracePrice < supportD1)
+              {
+               CSupportResistancePoint* pointD1 = m_supportPoints.GetPoint(PERIOD_D1);
+               if(pointD1 != NULL) 
+                 {
+                  pointD1.SetPenetrated(true);
+                  CLogUtil::Log("D1支撑点已被穿越");
+                 }
+              }
+           }
         }
       else
         {
@@ -139,6 +183,34 @@ public:
          double rangeDiff = m_rangeHigh - m_rangeLow;
          if(rangeDiff > 0)
             m_retracePercent = m_retraceDiff / rangeDiff * 100.0;
+            
+         // 检查反弹点是否穿越了压力点
+         if(m_retracePrice > 0)
+           {
+            // 检查各个时间周期的压力点是否被穿越
+            // 对于压力点，如果反弹价格高于压力价格，则压力点被穿越
+            double resistanceH1 = m_resistancePoints.GetPrice(PERIOD_H1);
+            double resistanceH4 = m_resistancePoints.GetPrice(PERIOD_H4);
+            double resistanceD1 = m_resistancePoints.GetPrice(PERIOD_D1);
+            
+            if(resistanceH1 > 0 && m_retracePrice > resistanceH1)
+              {
+               CSupportResistancePoint* pointH1 = m_resistancePoints.GetPoint(PERIOD_H1);
+               if(pointH1 != NULL) pointH1.SetPenetrated(true);
+              }
+              
+            if(resistanceH4 > 0 && m_retracePrice > resistanceH4)
+              {
+               CSupportResistancePoint* pointH4 = m_resistancePoints.GetPoint(PERIOD_H4);
+               if(pointH4 != NULL) pointH4.SetPenetrated(true);
+              }
+              
+            if(resistanceD1 > 0 && m_retracePrice > resistanceD1)
+              {
+               CSupportResistancePoint* pointD1 = m_resistancePoints.GetPoint(PERIOD_D1);
+               if(pointD1 != NULL) pointD1.SetPenetrated(true);
+              }
+           }
         }
      }
      
@@ -160,6 +232,47 @@ public:
          if(m_retracePrice > 0.0)
            {
             m_resistancePoints.Recalculate(m_retracePrice, SR_RESISTANCE_RETRACE);
+            
+            // 检查回撤点是否穿越了支撑点
+            CLogUtil::Log(StringFormat("检查回撤点穿越: 回撤价格=%.5f", m_retracePrice));
+            
+            // 检查各个时间周期的支撑点是否被穿越
+            double supportH1 = m_supportPoints.GetPrice(PERIOD_H1);
+            double supportH4 = m_supportPoints.GetPrice(PERIOD_H4);
+            double supportD1 = m_supportPoints.GetPrice(PERIOD_D1);
+            
+            CLogUtil::Log(StringFormat("支撑价格: H1=%.5f, H4=%.5f, D1=%.5f", 
+                                     supportH1, supportH4, supportD1));
+            
+            if(supportH1 > 0 && m_retracePrice < supportH1)
+              {
+               CSupportResistancePoint* pointH1 = m_supportPoints.GetPoint(PERIOD_H1);
+               if(pointH1 != NULL) 
+                 {
+                  pointH1.SetPenetrated(true);
+                  CLogUtil::Log(StringFormat("H1支撑点已被穿越: %.5f < %.5f", m_retracePrice, supportH1));
+                 }
+              }
+              
+            if(supportH4 > 0 && m_retracePrice < supportH4)
+              {
+               CSupportResistancePoint* pointH4 = m_supportPoints.GetPoint(PERIOD_H4);
+               if(pointH4 != NULL) 
+                 {
+                  pointH4.SetPenetrated(true);
+                  CLogUtil::Log(StringFormat("H4支撑点已被穿越: %.5f < %.5f", m_retracePrice, supportH4));
+                 }
+              }
+              
+            if(supportD1 > 0 && m_retracePrice < supportD1)
+              {
+               CSupportResistancePoint* pointD1 = m_supportPoints.GetPoint(PERIOD_D1);
+               if(pointD1 != NULL) 
+                 {
+                  pointD1.SetPenetrated(true);
+                  CLogUtil::Log(StringFormat("D1支撑点已被穿越: %.5f < %.5f", m_retracePrice, supportD1));
+                 }
+              }
            }
         }
       else
@@ -172,6 +285,47 @@ public:
          if(m_retracePrice > 0.0)
            {
             m_supportPoints.Recalculate(m_retracePrice, SR_SUPPORT_REBOUND);
+            
+            // 检查反弹点是否穿越了压力点
+            CLogUtil::Log(StringFormat("检查反弹点穿越: 反弹价格=%.5f", m_retracePrice));
+            
+            // 检查各个时间周期的压力点是否被穿越
+            double resistanceH1 = m_resistancePoints.GetPrice(PERIOD_H1);
+            double resistanceH4 = m_resistancePoints.GetPrice(PERIOD_H4);
+            double resistanceD1 = m_resistancePoints.GetPrice(PERIOD_D1);
+            
+            CLogUtil::Log(StringFormat("压力价格: H1=%.5f, H4=%.5f, D1=%.5f", 
+                                     resistanceH1, resistanceH4, resistanceD1));
+            
+            if(resistanceH1 > 0 && m_retracePrice > resistanceH1)
+              {
+               CSupportResistancePoint* pointH1 = m_resistancePoints.GetPoint(PERIOD_H1);
+               if(pointH1 != NULL) 
+                 {
+                  pointH1.SetPenetrated(true);
+                  CLogUtil::Log(StringFormat("H1压力点已被穿越: %.5f > %.5f", m_retracePrice, resistanceH1));
+                 }
+              }
+              
+            if(resistanceH4 > 0 && m_retracePrice > resistanceH4)
+              {
+               CSupportResistancePoint* pointH4 = m_resistancePoints.GetPoint(PERIOD_H4);
+               if(pointH4 != NULL) 
+                 {
+                  pointH4.SetPenetrated(true);
+                  CLogUtil::Log(StringFormat("H4压力点已被穿越: %.5f > %.5f", m_retracePrice, resistanceH4));
+                 }
+              }
+              
+            if(resistanceD1 > 0 && m_retracePrice > resistanceD1)
+              {
+               CSupportResistancePoint* pointD1 = m_resistancePoints.GetPoint(PERIOD_D1);
+               if(pointD1 != NULL) 
+                 {
+                  pointD1.SetPenetrated(true);
+                  CLogUtil::Log(StringFormat("D1压力点已被穿越: %.5f > %.5f", m_retracePrice, resistanceD1));
+                 }
+              }
            }
         }
      }
@@ -414,5 +568,5 @@ double CTradeAnalyzer::m_retracePrice = 0.0;
 datetime CTradeAnalyzer::m_retraceTime = 0;
 double CTradeAnalyzer::m_retracePercent = 0.0;
 double CTradeAnalyzer::m_retraceDiff = 0.0;
-CDynamicSupportResistancePoints CTradeAnalyzer::m_supportPoints;
-CDynamicSupportResistancePoints CTradeAnalyzer::m_resistancePoints;
+CDynamicPricePoint CTradeAnalyzer::m_supportPoints(0.0, SR_SUPPORT);
+CDynamicPricePoint CTradeAnalyzer::m_resistancePoints(0.0, SR_RESISTANCE);

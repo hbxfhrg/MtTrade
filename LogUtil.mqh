@@ -12,6 +12,12 @@
 class CLogUtil
   {
 public:
+   // 通用日志方法
+   static void Log(string message)
+     {
+      Print("[DEBUG] " + message);
+     }
+     
    // 支撑位日志
    static void LogSupport(ENUM_TIMEFRAMES timeframe, double supportPrice, int priceShift, datetime supportTime)
      {

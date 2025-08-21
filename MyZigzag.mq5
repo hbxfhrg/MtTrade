@@ -39,6 +39,7 @@ input int    InpMaxBarsH1 = 200;       // 1小时周期最大计算K线数
 input bool   InpShowInfoPanel = true;  // 显示信息面板
 input color  InpInfoPanelColor = clrWhite; // 信息面板文字颜色
 input color  InpInfoPanelBgColor = clrNavy; // 信息面板背景颜色
+input bool   InpShowPenetratedPoints = false; // 显示已失效(被穿越)的价格点
 
 //--- 声明ZigZag计算器指针
 CZigzagCalculator *calculator = NULL;      // 当前周期计算器(默认对应中周期)
@@ -73,6 +74,9 @@ void OnInit()
    
 //--- 初始化图形管理器
    CShapeManager::Init();
+   
+//--- 设置是否显示已失效(被穿越)的价格点
+   g_ShowPenetratedPoints = InpShowPenetratedPoints;
    
 //--- 初始化信息面板管理器
    g_InfoPanelTextColor = InpInfoPanelColor;

@@ -1,9 +1,9 @@
 //+------------------------------------------------------------------+
-//|                                   DynamicSupportResistancePoints.mqh |
-//|                                  Copyright 2023, MetaQuotes Ltd. |
+//|                                              DynamicPricePoint.mqh |
+//|                             Copyright 2000-2025, MetaQuotes Ltd. |
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2023, MetaQuotes Ltd."
+#property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
 
 #include "SupportResistancePoint.mqh"
@@ -12,9 +12,10 @@
 #include "EnumDefinitions.mqh"
 
 //+------------------------------------------------------------------+
-//| 动态支撑压力点类 - 用于动态计算和管理不同时间周期的支撑和压力点      |
+//| 动态价格点类 - 统一处理回撤点、反弹点和区间高低点                   |
+//| 这些点都是基于参考价格计算的，只是类型和用途不同                    |
 //+------------------------------------------------------------------+
-class CDynamicSupportResistancePoints
+class CDynamicPricePoint
   {
 private:
    // 参考价格和时间
@@ -22,10 +23,13 @@ private:
    datetime          m_referenceTime;    // 参考时间
    bool              m_isUpTrend;        // 当前趋势方向（true为上涨，false为下跌）
    
-   // 不同时间周期的支撑或压力点
-   CSupportResistancePoint m_pointH1;    // 1小时支撑或压力点
-   CSupportResistancePoint m_pointH4;    // 4小时支撑或压力点
-   CSupportResistancePoint m_pointD1;    // 日线支撑或压力点
+   // 不同时间周期的价格点
+   CSupportResistancePoint m_pointH1;    // 1小时价格点
+   CSupportResistancePoint m_pointH4;    // 4小时价格点
+   CSupportResistancePoint m_pointD1;    // 日线价格点
+   
+   // 点类型
+   ENUM_SR_POINT_TYPE m_pointType;       // 点类型（支撑、压力、回撤点等）
 
 public:
    // 查找与参考价格匹配的K线时间
@@ -62,33 +66,39 @@ public:
      }
 
    // 构造函数
-   CDynamicSupportResistancePoints(double referencePrice = 0.0, 
-                                  ENUM_SR_POINT_TYPE pointType = SR_SUPPORT)
+   CDynamicPricePoint(double referencePrice = 0.0, 
+                     ENUM_SR_POINT_TYPE pointType = SR_SUPPORT)
      {
       m_referencePrice = referencePrice;
-      m_isUpTrend = (pointType == SR_SUPPORT); // 根据点类型设置趋势方向
+      m_pointType = pointType;
+      m_isUpTrend = IsPointTypeSupport(pointType); // 根据点类型设置趋势方向
       
       // 如果提供了参考价格，自动查找对应的时间
       m_referenceTime = (referencePrice > 0.0) ? FindMatchingCandleTime(referencePrice) : 0;
       
-      // 初始化支撑或压力点
+      // 初始化价格点
       m_pointH1 = CSupportResistancePoint(0.0, 0, PERIOD_H1, -1, pointType);
       m_pointH4 = CSupportResistancePoint(0.0, 0, PERIOD_H4, -1, pointType);
       m_pointD1 = CSupportResistancePoint(0.0, 0, PERIOD_D1, -1, pointType);
       
-      // 计算支撑或压力点
+      // 计算价格点
       Calculate();
      }
      
-   // 计算所有时间周期的支撑或压力点
+   // 判断点类型是否为支撑类型
+   bool IsPointTypeSupport(ENUM_SR_POINT_TYPE pointType)
+     {
+      return (pointType == SR_SUPPORT || 
+              pointType == SR_SUPPORT_RANGE_HIGH || 
+              pointType == SR_SUPPORT_REBOUND);
+     }
+     
+   // 计算所有时间周期的价格点
    void Calculate()
      {
       if(m_referencePrice <= 0.0 || m_referenceTime == 0)
          return;
          
-      // 根据点类型决定计算支撑位还是压力位
-      ENUM_SR_POINT_TYPE pointType = m_pointH1.GetType();
-      
       // 定义需要计算的时间周期数组
       ENUM_TIMEFRAMES timeframes[] = {PERIOD_H1, PERIOD_H4, PERIOD_D1};
       CSupportResistancePoint* points[] = {&m_pointH1, &m_pointH4, &m_pointD1};
@@ -96,42 +106,19 @@ public:
       // 对每个时间周期进行计算
       for(int i = 0; i < ArraySize(timeframes); i++)
         {
-         switch(pointType)
-           {
-            case SR_SUPPORT:
-            case SR_SUPPORT_REBOUND:
-               // 计算普通支撑位或反弹点支撑
-               CalculateSupport(timeframes[i], *points[i]);
-               break;
-               
-            case SR_RESISTANCE:
-            case SR_RESISTANCE_RETRACE:
-               // 计算普通压力位或回撤点压力
-               CalculateResistance(timeframes[i], *points[i]);
-               break;
-               
-            case SR_SUPPORT_RANGE_HIGH:
-               // 计算区间高点支撑（上涨行情）
-               CalculateRangeHighSupport(timeframes[i], *points[i]);
-               break;
-               
-            case SR_RESISTANCE_RANGE_LOW:
-               // 计算区间低点压力（下跌行情）
-               CalculateRangeLowResistance(timeframes[i], *points[i]);
-               break;
-           }
+         CalculatePricePoint(timeframes[i], *points[i]);
         }
      }
      
-   // 设置支撑或压力点的属性
+   // 设置价格点的属性
    void SetPointProperties(CSupportResistancePoint &point, double price, datetime time, 
-                          int barIndex, ENUM_TIMEFRAMES timeframe, ENUM_SR_POINT_TYPE pointType)
+                          int barIndex, ENUM_TIMEFRAMES timeframe)
      {
       point.m_price = price;
       point.m_time = time;
       point.m_barIndex = barIndex;
       point.m_timeframe = timeframe;
-      point.SetType(pointType);
+      point.SetType(m_pointType);
      }
    
    // 在1小时周期上查找匹配的K线时间
@@ -161,9 +148,8 @@ public:
          return TimeCurrent(); // 如果没有找到匹配的K线，使用当前时间
      }
 
-   // 通用方法：计算指定时间周期的支撑或压力位
-   void CalculateSupportResistanceLevel(ENUM_TIMEFRAMES timeframe, CSupportResistancePoint &point, 
-                                       bool isSupport, ENUM_SR_POINT_TYPE pointType)
+   // 计算指定时间周期的价格点
+   void CalculatePricePoint(ENUM_TIMEFRAMES timeframe, CSupportResistancePoint &point)
      {
       // 如果参考价格为0，则不计算
       if(m_referencePrice <= 0)
@@ -174,6 +160,7 @@ public:
       
       // 初始化价格
       double price = 0.0;
+      bool isSupport = IsPointTypeSupport(m_pointType);
       
       // 在当前周期的K线中查找与参考价格最接近的K线
       int bars = Bars(Symbol(), timeframe);
@@ -220,23 +207,11 @@ public:
            }
            
          // 设置点的所有属性
-         SetPointProperties(point, price, finalTime, targetShift, timeframe, pointType);
+         SetPointProperties(point, price, finalTime, targetShift, timeframe);
         }
      }
      
-   // 计算指定时间周期的支撑位
-   void CalculateSupport(ENUM_TIMEFRAMES timeframe, CSupportResistancePoint &supportPoint)
-     {
-      CalculateSupportResistanceLevel(timeframe, supportPoint, true, SR_SUPPORT);
-     }
-     
-   // 计算指定时间周期的压力位
-   void CalculateResistance(ENUM_TIMEFRAMES timeframe, CSupportResistancePoint &resistancePoint)
-     {
-      CalculateSupportResistanceLevel(timeframe, resistancePoint, false, SR_RESISTANCE);
-     }
-     
-   // 根据时间周期获取支撑或压力点
+   // 根据时间周期获取价格点
    CSupportResistancePoint* GetPoint(ENUM_TIMEFRAMES timeframe)
      {
       switch(timeframe)
@@ -248,40 +223,24 @@ public:
         }
      }
      
-   // 根据时间周期获取支撑或压力价格
+   // 根据时间周期获取价格
    double GetPrice(ENUM_TIMEFRAMES timeframe)
      {
       CSupportResistancePoint* point = GetPoint(timeframe);
       return point != NULL ? point.m_price : 0.0;
      }
      
-   // 根据时间周期获取支撑或压力时间
+   // 根据时间周期获取时间
    datetime GetTime(ENUM_TIMEFRAMES timeframe)
      {
       CSupportResistancePoint* point = GetPoint(timeframe);
       return point != NULL ? point.m_time : 0;
      }
      
-   // 不再需要特定时间周期的兼容方法，直接使用通用方法
-     
-   // 计算区间高点支撑（上涨行情）
-   void CalculateRangeHighSupport(ENUM_TIMEFRAMES timeframe, CSupportResistancePoint &supportPoint)
-     {
-      CalculateSupportResistanceLevel(timeframe, supportPoint, true, SR_SUPPORT_RANGE_HIGH);
-     }
-     
-   // 计算区间低点压力（下跌行情）
-   void CalculateRangeLowResistance(ENUM_TIMEFRAMES timeframe, CSupportResistancePoint &resistancePoint)
-     {
-      CalculateSupportResistanceLevel(timeframe, resistancePoint, false, SR_RESISTANCE_RANGE_LOW);
-     }
-     
-   // 获取支撑或压力类型描述
+   // 获取价格点类型描述
    string GetTypeDescription()
      {
-      ENUM_SR_POINT_TYPE pointType = m_pointH1.GetType();
-      
-      switch(pointType)
+      switch(m_pointType)
         {
          case SR_SUPPORT:
             return "支撑";
@@ -300,14 +259,14 @@ public:
         }
      }
      
-   // 根据时间周期获取支撑或压力描述
+   // 根据时间周期获取价格点描述
    string GetDescription(ENUM_TIMEFRAMES timeframe, int digits = 5)
      {
       CSupportResistancePoint* point = GetPoint(timeframe);
       return point != NULL ? point.GetDescription(digits) : "";
      }
      
-   // 获取所有支撑或压力点的完整描述
+   // 获取所有价格点的完整描述
    string GetFullDescription(int digits = 5)
      {
       string typeDesc = GetTypeDescription();
@@ -338,6 +297,12 @@ public:
       return m_isUpTrend;
      }
      
+   // 获取点类型
+   ENUM_SR_POINT_TYPE GetPointType()
+     {
+      return m_pointType;
+     }
+     
    // 设置参考价格
    void SetReferencePrice(double price)
      {
@@ -365,15 +330,16 @@ public:
    // 设置点类型
    void SetPointType(ENUM_SR_POINT_TYPE pointType)
      {
-      m_isUpTrend = (pointType == SR_SUPPORT);
+      m_pointType = pointType;
+      m_isUpTrend = IsPointTypeSupport(pointType);
       
-      // 更新支撑或压力点类型
+      // 更新价格点类型
       m_pointH1.SetType(pointType);
       m_pointH4.SetType(pointType);
       m_pointD1.SetType(pointType);
      }
      
-   // 重新计算所有支撑或压力点
+   // 重新计算所有价格点
    void Recalculate(double referencePrice, ENUM_SR_POINT_TYPE pointType = SR_SUPPORT)
      {
       m_referencePrice = referencePrice;
@@ -383,5 +349,21 @@ public:
       
       SetPointType(pointType);
       Calculate();
+     }
+     
+   // 检查价格是否穿越了任何价格点
+   void CheckPenetration(double price)
+     {
+      // 检查各个时间周期的价格点是否被穿越
+      m_pointH1.CheckPenetration(price);
+      m_pointH4.CheckPenetration(price);
+      m_pointD1.CheckPenetration(price);
+     }
+     
+   // 检查特定时间周期的价格点是否被穿越
+   bool IsPenetrated(ENUM_TIMEFRAMES timeframe)
+     {
+      CSupportResistancePoint* point = GetPoint(timeframe);
+      return point != NULL ? point.IsPenetrated() : false;
      }
   };
