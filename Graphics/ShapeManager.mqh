@@ -149,11 +149,24 @@ public:
             break;
         }
       
+      // 根据点类型选择基础颜色
+      color baseColor;
+      if(pointType == SR_SUPPORT || pointType == SR_SUPPORT_RANGE_HIGH || pointType == SR_SUPPORT_REBOUND)
+        {
+         // 支撑点使用蓝色系
+         baseColor = clrDodgerBlue;
+        }
+      else
+        {
+         // 压力点使用红色系
+         baseColor = clrCrimson;
+        }
+      
       // 定义需要绘制的时间周期数组
       ENUM_TIMEFRAMES timeframes[] = {PERIOD_H1, PERIOD_H4, PERIOD_D1};
       string timeframeNames[] = {"H1", "H4", "D1"};
       // 颜色由浅到深：H1最浅，D1最深
-      color timeframeColors[] = {ColorBrighten(pointColor, 30), pointColor, ColorBrighten(pointColor, -30)};
+      color timeframeColors[] = {ColorBrighten(baseColor, 30), baseColor, ColorBrighten(baseColor, -30)};
       
       // 对每个时间周期进行绘制
       for(int i = 0; i < ArraySize(timeframes); i++)
@@ -212,33 +225,23 @@ public:
                // 支撑点 - 如果当前价格低于支撑价格，则被穿越
                double currentPrice = CTradeAnalyzer::GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice < price);
-               
-               // 输出调试信息
-               CLogUtil::Log(StringFormat("支撑点检查: %s 价格=%.5f, 当前价格=%.5f, 穿越=%s", 
-                                        timeframeNames[i], price, currentPrice, isPenetrated ? "是" : "否"));
               }
             else if(pointType == SR_RESISTANCE_RETRACE || pointType == SR_RESISTANCE_RANGE_LOW || pointType == SR_RESISTANCE)
               {
                // 压力点 - 如果当前价格高于压力价格，则被穿越
                double currentPrice = CTradeAnalyzer::GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice > price);
-               
-               // 输出调试信息
-               CLogUtil::Log(StringFormat("压力点检查: %s 价格=%.5f, 当前价格=%.5f, 穿越=%s", 
-                                        timeframeNames[i], price, currentPrice, isPenetrated ? "是" : "否"));
               }
             
             if(isPenetrated)
               {
-               // 被穿越的点使用特殊标记和颜色
+               // 被穿越的点使用特殊标记，但保持相同的颜色系列
                labelText = StringFormat("%s-> %s [穿]", 
                                       timeframeNames[i], 
                                       DoubleToString(price, _Digits));
-               labelColor = clrRed; // 使用红色标记已穿越
-               lineStyle = STYLE_DOT;
-               transparency = 90; // 更高的透明度
-               
-               // 被穿越的点使用特殊标记和颜色
+               labelColor = timeframeColors[i]; // 使用与未穿越点相同的颜色系列
+               lineStyle = STYLE_DOT; // 使用点线样式区分
+               transparency = 85; // 稍微增加透明度
               }
             else
               {
@@ -320,9 +323,9 @@ public:
          // 创建回撤点动态价格点对象
          CDynamicPricePoint retracePoints(retracePrice, SR_RESISTANCE_RETRACE);
          
-         // 绘制回撤点压力 - 紫色系
+         // 绘制回撤点压力 - 红色系
          DrawDynamicPricePoint(retracePoints, retracePrice, support1H, 
-                             retracePrice < support1H, "Retrace", clrMagenta, 
+                             retracePrice < support1H, "Retrace", clrCrimson, 
                              retracePercent);
                              
          // 绘制区间高点支撑 - 蓝色系
@@ -330,7 +333,7 @@ public:
          CDynamicPricePoint rangeHighPoints(rangeHigh, SR_SUPPORT_RANGE_HIGH);
          
          DrawDynamicPricePoint(rangeHighPoints, rangeHigh, 0, true, 
-                             "RangeHigh", clrSkyBlue);
+                             "RangeHigh", clrDodgerBlue);
         }
       else
         {
@@ -342,9 +345,9 @@ public:
          // 创建反弹点动态价格点对象
          CDynamicPricePoint reboundPoints(retracePrice, SR_SUPPORT_REBOUND);
          
-         // 绘制反弹点支撑 - 金色系
+         // 绘制反弹点支撑 - 蓝色系
          DrawDynamicPricePoint(reboundPoints, retracePrice, resistance1H, 
-                             retracePrice > resistance1H, "Rebound", clrGold, 
+                             retracePrice > resistance1H, "Rebound", clrDodgerBlue, 
                              retracePercent);
                              
          // 绘制区间低点压力 - 红色系
@@ -352,7 +355,7 @@ public:
          CDynamicPricePoint rangeLowPoints(rangeLow, SR_RESISTANCE_RANGE_LOW);
          
          DrawDynamicPricePoint(rangeLowPoints, rangeLow, 0, true, 
-                             "RangeLow", clrLightCoral);
+                             "RangeLow", clrCrimson);
         }
      }
   };

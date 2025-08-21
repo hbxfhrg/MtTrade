@@ -135,17 +135,12 @@ public:
             double supportH4 = m_supportPoints.GetPrice(PERIOD_H4);
             double supportD1 = m_supportPoints.GetPrice(PERIOD_D1);
             
-            // 输出日志，用于调试
-            CLogUtil::Log(StringFormat("回撤价格: %.5f, H1支撑: %.5f, H4支撑: %.5f, D1支撑: %.5f", 
-                                     m_retracePrice, supportH1, supportH4, supportD1));
-            
             if(supportH1 > 0 && m_retracePrice < supportH1)
               {
                CSupportResistancePoint* pointH1 = m_supportPoints.GetPoint(PERIOD_H1);
                if(pointH1 != NULL) 
                  {
                   pointH1.SetPenetrated(true);
-                  CLogUtil::Log("H1支撑点已被穿越");
                  }
               }
               
@@ -155,7 +150,6 @@ public:
                if(pointH4 != NULL) 
                  {
                   pointH4.SetPenetrated(true);
-                  CLogUtil::Log("H4支撑点已被穿越");
                  }
               }
               
@@ -165,7 +159,6 @@ public:
                if(pointD1 != NULL) 
                  {
                   pointD1.SetPenetrated(true);
-                  CLogUtil::Log("D1支撑点已被穿越");
                  }
               }
            }
@@ -233,16 +226,10 @@ public:
            {
             m_resistancePoints.Recalculate(m_retracePrice, SR_RESISTANCE_RETRACE);
             
-            // 检查回撤点是否穿越了支撑点
-            CLogUtil::Log(StringFormat("检查回撤点穿越: 回撤价格=%.5f", m_retracePrice));
-            
             // 检查各个时间周期的支撑点是否被穿越
             double supportH1 = m_supportPoints.GetPrice(PERIOD_H1);
             double supportH4 = m_supportPoints.GetPrice(PERIOD_H4);
             double supportD1 = m_supportPoints.GetPrice(PERIOD_D1);
-            
-            CLogUtil::Log(StringFormat("支撑价格: H1=%.5f, H4=%.5f, D1=%.5f", 
-                                     supportH1, supportH4, supportD1));
             
             if(supportH1 > 0 && m_retracePrice < supportH1)
               {
@@ -250,7 +237,6 @@ public:
                if(pointH1 != NULL) 
                  {
                   pointH1.SetPenetrated(true);
-                  CLogUtil::Log(StringFormat("H1支撑点已被穿越: %.5f < %.5f", m_retracePrice, supportH1));
                  }
               }
               
@@ -260,7 +246,6 @@ public:
                if(pointH4 != NULL) 
                  {
                   pointH4.SetPenetrated(true);
-                  CLogUtil::Log(StringFormat("H4支撑点已被穿越: %.5f < %.5f", m_retracePrice, supportH4));
                  }
               }
               
@@ -270,7 +255,6 @@ public:
                if(pointD1 != NULL) 
                  {
                   pointD1.SetPenetrated(true);
-                  CLogUtil::Log(StringFormat("D1支撑点已被穿越: %.5f < %.5f", m_retracePrice, supportD1));
                  }
               }
            }
@@ -286,16 +270,10 @@ public:
            {
             m_supportPoints.Recalculate(m_retracePrice, SR_SUPPORT_REBOUND);
             
-            // 检查反弹点是否穿越了压力点
-            CLogUtil::Log(StringFormat("检查反弹点穿越: 反弹价格=%.5f", m_retracePrice));
-            
             // 检查各个时间周期的压力点是否被穿越
             double resistanceH1 = m_resistancePoints.GetPrice(PERIOD_H1);
             double resistanceH4 = m_resistancePoints.GetPrice(PERIOD_H4);
             double resistanceD1 = m_resistancePoints.GetPrice(PERIOD_D1);
-            
-            CLogUtil::Log(StringFormat("压力价格: H1=%.5f, H4=%.5f, D1=%.5f", 
-                                     resistanceH1, resistanceH4, resistanceD1));
             
             if(resistanceH1 > 0 && m_retracePrice > resistanceH1)
               {
@@ -303,7 +281,6 @@ public:
                if(pointH1 != NULL) 
                  {
                   pointH1.SetPenetrated(true);
-                  CLogUtil::Log(StringFormat("H1压力点已被穿越: %.5f > %.5f", m_retracePrice, resistanceH1));
                  }
               }
               
@@ -313,7 +290,6 @@ public:
                if(pointH4 != NULL) 
                  {
                   pointH4.SetPenetrated(true);
-                  CLogUtil::Log(StringFormat("H4压力点已被穿越: %.5f > %.5f", m_retracePrice, resistanceH4));
                  }
               }
               
@@ -323,7 +299,6 @@ public:
                if(pointD1 != NULL) 
                  {
                   pointD1.SetPenetrated(true);
-                  CLogUtil::Log(StringFormat("D1压力点已被穿越: %.5f > %.5f", m_retracePrice, resistanceD1));
                  }
               }
            }

@@ -12,94 +12,73 @@
 class CLogUtil
   {
 public:
-   // 通用日志方法
+   // 通用日志方法 - 已禁用输出
    static void Log(string message)
      {
-      Print("[DEBUG] " + message);
+      // 已禁用日志输出
+      // Print("[DEBUG] " + message);
      }
      
-   // 支撑位日志
+   // 支撑位日志 - 已禁用输出
    static void LogSupport(ENUM_TIMEFRAMES timeframe, double supportPrice, int priceShift, datetime supportTime)
      {
-      string timeframeStr = TimeframeToString(timeframe);
-      Print("计算得到的", timeframeStr, "支撑位: ", DoubleToString(supportPrice, _Digits), 
-            " (来自K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime), ")");
+      // 已禁用日志输出
      }
      
-   // 无法获取前一根K线的支撑位日志
+   // 无法获取前一根K线的支撑位日志 - 已禁用输出
    static void LogSupportFallback(ENUM_TIMEFRAMES timeframe, double supportPrice, int priceShift, datetime supportTime)
      {
-      string timeframeStr = TimeframeToString(timeframe);
-      Print("无法获取前一根K线，使用当前K线的最低价作为支撑位: ", 
-            DoubleToString(supportPrice, _Digits), 
-            " (来自K线序号: ", priceShift, ", 时间: ", TimeToString(supportTime), ")");
+      // 已禁用日志输出
      }
      
-   // 在1小时周期找到匹配K线的支撑位日志
+   // 在1小时周期找到匹配K线的支撑位日志 - 已禁用输出
    static void LogSupportMatchFound(ENUM_TIMEFRAMES timeframe, double supportPrice, int priceShift, 
                                    datetime supportTime, int h1Shift, datetime h1Time)
      {
-      string timeframeStr = TimeframeToString(timeframe);
-      Print("计算得到的", timeframeStr, "支撑位: ", DoubleToString(supportPrice, _Digits), 
-            " (来自", timeframeStr, " K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime),
-            ", 在1H周期找到匹配K线序号: ", h1Shift, ", 时间: ", TimeToString(h1Time), ")");
+      // 已禁用日志输出
      }
      
-   // 在1小时周期未找到匹配K线的支撑位日志
+   // 在1小时周期未找到匹配K线的支撑位日志 - 已禁用输出
    static void LogSupportMatchNotFound(ENUM_TIMEFRAMES timeframe, double supportPrice, int priceShift, datetime supportTime)
      {
-      string timeframeStr = TimeframeToString(timeframe);
-      Print("计算得到的", timeframeStr, "支撑位: ", DoubleToString(supportPrice, _Digits), 
-            " (来自", timeframeStr, " K线序号: ", priceShift + 1, ", 时间: ", TimeToString(supportTime),
-            ", 在1H周期未找到匹配K线，使用当前时间)");
+      // 已禁用日志输出
      }
      
-   // 压力位日志
+   // 压力位日志 - 已禁用输出
    static void LogResistance(ENUM_TIMEFRAMES timeframe, double resistancePrice, int priceShift, datetime resistanceTime)
      {
-      string timeframeStr = TimeframeToString(timeframe);
-      Print("计算得到的", timeframeStr, "压力位: ", DoubleToString(resistancePrice, _Digits), 
-            " (来自K线序号: ", priceShift + 1, ", 时间: ", TimeToString(resistanceTime), ")");
+      // 已禁用日志输出
      }
      
-   // 无法获取前一根K线的压力位日志
+   // 无法获取前一根K线的压力位日志 - 已禁用输出
    static void LogResistanceFallback(ENUM_TIMEFRAMES timeframe, double resistancePrice, int priceShift, datetime resistanceTime)
      {
-      string timeframeStr = TimeframeToString(timeframe);
-      Print("无法获取前一根K线，使用当前K线的最高价作为压力位: ", 
-            DoubleToString(resistancePrice, _Digits), 
-            " (来自K线序号: ", priceShift, ", 时间: ", TimeToString(resistanceTime), ")");
+      // 已禁用日志输出
      }
      
-   // 在1小时周期找到匹配K线的压力位日志
+   // 在1小时周期找到匹配K线的压力位日志 - 已禁用输出
    static void LogResistanceMatchFound(ENUM_TIMEFRAMES timeframe, double resistancePrice, int priceShift, 
                                       datetime resistanceTime, int h1Shift, datetime h1Time)
      {
-      string timeframeStr = TimeframeToString(timeframe);
-      Print("计算得到的", timeframeStr, "压力位: ", DoubleToString(resistancePrice, _Digits), 
-            " (来自", timeframeStr, " K线序号: ", priceShift + 1, ", 时间: ", TimeToString(resistanceTime),
-            ", 在1H周期找到匹配K线序号: ", h1Shift, ", 时间: ", TimeToString(h1Time), ")");
+      // 已禁用日志输出
      }
      
-   // 在1小时周期未找到匹配K线的压力位日志
+   // 在1小时周期未找到匹配K线的压力位日志 - 已禁用输出
    static void LogResistanceMatchNotFound(ENUM_TIMEFRAMES timeframe, double resistancePrice, int priceShift, datetime resistanceTime)
      {
-      string timeframeStr = TimeframeToString(timeframe);
-      Print("计算得到的", timeframeStr, "压力位: ", DoubleToString(resistancePrice, _Digits), 
-            " (来自", timeframeStr, " K线序号: ", priceShift + 1, ", 时间: ", TimeToString(resistanceTime),
-            ", 在1H周期未找到匹配K线，使用当前时间)");
+      // 已禁用日志输出
      }
      
-   // 获取日线压力值日志
+   // 获取日线压力值日志 - 已禁用输出
    static void LogGetResistanceD1(double resistanceD1, datetime resistanceD1Time)
      {
-      Print("获取日线压力值: ", DoubleToString(resistanceD1, _Digits), ", 时间: ", TimeToString(resistanceD1Time));
+      // 已禁用日志输出
      }
      
-   // 最低点K线日志
+   // 最低点K线日志 - 已禁用输出
    static void LogLowestBar(int lowestBarIndex, datetime lowestTime)
      {
-      Print("最低点出现在序号为", lowestBarIndex, "的K线上，时间为", TimeToString(lowestTime));
+      // 已禁用日志输出
      }
      
 private:
