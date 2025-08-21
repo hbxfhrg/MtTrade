@@ -21,6 +21,53 @@ bool    g_ShapeSelectable = false;
 //+------------------------------------------------------------------+
 class CShapeManager
   {
+private:
+   // 设置矩形对象的属性
+   static void SetRectangleProperties(string objectName, color borderColor, color fillColor, 
+                                     int width = 2, ENUM_LINE_STYLE style = STYLE_SOLID, 
+                                     int transparency = 80, bool selectable = false)
+     {
+      ObjectSetInteger(0, objectName, OBJPROP_COLOR, borderColor);
+      // 使用带透明度的颜色
+      color colorWithAlpha = fillColor & 0x00FFFFFF | (transparency << 24);
+      ObjectSetInteger(0, objectName, OBJPROP_BGCOLOR, colorWithAlpha);
+      ObjectSetInteger(0, objectName, OBJPROP_FILL, true);
+      ObjectSetInteger(0, objectName, OBJPROP_WIDTH, width);
+      ObjectSetInteger(0, objectName, OBJPROP_STYLE, style);
+      ObjectSetInteger(0, objectName, OBJPROP_BACK, false);
+      ObjectSetInteger(0, objectName, OBJPROP_SELECTABLE, selectable);
+      ObjectSetInteger(0, objectName, OBJPROP_SELECTED, false);
+      ObjectSetInteger(0, objectName, OBJPROP_HIDDEN, false);
+     }
+     
+   // 设置文本标签的属性
+   static void SetTextProperties(string objectName, string text, color textColor, 
+                               string font = "Arial", int fontSize = 8, 
+                               ENUM_ANCHOR_POINT anchor = ANCHOR_LEFT_LOWER)
+     {
+      ObjectSetString(0, objectName, OBJPROP_TEXT, text);
+      ObjectSetString(0, objectName, OBJPROP_FONT, font);
+      ObjectSetInteger(0, objectName, OBJPROP_FONTSIZE, fontSize);
+      ObjectSetInteger(0, objectName, OBJPROP_COLOR, textColor);
+      ObjectSetInteger(0, objectName, OBJPROP_ANCHOR, anchor);
+     }
+     
+   // 创建支撑/压力矩形和标签
+   static void CreateSupportResistanceRect(string rectName, string labelName, datetime startTime, 
+                                         datetime endTime, double price, double rectHeight, 
+                                         color objectColor, string labelText, 
+                                         ENUM_LINE_STYLE style = STYLE_SOLID, int transparency = 80)
+     {
+      // 创建矩形
+      ObjectCreate(0, rectName, OBJ_RECTANGLE, 0, startTime, price + rectHeight/2, 
+                  endTime, price - rectHeight/2);
+      SetRectangleProperties(rectName, objectColor, objectColor, 2, style, transparency);
+      
+      // 添加标签
+      ObjectCreate(0, labelName, OBJ_TEXT, 0, startTime, price + rectHeight);
+      SetTextProperties(labelName, labelText, objectColor);
+     }
+
 public:
    // 初始化全局变量
    static void Init(color borderColor = clrBlue, color fillColor = clrAliceBlue)
@@ -92,29 +139,11 @@ public:
             datetime startTime1H = retraceTime1H;
             datetime endTime1H = retraceTime1H + PeriodSeconds(PERIOD_H1) * 15;
             
-            // 创建矩形
-            string rectName1H = "SR_Retrace_H1";
-            ObjectCreate(0, rectName1H, OBJ_RECTANGLE, 0, startTime1H, retrace1H + rectHeight/2, endTime1H, retrace1H - rectHeight/2);
-            ObjectSetInteger(0, rectName1H, OBJPROP_COLOR, clrMagenta);
-            // 使用带透明度的颜色
-            color magentaWithAlpha = clrMagenta & 0x00FFFFFF | (70 << 24); // 70是透明度(0-255)
-            ObjectSetInteger(0, rectName1H, OBJPROP_BGCOLOR, magentaWithAlpha);
-            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectName1H, OBJPROP_WIDTH, 2);
-            ObjectSetInteger(0, rectName1H, OBJPROP_STYLE, STYLE_DASH);
-            ObjectSetInteger(0, rectName1H, OBJPROP_BACK, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_HIDDEN, false);
-            
-            // 添加标签
-            string labelName1H = "SR_Retrace_Label_H1";
-            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, retraceTime1H, retrace1H + rectHeight);
-            ObjectSetString(0, labelName1H, OBJPROP_TEXT, "1H回撤点压力 " + DoubleToString(retrace1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)");
-            ObjectSetString(0, labelName1H, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelName1H, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelName1H, OBJPROP_COLOR, clrMagenta);
-            ObjectSetInteger(0, labelName1H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelText1H = "1H回撤点压力 " + DoubleToString(retrace1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)";
+            CreateSupportResistanceRect("SR_Retrace_H1", "SR_Retrace_Label_H1", 
+                                      startTime1H, endTime1H, retrace1H, rectHeight, 
+                                      clrMagenta, labelText1H, STYLE_DASH, 70);
            }
            
          // 4小时回撤点压力 - 深紫色 - 只有当回撤价格低于4小时支撑价格时才绘制
@@ -129,29 +158,11 @@ public:
             datetime startTime4H = retraceTime4H;
             datetime endTime4H = retraceTime4H + PeriodSeconds(PERIOD_H1) * 15;
             
-            // 创建矩形
-            string rectName4H = "SR_Retrace_H4";
-            ObjectCreate(0, rectName4H, OBJ_RECTANGLE, 0, startTime4H, retrace4H + rectHeight/2, endTime4H, retrace4H - rectHeight/2);
-            ObjectSetInteger(0, rectName4H, OBJPROP_COLOR, clrDarkMagenta);
-            // 使用带透明度的颜色
-            color darkMagentaWithAlpha = clrDarkMagenta & 0x00FFFFFF | (70 << 24); // 70是透明度(0-255)
-            ObjectSetInteger(0, rectName4H, OBJPROP_BGCOLOR, darkMagentaWithAlpha);
-            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectName4H, OBJPROP_WIDTH, 2);
-            ObjectSetInteger(0, rectName4H, OBJPROP_STYLE, STYLE_DASH);
-            ObjectSetInteger(0, rectName4H, OBJPROP_BACK, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_HIDDEN, false);
-            
-            // 添加标签
-            string labelName4H = "SR_Retrace_Label_H4";
-            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, retraceTime4H, retrace4H + rectHeight);
-            ObjectSetString(0, labelName4H, OBJPROP_TEXT, "4H回撤点压力 " + DoubleToString(retrace4H, _Digits));
-            ObjectSetString(0, labelName4H, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelName4H, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelName4H, OBJPROP_COLOR, clrDarkMagenta);
-            ObjectSetInteger(0, labelName4H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelText4H = "4H回撤点压力 " + DoubleToString(retrace4H, _Digits);
+            CreateSupportResistanceRect("SR_Retrace_H4", "SR_Retrace_Label_H4", 
+                                      startTime4H, endTime4H, retrace4H, rectHeight, 
+                                      clrDarkMagenta, labelText4H, STYLE_DASH, 70);
            }
            
          // 日线回撤点压力 - 紫红色 - 只有当回撤价格低于日线支撑价格时才绘制
@@ -166,29 +177,11 @@ public:
             datetime startTimeD1 = retraceTimeD1;
             datetime endTimeD1 = retraceTimeD1 + PeriodSeconds(PERIOD_H1) * 15;
             
-            // 创建矩形
-            string rectNameD1 = "SR_Retrace_D1";
-            ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, startTimeD1, retraceD1 + rectHeight/2, endTimeD1, retraceD1 - rectHeight/2);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrPurple);
-            // 使用带透明度的颜色
-            color purpleWithAlpha = clrPurple & 0x00FFFFFF | (70 << 24); // 70是透明度(0-255)
-            ObjectSetInteger(0, rectNameD1, OBJPROP_BGCOLOR, purpleWithAlpha);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_WIDTH, 2);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_STYLE, STYLE_DASH);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_BACK, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_HIDDEN, false);
-            
-            // 添加标签
-            string labelNameD1 = "SR_Retrace_Label_D1";
-            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, retraceTimeD1, retraceD1 + rectHeight);
-            ObjectSetString(0, labelNameD1, OBJPROP_TEXT, "D1回撤点压力 " + DoubleToString(retraceD1, _Digits));
-            ObjectSetString(0, labelNameD1, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelNameD1, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelNameD1, OBJPROP_COLOR, clrPurple);
-            ObjectSetInteger(0, labelNameD1, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelTextD1 = "D1回撤点压力 " + DoubleToString(retraceD1, _Digits);
+            CreateSupportResistanceRect("SR_Retrace_D1", "SR_Retrace_Label_D1", 
+                                      startTimeD1, endTimeD1, retraceD1, rectHeight, 
+                                      clrPurple, labelTextD1, STYLE_DASH, 70);
            }
         }
       else
@@ -215,29 +208,11 @@ public:
             datetime startTime1H = reboundTime1H;
             datetime endTime1H = reboundTime1H + PeriodSeconds(PERIOD_H1) * 15;
             
-            // 创建矩形
-            string rectName1H = "SR_Rebound_H1";
-            ObjectCreate(0, rectName1H, OBJ_RECTANGLE, 0, startTime1H, rebound1H + rectHeight/2, endTime1H, rebound1H - rectHeight/2);
-            ObjectSetInteger(0, rectName1H, OBJPROP_COLOR, clrGold);
-            // 使用带透明度的颜色
-            color goldWithAlpha = clrGold & 0x00FFFFFF | (70 << 24); // 70是透明度(0-255)
-            ObjectSetInteger(0, rectName1H, OBJPROP_BGCOLOR, goldWithAlpha);
-            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectName1H, OBJPROP_WIDTH, 2);
-            ObjectSetInteger(0, rectName1H, OBJPROP_STYLE, STYLE_DASH);
-            ObjectSetInteger(0, rectName1H, OBJPROP_BACK, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_HIDDEN, false);
-            
-            // 添加标签
-            string labelName1H = "SR_Rebound_Label_H1";
-            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, reboundTime1H, rebound1H + rectHeight);
-            ObjectSetString(0, labelName1H, OBJPROP_TEXT, "1H反弹点支撑 " + DoubleToString(rebound1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)");
-            ObjectSetString(0, labelName1H, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelName1H, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelName1H, OBJPROP_COLOR, clrGold);
-            ObjectSetInteger(0, labelName1H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelText1H = "1H反弹点支撑 " + DoubleToString(rebound1H, _Digits) + " (" + DoubleToString(retracePercent, 1) + "%)";
+            CreateSupportResistanceRect("SR_Rebound_H1", "SR_Rebound_Label_H1", 
+                                      startTime1H, endTime1H, rebound1H, rectHeight, 
+                                      clrGold, labelText1H, STYLE_DASH, 70);
            }
            
          // 4小时反弹点支撑 - 橙色 - 只有当反弹价格高于4小时压力价格时才绘制
@@ -252,29 +227,11 @@ public:
             datetime startTime4H = reboundTime4H;
             datetime endTime4H = reboundTime4H + PeriodSeconds(PERIOD_H1) * 15;
             
-            // 创建矩形
-            string rectName4H = "SR_Rebound_H4";
-            ObjectCreate(0, rectName4H, OBJ_RECTANGLE, 0, startTime4H, rebound4H + rectHeight/2, endTime4H, rebound4H - rectHeight/2);
-            ObjectSetInteger(0, rectName4H, OBJPROP_COLOR, clrOrange);
-            // 使用带透明度的颜色
-            color orangeWithAlpha = clrOrange & 0x00FFFFFF | (70 << 24); // 70是透明度(0-255)
-            ObjectSetInteger(0, rectName4H, OBJPROP_BGCOLOR, orangeWithAlpha);
-            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectName4H, OBJPROP_WIDTH, 2);
-            ObjectSetInteger(0, rectName4H, OBJPROP_STYLE, STYLE_DASH);
-            ObjectSetInteger(0, rectName4H, OBJPROP_BACK, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_HIDDEN, false);
-            
-            // 添加标签
-            string labelName4H = "SR_Rebound_Label_H4";
-            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, reboundTime4H, rebound4H + rectHeight);
-            ObjectSetString(0, labelName4H, OBJPROP_TEXT, "4H反弹点支撑 " + DoubleToString(rebound4H, _Digits));
-            ObjectSetString(0, labelName4H, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelName4H, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelName4H, OBJPROP_COLOR, clrOrange);
-            ObjectSetInteger(0, labelName4H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelText4H = "4H反弹点支撑 " + DoubleToString(rebound4H, _Digits);
+            CreateSupportResistanceRect("SR_Rebound_H4", "SR_Rebound_Label_H4", 
+                                      startTime4H, endTime4H, rebound4H, rectHeight, 
+                                      clrOrange, labelText4H, STYLE_DASH, 70);
            }
            
          // 日线反弹点支撑 - 深橙色 - 只有当反弹价格高于日线压力价格时才绘制
@@ -289,29 +246,11 @@ public:
             datetime startTimeD1 = reboundTimeD1;
             datetime endTimeD1 = reboundTimeD1 + PeriodSeconds(PERIOD_H1) * 15;
             
-            // 创建矩形
-            string rectNameD1 = "SR_Rebound_D1";
-            ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, startTimeD1, reboundD1 + rectHeight/2, endTimeD1, reboundD1 - rectHeight/2);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrDarkOrange);
-            // 使用带透明度的颜色
-            color darkOrangeWithAlpha = clrDarkOrange & 0x00FFFFFF | (70 << 24); // 70是透明度(0-255)
-            ObjectSetInteger(0, rectNameD1, OBJPROP_BGCOLOR, darkOrangeWithAlpha);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_WIDTH, 2);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_STYLE, STYLE_DASH);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_BACK, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_HIDDEN, false);
-            
-            // 添加标签
-            string labelNameD1 = "SR_Rebound_Label_D1";
-            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, reboundTimeD1, reboundD1 + rectHeight);
-            ObjectSetString(0, labelNameD1, OBJPROP_TEXT, "D1反弹点支撑 " + DoubleToString(reboundD1, _Digits));
-            ObjectSetString(0, labelNameD1, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelNameD1, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelNameD1, OBJPROP_COLOR, clrDarkOrange);
-            ObjectSetInteger(0, labelNameD1, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelTextD1 = "D1反弹点支撑 " + DoubleToString(reboundD1, _Digits);
+            CreateSupportResistanceRect("SR_Rebound_D1", "SR_Rebound_Label_D1", 
+                                      startTimeD1, endTimeD1, reboundD1, rectHeight, 
+                                      clrDarkOrange, labelTextD1, STYLE_DASH, 70);
            }
         }
       
@@ -335,30 +274,11 @@ public:
             datetime startTime1H = supportTime1H;
             datetime endTime1H = supportTime1H + PeriodSeconds(PERIOD_H1) * 20;
             
-            // 创建矩形
-            string rectName1H = "SR_Rect_1H";
-            ObjectCreate(0, rectName1H, OBJ_RECTANGLE, 0, startTime1H, support1H + rectHeight/2, endTime1H, support1H - rectHeight/2);
-            ObjectSetInteger(0, rectName1H, OBJPROP_COLOR, clrGreen);
-            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
-            color greenWithAlpha = clrGreen & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
-            ObjectSetInteger(0, rectName1H, OBJPROP_BGCOLOR, greenWithAlpha);
-            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectName1H, OBJPROP_WIDTH, 2); // 增加边框宽度
-            ObjectSetInteger(0, rectName1H, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, rectName1H, OBJPROP_BACK, false); // 放在前景，使其更明显
-            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_HIDDEN, false); // 确保不隐藏
-            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
-            
-            // 添加标签
-            string labelName1H = "SR_Label_1H";
-            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, supportTime1H, support1H + rectHeight);
-            ObjectSetString(0, labelName1H, OBJPROP_TEXT, "1H支撑=" + DoubleToString(support1H, _Digits));
-            ObjectSetString(0, labelName1H, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelName1H, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelName1H, OBJPROP_COLOR, clrGreen);
-            ObjectSetInteger(0, labelName1H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelText1H = "1H支撑=" + DoubleToString(support1H, _Digits);
+            CreateSupportResistanceRect("SR_Rect_1H", "SR_Label_1H", 
+                                      startTime1H, endTime1H, support1H, rectHeight, 
+                                      clrGreen, labelText1H);
            }
            
          // 4小时支撑线 - 蓝色
@@ -376,30 +296,11 @@ public:
             datetime startTime4H = supportTime4H;
             datetime endTime4H = supportTime4H + PeriodSeconds(PERIOD_H1) * 20;
             
-            // 创建矩形
-            string rectName4H = "SR_Rect_4H";
-            ObjectCreate(0, rectName4H, OBJ_RECTANGLE, 0, startTime4H, support4H + rectHeight/2, endTime4H, support4H - rectHeight/2);
-            ObjectSetInteger(0, rectName4H, OBJPROP_COLOR, clrBlue);
-            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
-            color blueWithAlpha = clrBlue & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
-            ObjectSetInteger(0, rectName4H, OBJPROP_BGCOLOR, blueWithAlpha);
-            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectName4H, OBJPROP_WIDTH, 2); // 增加边框宽度
-            ObjectSetInteger(0, rectName4H, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, rectName4H, OBJPROP_BACK, false); // 放在前景，使其更明显
-            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_HIDDEN, false); // 确保不隐藏
-            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
-            
-            // 添加标签
-            string labelName4H = "SR_Label_4H";
-            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, supportTime4H, support4H + rectHeight);
-            ObjectSetString(0, labelName4H, OBJPROP_TEXT, "4H支撑");
-            ObjectSetString(0, labelName4H, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelName4H, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelName4H, OBJPROP_COLOR, clrBlue);
-            ObjectSetInteger(0, labelName4H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelText4H = "4H支撑";
+            CreateSupportResistanceRect("SR_Rect_4H", "SR_Label_4H", 
+                                      startTime4H, endTime4H, support4H, rectHeight, 
+                                      clrBlue, labelText4H);
            }
            
          // 日线支撑线 - 红色
@@ -417,30 +318,11 @@ public:
             datetime startTimeD1 = supportTimeD1;
             datetime endTimeD1 = supportTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
             
-            // 创建矩形 - 确保日线支撑区正确显示
-            string rectNameD1 = "SR_Rect_D1";
-            ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, startTimeD1, supportD1 + rectHeight/2, endTimeD1, supportD1 - rectHeight/2);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrRed);
-            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
-            color redWithAlpha = clrRed & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
-            ObjectSetInteger(0, rectNameD1, OBJPROP_BGCOLOR, redWithAlpha);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_WIDTH, 2); // 增加边框宽度
-            ObjectSetInteger(0, rectNameD1, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_BACK, false); // 放在前景，使其更明显
-            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_HIDDEN, false); // 确保不隐藏
-            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
-            
-            // 添加标签
-            string labelNameD1 = "SR_Label_D1";
-            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, supportTimeD1, supportD1 + rectHeight);
-            ObjectSetString(0, labelNameD1, OBJPROP_TEXT, "D1支撑");
-            ObjectSetString(0, labelNameD1, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelNameD1, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelNameD1, OBJPROP_COLOR, clrRed);
-            ObjectSetInteger(0, labelNameD1, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelTextD1 = "D1支撑";
+            CreateSupportResistanceRect("SR_Rect_D1", "SR_Label_D1", 
+                                      startTimeD1, endTimeD1, supportD1, rectHeight, 
+                                      clrRed, labelTextD1);
            }
         }
       else
@@ -462,30 +344,11 @@ public:
             datetime startTime1H = resistanceTime1H;
             datetime endTime1H = resistanceTime1H + PeriodSeconds(PERIOD_H1) * 20;
             
-            // 创建矩形
-            string rectName1H = "SR_Rect_1H";
-            ObjectCreate(0, rectName1H, OBJ_RECTANGLE, 0, startTime1H, resistance1H + rectHeight/2, endTime1H, resistance1H - rectHeight/2);
-            ObjectSetInteger(0, rectName1H, OBJPROP_COLOR, clrGreen);
-            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
-            color greenWithAlpha = clrGreen & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
-            ObjectSetInteger(0, rectName1H, OBJPROP_BGCOLOR, greenWithAlpha);
-            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectName1H, OBJPROP_WIDTH, 2); // 增加边框宽度
-            ObjectSetInteger(0, rectName1H, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, rectName1H, OBJPROP_BACK, false); // 放在前景，使其更明显
-            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectName1H, OBJPROP_HIDDEN, false); // 确保不隐藏
-            ObjectSetInteger(0, rectName1H, OBJPROP_FILL, true);
-            
-            // 添加标签
-            string labelName1H = "SR_Label_1H";
-            ObjectCreate(0, labelName1H, OBJ_TEXT, 0, resistanceTime1H, resistance1H + rectHeight);
-            ObjectSetString(0, labelName1H, OBJPROP_TEXT, "1H压力=" + DoubleToString(resistance1H, _Digits));
-            ObjectSetString(0, labelName1H, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelName1H, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelName1H, OBJPROP_COLOR, clrGreen);
-            ObjectSetInteger(0, labelName1H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelText1H = "1H压力=" + DoubleToString(resistance1H, _Digits);
+            CreateSupportResistanceRect("SR_Rect_1H", "SR_Label_1H", 
+                                      startTime1H, endTime1H, resistance1H, rectHeight, 
+                                      clrGreen, labelText1H);
            }
            
          // 4小时压力线 - 蓝色
@@ -503,30 +366,11 @@ public:
             datetime startTime4H = resistanceTime4H;
             datetime endTime4H = resistanceTime4H + PeriodSeconds(PERIOD_H1) * 20;
             
-            // 创建矩形
-            string rectName4H = "SR_Rect_4H";
-            ObjectCreate(0, rectName4H, OBJ_RECTANGLE, 0, startTime4H, resistance4H + rectHeight/2, endTime4H, resistance4H - rectHeight/2);
-            ObjectSetInteger(0, rectName4H, OBJPROP_COLOR, clrBlue);
-            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
-            color blueWithAlpha = clrBlue & 0x00FFFFFF | (80 << 24); // 80是透明度(0-255)
-            ObjectSetInteger(0, rectName4H, OBJPROP_BGCOLOR, blueWithAlpha);
-            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectName4H, OBJPROP_WIDTH, 2); // 增加边框宽度
-            ObjectSetInteger(0, rectName4H, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, rectName4H, OBJPROP_BACK, false); // 放在前景，使其更明显
-            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectName4H, OBJPROP_HIDDEN, false); // 确保不隐藏
-            ObjectSetInteger(0, rectName4H, OBJPROP_FILL, true);
-            
-            // 添加标签
-            string labelName4H = "SR_Label_4H";
-            ObjectCreate(0, labelName4H, OBJ_TEXT, 0, resistanceTime4H, resistance4H + rectHeight);
-            ObjectSetString(0, labelName4H, OBJPROP_TEXT, "4H压力");
-            ObjectSetString(0, labelName4H, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelName4H, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelName4H, OBJPROP_COLOR, clrBlue);
-            ObjectSetInteger(0, labelName4H, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签
+            string labelText4H = "4H压力";
+            CreateSupportResistanceRect("SR_Rect_4H", "SR_Label_4H", 
+                                      startTime4H, endTime4H, resistance4H, rectHeight, 
+                                      clrBlue, labelText4H);
            }
            
          // 日线压力线 - 红色
@@ -544,30 +388,11 @@ public:
             datetime startTimeD1 = resistanceTimeD1;
             datetime endTimeD1 = startTimeD1 + PeriodSeconds(PERIOD_H1) * 20;
             
-            // 创建矩形 - 确保日线压力区正确显示，使用更明显的颜色和更宽的边框
-            string rectNameD1 = "SR_Rect_D1";
-            ObjectCreate(0, rectNameD1, OBJ_RECTANGLE, 0, startTimeD1, resistanceD1 + rectHeight/2, endTimeD1, resistanceD1 - rectHeight/2);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_COLOR, clrCrimson); // 使用更明显的红色
-            // 使用带透明度的颜色 - 使用ARGB格式，第一个参数是透明度(0-255)
-            color redWithAlpha = clrCrimson & 0x00FFFFFF | (60 << 24); // 60是透明度(0-255)，更不透明
-            ObjectSetInteger(0, rectNameD1, OBJPROP_BGCOLOR, redWithAlpha);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_WIDTH, 3); // 增加边框宽度到3
-            ObjectSetInteger(0, rectNameD1, OBJPROP_STYLE, STYLE_SOLID);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_BACK, false); // 放在前景，使其更明显
-            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, rectNameD1, OBJPROP_HIDDEN, false); // 确保不隐藏
-            ObjectSetInteger(0, rectNameD1, OBJPROP_FILL, true);
-            
-            // 添加标签
-            string labelNameD1 = "SR_Label_D1";
-            ObjectCreate(0, labelNameD1, OBJ_TEXT, 0, resistanceTimeD1, resistanceD1 + rectHeight);
-            ObjectSetString(0, labelNameD1, OBJPROP_TEXT, "D1压力");
-            ObjectSetString(0, labelNameD1, OBJPROP_FONT, "Arial");
-            ObjectSetInteger(0, labelNameD1, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, labelNameD1, OBJPROP_COLOR, clrRed);
-            ObjectSetInteger(0, labelNameD1, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            // 创建矩形和标签 - 日线压力使用更明显的红色和更宽的边框
+            string labelTextD1 = "D1压力";
+            CreateSupportResistanceRect("SR_Rect_D1", "SR_Label_D1", 
+                                      startTimeD1, endTimeD1, resistanceD1, rectHeight, 
+                                      clrCrimson, labelTextD1, STYLE_SOLID, 60);
            }
         }
      }

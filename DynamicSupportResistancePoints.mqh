@@ -123,6 +123,44 @@ public:
         }
      }
      
+   // 设置支撑或压力点的属性
+   void SetPointProperties(CSupportResistancePoint &point, double price, datetime time, 
+                          int barIndex, ENUM_TIMEFRAMES timeframe, ENUM_SR_POINT_TYPE pointType)
+     {
+      point.m_price = price;
+      point.m_time = time;
+      point.m_barIndex = barIndex;
+      point.m_timeframe = timeframe;
+      point.SetType(pointType);
+     }
+   
+   // 在1小时周期上查找匹配的K线时间
+   datetime FindMatchingH1Time(double price, bool isSupport)
+     {
+      int h1Bars = Bars(Symbol(), PERIOD_H1);
+      int h1Shift = -1;
+      
+      // 遍历1小时K线，查找与价格匹配的K线
+      for(int i = 0; i < h1Bars; i++)
+        {
+         // 根据是支撑还是压力选择比较的价格
+         double h1Price = isSupport ? iLow(Symbol(), PERIOD_H1, i) : iHigh(Symbol(), PERIOD_H1, i);
+         
+         // 如果找到与价格相等或非常接近的点
+         if(MathAbs(h1Price - price) < Point() * 10)
+           {
+            h1Shift = i;
+            break;
+           }
+        }
+      
+      // 如果找到了匹配的1小时K线
+      if(h1Shift >= 0)
+         return iTime(Symbol(), PERIOD_H1, h1Shift);
+      else
+         return TimeCurrent(); // 如果没有找到匹配的K线，使用当前时间
+     }
+
    // 通用方法：计算指定时间周期的支撑或压力位
    void CalculateSupportResistanceLevel(ENUM_TIMEFRAMES timeframe, CSupportResistancePoint &point, 
                                        bool isSupport, ENUM_SR_POINT_TYPE pointType)
@@ -173,44 +211,16 @@ public:
          datetime priceTime = iTime(Symbol(), timeframe, targetShift);
          
          // 更新点对象
-         point.m_price = price;
-         point.m_time = priceTime;
-         point.m_barIndex = targetShift;
-         point.m_timeframe = timeframe;
-         point.SetType(pointType);
+         datetime finalTime = priceTime;
          
          // 如果是4小时或日线周期，尝试在1小时周期上查找匹配的K线
          if(timeframe == PERIOD_H4 || timeframe == PERIOD_D1)
            {
-            int h1Bars = Bars(Symbol(), PERIOD_H1);
-            int h1Shift = -1;
-            
-            // 遍历1小时K线，查找与价格匹配的K线
-            for(int i = 0; i < h1Bars; i++)
-              {
-               // 根据是支撑还是压力选择比较的价格
-               double h1Price = isSupport ? iLow(Symbol(), PERIOD_H1, i) : iHigh(Symbol(), PERIOD_H1, i);
-               
-               // 如果找到与价格相等或非常接近的点
-               if(MathAbs(h1Price - price) < Point() * 10)
-                 {
-                  h1Shift = i;
-                  break;
-                 }
-              }
-            
-            // 如果找到了匹配的1小时K线
-            if(h1Shift >= 0)
-              {
-               datetime h1Time = iTime(Symbol(), PERIOD_H1, h1Shift);
-               point.m_time = h1Time;
-              }
-            else
-              {
-               // 如果没有找到匹配的K线，使用当前时间
-               point.m_time = TimeCurrent();
-              }
+            finalTime = FindMatchingH1Time(price, isSupport);
            }
+           
+         // 设置点的所有属性
+         SetPointProperties(point, price, finalTime, targetShift, timeframe, pointType);
         }
      }
      
