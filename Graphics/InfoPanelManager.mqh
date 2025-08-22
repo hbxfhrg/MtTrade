@@ -49,8 +49,8 @@ public:
       
       // 面板位置和大小
       int panelWidth = 250;
-      int panelHeight = 220; // 增加高度，显示多行支撑/压力信息和策略信息
-      int panelX = chartWidth - panelWidth - 10; // 右侧边缘留10像素间距
+      int panelHeight = 150; // 减小高度，因为移除了支撑/压力信息
+      int panelX = 10; // 左侧边缘留10像素间距
       int panelY = 10; // 顶部边缘留10像素间距
       
       // 创建面板背景
@@ -157,67 +157,14 @@ public:
          ObjectSetString(0, retraceName, OBJPROP_FONT, g_InfoPanelFont);
          ObjectSetString(0, retraceName, OBJPROP_TEXT, CTradeAnalyzer::GetRetraceDescription());
          
-         // 计算多时间周期支撑和压力
+         // 计算多时间周期支撑和压力 - 虽然不显示，但仍然需要计算，因为可能在图表上绘制
          CTradeAnalyzer::CalculateSupportResistance();
          
-         // 不再创建单独的支撑或压力标题文本，直接使用GetSupportResistanceDescription的返回值
-         
-         // 创建支撑或压力文本（包含参考点）
-         string sr1HName = actualPanelName + "_SR1H";
-         ObjectCreate(0, sr1HName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, sr1HName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, sr1HName, OBJPROP_YDISTANCE, panelY + 70); // 调整位置
-         ObjectSetInteger(0, sr1HName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, sr1HName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, sr1HName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, sr1HName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, sr1HName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, sr1HName, OBJPROP_TEXT, CTradeAnalyzer::GetSupportResistanceDescription());
-         
-         // 创建1小时支撑或压力文本
-         string sr1HValueName = actualPanelName + "_SR1HValue";
-         ObjectCreate(0, sr1HValueName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, sr1HValueName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, sr1HValueName, OBJPROP_YDISTANCE, panelY + 90); // 调整位置
-         ObjectSetInteger(0, sr1HValueName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, sr1HValueName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, sr1HValueName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, sr1HValueName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, sr1HValueName, OBJPROP_FONT, g_InfoPanelFont);
-         if(CTradeAnalyzer::IsUpTrend())
-            ObjectSetString(0, sr1HValueName, OBJPROP_TEXT, "1H=" + DoubleToString(CTradeAnalyzer::GetSupportPrice(PERIOD_H1), _Digits));
-         else
-            ObjectSetString(0, sr1HValueName, OBJPROP_TEXT, "1H=" + DoubleToString(CTradeAnalyzer::GetResistancePrice(PERIOD_H1), _Digits));
-         
-         // 创建4小时支撑或压力文本
-         string sr4HName = actualPanelName + "_SR4H";
-         ObjectCreate(0, sr4HName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, sr4HName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, sr4HName, OBJPROP_YDISTANCE, panelY + 110); // 调整位置
-         ObjectSetInteger(0, sr4HName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, sr4HName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, sr4HName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, sr4HName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, sr4HName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, sr4HName, OBJPROP_TEXT, CTradeAnalyzer::GetSupportResistance4HDescription());
-         
-         // 创建日线支撑或压力文本
-         string srD1Name = actualPanelName + "_SRD1";
-         ObjectCreate(0, srD1Name, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, srD1Name, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, srD1Name, OBJPROP_YDISTANCE, panelY + 130); // 调整到4小时下方
-         ObjectSetInteger(0, srD1Name, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, srD1Name, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, srD1Name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, srD1Name, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, srD1Name, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, srD1Name, OBJPROP_TEXT, CTradeAnalyzer::GetSupportResistanceD1Description());
-         
-         // 创建当前区间类型文本
+         // 创建区间定义标题文本
          string positionTypeName = actualPanelName + "_PositionType";
          ObjectCreate(0, positionTypeName, OBJ_LABEL, 0, 0, 0);
          ObjectSetInteger(0, positionTypeName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, positionTypeName, OBJPROP_YDISTANCE, panelY + 150); // 调整到日线下方
+         ObjectSetInteger(0, positionTypeName, OBJPROP_YDISTANCE, panelY + 70); // 调整位置
          ObjectSetInteger(0, positionTypeName, OBJPROP_COLOR, actualTextColor);
          ObjectSetInteger(0, positionTypeName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
          ObjectSetInteger(0, positionTypeName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
@@ -229,7 +176,7 @@ public:
          string positionDefName = actualPanelName + "_PositionDef";
          ObjectCreate(0, positionDefName, OBJ_LABEL, 0, 0, 0);
          ObjectSetInteger(0, positionDefName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, positionDefName, OBJPROP_YDISTANCE, panelY + 170); // 调整到区间类型下方
+         ObjectSetInteger(0, positionDefName, OBJPROP_YDISTANCE, panelY + 90); // 调整位置
          ObjectSetInteger(0, positionDefName, OBJPROP_COLOR, actualTextColor);
          ObjectSetInteger(0, positionDefName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
          ObjectSetInteger(0, positionDefName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
@@ -237,17 +184,59 @@ public:
          ObjectSetString(0, positionDefName, OBJPROP_FONT, g_InfoPanelFont);
          ObjectSetString(0, positionDefName, OBJPROP_TEXT, "高位(0-33.3%) 中位(33.3-66.6%) 低位(66.6-100%)");
          
+         // 获取当前回撤/反弹百分比
+         double retracePercent = CTradeAnalyzer::GetRetracePercent();
+         
+         // 确定当前所处区间
+         string currentPosition = "";
+         string strategyName = "";
+         
+         if(retracePercent >= 0.0 && retracePercent < 33.3)
+         {
+            currentPosition = "高位区间";
+            strategyName = "高位策略";
+         }
+         else if(retracePercent >= 33.3 && retracePercent <= 66.6)
+         {
+            currentPosition = "中位区间";
+            strategyName = "中位策略";
+         }
+         else if(retracePercent > 66.6 && retracePercent <= 100.0)
+         {
+            currentPosition = "低位区间";
+            strategyName = "低位策略";
+         }
+         else
+         {
+            currentPosition = "未知区间";
+            strategyName = "无适用策略";
+         }
+         
+         // 创建当前区间位置文本
+         string currentPosName = actualPanelName + "_CurrentPos";
+         ObjectCreate(0, currentPosName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, currentPosName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, currentPosName, OBJPROP_YDISTANCE, panelY + 110); // 调整位置
+         ObjectSetInteger(0, currentPosName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, currentPosName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, currentPosName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, currentPosName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, currentPosName, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, currentPosName, OBJPROP_TEXT, StringFormat("当前位置: %s (%.2f%%)", currentPosition, retracePercent));
+         
          // 创建当前策略描述文本
          string strategyDescName = actualPanelName + "_StrategyDesc";
          ObjectCreate(0, strategyDescName, OBJ_LABEL, 0, 0, 0);
          ObjectSetInteger(0, strategyDescName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, strategyDescName, OBJPROP_YDISTANCE, panelY + 190); // 调整到区间定义下方
+         ObjectSetInteger(0, strategyDescName, OBJPROP_YDISTANCE, panelY + 130); // 调整位置
          ObjectSetInteger(0, strategyDescName, OBJPROP_COLOR, actualTextColor);
          ObjectSetInteger(0, strategyDescName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
          ObjectSetInteger(0, strategyDescName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
          ObjectSetInteger(0, strategyDescName, OBJPROP_ZORDER, 100); // 确保文本在最上层
          ObjectSetString(0, strategyDescName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, strategyDescName, OBJPROP_TEXT, "当前策略: " + (CTradeAnalyzer::IsUpTrend() ? "上涨趋势" : "下跌趋势"));
+         ObjectSetString(0, strategyDescName, OBJPROP_TEXT, StringFormat("适用策略: %s (%s)", 
+                                                                      strategyName, 
+                                                                      CTradeAnalyzer::IsUpTrend() ? "上涨趋势" : "下跌趋势"));
         }
       else
         {
