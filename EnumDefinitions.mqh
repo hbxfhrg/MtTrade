@@ -65,6 +65,23 @@ enum ENUM_PRICE_TYPE
 
 // 注意：TimeframeToString 函数已在 CommonUtils.mqh 中定义
 
+// 定义交易类型枚举
+enum ENUM_TRADE_TYPE
+  {
+   TRADE_TYPE_NONE = 0,  // 无交易
+   TRADE_TYPE_BUY = 1,   // 做多
+   TRADE_TYPE_SELL = 2   // 做空
+  };
+
+// 定义市场位置类型枚举 - 使用自定义名称避免与内置枚举冲突
+enum ENUM_MARKET_POSITION
+  {
+   POSITION_TYPE_NONE = 0,  // 未定义位置
+   POSITION_TYPE_HIGH = 1,  // 高位
+   POSITION_TYPE_MID = 2,   // 中位
+   POSITION_TYPE_LOW = 3    // 低位
+  };
+
 // 全局变量 - 控制是否显示已被穿越的价格点
 bool g_ShowPenetratedPoints = false;
 

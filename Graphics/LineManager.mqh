@@ -59,8 +59,8 @@ public:
       if(ObjectFind(0, name) >= 0)
         {
          // 对象已存在，检查是否需要更新
-         datetime existingTime1 = (datetime)(ObjectGetInteger(0, name, OBJPROP_TIME, 0));
-         datetime existingTime2 = (datetime)(ObjectGetInteger(0, name, OBJPROP_TIME, 1));
+         datetime existingTime1 = (datetime)ObjectGetInteger(0, name, OBJPROP_TIME, 0);
+         datetime existingTime2 = (datetime)ObjectGetInteger(0, name, OBJPROP_TIME, 1);
          double existingPrice1 = ObjectGetDouble(0, name, OBJPROP_PRICE, 0);
          double existingPrice2 = ObjectGetDouble(0, name, OBJPROP_PRICE, 1);
          

@@ -84,20 +84,48 @@ public:
          ObjectSetInteger(0, rangeName, OBJPROP_ZORDER, 100); // 确保文本在最上层
          ObjectSetString(0, rangeName, OBJPROP_FONT, g_InfoPanelFont);
          
+         // 计算区间幅度值
+         double rangeHigh = CTradeAnalyzer::GetRangeHigh();
+         double rangeLow = CTradeAnalyzer::GetRangeLow();
+         double rangeDiff = MathAbs(rangeHigh - rangeLow);
+         
+         // 格式化幅度显示
+         string rangeDiffStr = "";
+         
+         // 根据品种特性选择合适的显示方式
+         if(_Digits <= 3) // 对于点差较大的品种（如指数、股票等）
+           {
+            // 直接显示价格差值
+            rangeDiffStr = DoubleToString(rangeDiff, _Digits);
+           }
+         else // 对于外汇等点差较小的品种
+           {
+            // 计算点数
+            int rangeDiffPoints = (int)(rangeDiff / _Point);
+            
+            // 如果点数较大，转换为更易读的形式
+            if(rangeDiffPoints >= 1000)
+               rangeDiffStr = DoubleToString(rangeDiffPoints/1000.0, 1) + "K点";
+            else
+               rangeDiffStr = IntegerToString(rangeDiffPoints) + "点";
+           }
+         
          // 根据趋势方向调整区间显示顺序
          if(CTradeAnalyzer::IsUpTrend())
            {
             // 上涨趋势，显示从低到高
-            ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s", 
+            ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s (%s)", 
                                                                    DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits),
-                                                                   DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits)));
+                                                                   DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits),
+                                                                   rangeDiffStr));
            }
          else
            {
             // 下跌趋势，显示从高到低
-            ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s", 
+            ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s (%s)", 
                                                                    DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits),
-                                                                   DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits)));
+                                                                   DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits),
+                                                                   rangeDiffStr));
            }
          
          // 创建趋势方向文本 - 调整位置紧跟在区间分析文本下方

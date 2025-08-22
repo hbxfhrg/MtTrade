@@ -181,22 +181,48 @@ public:
             // 强制重新检查穿越状态
             bool isPenetrated = false;
             
-            // 根据点类型和当前价格检查穿越状态
+            // 根据点类型检查穿越状态
             if(pointType == SR_SUPPORT_RANGE_HIGH || pointType == SR_SUPPORT_REBOUND || pointType == SR_SUPPORT)
               {
                // 支撑点 - 如果当前价格低于支撑价格，则被穿越
                double currentPrice = CTradeAnalyzer::GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice < price);
               }
-            else if(pointType == SR_RESISTANCE_RETRACE || pointType == SR_RESISTANCE_RANGE_LOW || pointType == SR_RESISTANCE)
+            else if(pointType == SR_RESISTANCE_RETRACE)
               {
-               // 压力点 - 如果当前价格高于压力价格，则被穿越
+               // 回撤点压力 - 使用回撤点之后到最近区间的最高价格来判断
+               datetime retraceTime = CTradeAnalyzer::GetRetraceTime();
+               datetime highTime = 0;
+               // 查找回撤点之后的最高价格
+               double highestPrice = 0.0;
+               
+               // 如果回撤时间有效，查找之后的最高价格
+               if(retraceTime > 0)
+                 {
+                  // 使用CommonUtils中的函数查找回撤点之后的最高价格
+                  highestPrice = FindHighestPriceAfterLowPrice(CTradeAnalyzer::GetRetracePrice(), highTime, PERIOD_CURRENT, PERIOD_M1, retraceTime);
+                 }
+               else
+                 {
+                  // 如果回撤时间无效，使用当前价格
+                  highestPrice = CTradeAnalyzer::GetRetracePrice();
+                 }
+               
+               // 判断最高价格是否突破了压力点
+               isPenetrated = (highestPrice > 0 && highestPrice > price);
+              }
+            else if(pointType == SR_RESISTANCE_RANGE_LOW || pointType == SR_RESISTANCE)
+              {
+               // 其他压力点 - 如果当前价格高于压力价格，则被穿越
                double currentPrice = CTradeAnalyzer::GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice > price);
               }
               
             // 如果价格有效且满足绘制条件，并且（未被穿越或设置为显示已穿越的点）
-            if(price > 0 && shouldDraw && point != NULL && (!isPenetrated || g_ShowPenetratedPoints))
+            // 特殊处理：回撤点压力被突破后不再显示
+            bool shouldSkipPenetratedRetrace = (isPenetrated && pointType == SR_RESISTANCE_RETRACE);
+            
+            if(price > 0 && shouldDraw && point != NULL && (!isPenetrated || (g_ShowPenetratedPoints && !shouldSkipPenetratedRetrace)))
            {
             // 如果时间无效，使用参考时间
             if(time == 0)
