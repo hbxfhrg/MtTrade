@@ -23,7 +23,7 @@
 #include "Graphics/ShapeManager.mqh"
 #include "CommonUtils.mqh"
 #include "TradeAnalyzer.mqh"
-
+#include "ConfigManager.mqh"
 
 //--- 输入参数
 input int    InpDepth = 12;            // 深度
@@ -59,15 +59,69 @@ bool              cacheInitialized = false; // 缓存是否已初始化
 //+------------------------------------------------------------------+
 void OnInit()
   {
+//--- 初始化配置管理器
+   CConfigManager::Init(Symbol());
+   
+   // 加载或保存配置
+   int depth = InpDepth;
+   int deviation = InpDeviation;
+   int backstep = InpBackstep;
+   bool showLabels = InpShowLabels;
+   color labelColor = InpLabelColor;
+   bool show5M = InpShow5M;
+   bool show4H = InpShow4H;
+   color label4HColor = InpLabel4HColor;
+   int cacheTimeout = InpCacheTimeout;
+   int maxBarsH1 = InpMaxBarsH1;
+   bool showInfoPanel = InpShowInfoPanel;
+   color infoPanelColor = InpInfoPanelColor;
+   color infoPanelBgColor = InpInfoPanelBgColor;
+   bool showPenetratedPoints = InpShowPenetratedPoints;
+   
+   // 检查是否有保存的配置
+   if(CConfigManager::HasSavedConfig())
+     {
+      // 加载保存的配置
+      CConfigManager::LoadConfig(
+         depth, deviation, backstep,
+         showLabels, labelColor,
+         show5M, show4H, label4HColor,
+         cacheTimeout, maxBarsH1,
+         showInfoPanel, infoPanelColor, infoPanelBgColor,
+         showPenetratedPoints
+      );
+      
+      Print("已从配置文件加载设置");
+     }
+   else
+     {
+      // 保存当前配置
+      if(CConfigManager::SaveAllConfig(
+         depth, deviation, backstep,
+         showLabels, labelColor,
+         show5M, show4H, label4HColor,
+         cacheTimeout, maxBarsH1,
+         showInfoPanel, infoPanelColor, infoPanelBgColor,
+         showPenetratedPoints
+      ))
+        {
+         Print("已将当前设置保存到配置文件");
+        }
+      else
+        {
+         Print("保存配置文件失败");
+        }
+     }
+
 //--- 初始化ZigZag计算器
-   calculator = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep, 3, PERIOD_CURRENT); // 当前周期(默认对应中周期)
-   calculator5M = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep, 3, PERIOD_M5);    // 5M周期(小周期)
-   calculator4H = new CZigzagCalculator(InpDepth, InpDeviation, InpBackstep, 3, PERIOD_H4);    // 4H周期(大周期)
+   calculator = new CZigzagCalculator(depth, deviation, backstep, 3, PERIOD_CURRENT); // 当前周期(默认对应中周期)
+   calculator5M = new CZigzagCalculator(depth, deviation, backstep, 3, PERIOD_M5);    // 5M周期(小周期)
+   calculator4H = new CZigzagCalculator(depth, deviation, backstep, 3, PERIOD_H4);    // 4H周期(大周期)
    
 //--- 初始化标签管理器 - 传入不同的颜色
-   g_LabelColor = InpLabelColor;    // 当前周期(中周期)
-   g_Label4HColor = InpLabel4HColor; // 大周期
-   CLabelManager::Init(InpLabelColor, InpLabel4HColor);
+   g_LabelColor = labelColor;    // 当前周期(中周期)
+   g_Label4HColor = label4HColor; // 大周期
+   CLabelManager::Init(labelColor, label4HColor);
    
 //--- 初始化线条管理器
    CLineManager::Init();
@@ -76,12 +130,12 @@ void OnInit()
    CShapeManager::Init();
    
 //--- 设置是否显示已失效(被穿越)的价格点
-   g_ShowPenetratedPoints = InpShowPenetratedPoints;
+   g_ShowPenetratedPoints = showPenetratedPoints;
    
 //--- 初始化信息面板管理器
-   g_InfoPanelTextColor = InpInfoPanelColor;
-   g_InfoPanelBgColor = InpInfoPanelBgColor;
-   CInfoPanelManager::Init(infoPanel, InpInfoPanelColor, InpInfoPanelBgColor);
+   g_InfoPanelTextColor = infoPanelColor;
+   g_InfoPanelBgColor = infoPanelBgColor;
+   CInfoPanelManager::Init(infoPanel, infoPanelColor, infoPanelBgColor);
    
 //--- 初始化交易分析器
    CTradeAnalyzer::Init();
@@ -126,6 +180,33 @@ void OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
+   // 保存当前配置
+   // 只有在程序正常卸载或参数更改时才保存配置
+   if(reason == REASON_REMOVE || reason == REASON_PARAMETERS || reason == REASON_CHARTCLOSE)
+     {
+      // 获取当前使用的参数
+      int depth = calculator != NULL ? calculator.GetDepth() : InpDepth;
+      int deviation = calculator != NULL ? calculator.GetDeviation() : InpDeviation;
+      int backstep = calculator != NULL ? calculator.GetBackstep() : InpBackstep;
+      
+      // 保存配置
+      if(CConfigManager::SaveAllConfig(
+         depth, deviation, backstep,
+         InpShowLabels, g_LabelColor,
+         InpShow5M, InpShow4H, g_Label4HColor,
+         InpCacheTimeout, InpMaxBarsH1,
+         InpShowInfoPanel, g_InfoPanelTextColor, g_InfoPanelBgColor,
+         g_ShowPenetratedPoints
+      ))
+        {
+         Print("指标卸载时已保存配置");
+        }
+      else
+        {
+         Print("指标卸载时保存配置失败");
+        }
+     }
+   
    // 释放计算器对象
    if(calculator != NULL)
      {
