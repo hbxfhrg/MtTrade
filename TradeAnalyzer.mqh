@@ -6,8 +6,9 @@
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
 
-// 引入极值点类定义
+// 引入极值点类定义和线段类定义
 #include "ZigzagExtremumPoint.mqh"
+#include "ZigzagSegment.mqh"
 #include "CommonUtils.mqh"
 #include "LogUtil.mqh"
 #include "SupportResistancePoint.mqh"
@@ -20,12 +21,8 @@
 class CTradeAnalyzer
   {
 private:
-   // 区间高点和低点
-   static double    m_rangeHigh;       // 区间高点（大周期的离当前最近的极点值）
-   static double    m_rangeLow;        // 区间低点（大周期离当前次近的极点值）
-   static datetime  m_rangeHighTime;   // 区间高点时间
-   static datetime  m_rangeLowTime;    // 区间低点时间
-   static bool      m_isUpTrend;       // 当前趋势方向（true为上涨，false为下跌）
+   // 主交易线段 - 使用线段类来管理区间高低点
+   static CZigzagSegment m_mainTradingSegment;  // 主交易线段（当前为4小时周期，将来可能是其他周期）
    static bool      m_isValid;         // 数据是否有效
    
    // 回撤和反弹相关变量
@@ -42,11 +39,8 @@ public:
    // 初始化方法
    static void Init()
      {
-      m_rangeHigh = 0.0;
-      m_rangeLow = 0.0;
-      m_rangeHighTime = 0;
-      m_rangeLowTime = 0;
-      m_isUpTrend = false;
+      // 初始化主交易线段
+      m_mainTradingSegment = CZigzagSegment();
       m_isValid = false;
       m_retracePrice = 0.0;
       m_retraceTime = 0;
@@ -72,26 +66,9 @@ public:
       CZigzagExtremumPoint point1 = points[0]; // 最近的点
       CZigzagExtremumPoint point2 = points[1]; // 次近的点
       
-      // 确定高点和低点
-      if(point1.Value() > point2.Value())
-        {
-         // 最近的点是高点
-         m_rangeHigh = point1.Value();
-         m_rangeLow = point2.Value();
-         m_rangeHighTime = point1.Time();
-         m_rangeLowTime = point2.Time();
-         m_isUpTrend = true; // 从低点到高点，趋势向上
-        }
-      else
-        {
-         // 最近的点是低点
-         m_rangeHigh = point2.Value();
-         m_rangeLow = point1.Value();
-         m_rangeHighTime = point2.Time();
-         m_rangeLowTime = point1.Time();
-         m_isUpTrend = false; // 从高点到低点，趋势向下
-        }
-        
+      // 使用线段类创建主交易线段
+      m_mainTradingSegment = CZigzagSegment(point2, point1);
+      
       m_isValid = true;
       
       // 分析完区间后立即计算回撤或反弹
@@ -111,18 +88,22 @@ public:
          
       double currentPrice = GetCurrentPrice();
       
-      // 根据趋势方向计算回撤或反弹
-      if(m_isUpTrend)
+      // 根据线段方向计算回撤或反弹
+      if(m_mainTradingSegment.IsUptrend())
         {
          // 上涨趋势，计算回撤（从最高点到当前的最低点）
          // 使用通用函数查找高点之后的最低价格
-         m_retracePrice = FindLowestPriceAfterHighPrice(m_rangeHigh, m_retraceTime, PERIOD_CURRENT, PERIOD_M1, m_rangeHighTime);
+         double rangeHigh = GetRangeHigh();
+         double rangeLow = GetRangeLow();
+         datetime rangeHighTime = GetRangeHighTime();
+         
+         m_retracePrice = FindLowestPriceAfterHighPrice(rangeHigh, m_retraceTime, PERIOD_CURRENT, PERIOD_M1, rangeHighTime);
          
          // 计算回撤绝对值
-         m_retraceDiff = m_rangeHigh - m_retracePrice;
+         m_retraceDiff = rangeHigh - m_retracePrice;
            
          // 计算回撤百分比 - 使用区间高低点差值作为分母
-         double rangeDiff = m_rangeHigh - m_rangeLow;
+         double rangeDiff = rangeHigh - rangeLow;
          if(rangeDiff > 0)
             m_retracePercent = m_retraceDiff / rangeDiff * 100.0;
             
@@ -167,13 +148,17 @@ public:
         {
          // 下跌趋势，计算反弹（从最低点到当前的最高点）
          // 使用通用函数查找低点之后的最高价格
-         m_retracePrice = FindHighestPriceAfterLowPrice(m_rangeLow, m_retraceTime, PERIOD_CURRENT, PERIOD_M1, m_rangeLowTime);
+         double rangeLow = GetRangeLow();
+         double rangeHigh = GetRangeHigh();
+         datetime rangeLowTime = GetRangeLowTime();
+         
+         m_retracePrice = FindHighestPriceAfterLowPrice(rangeLow, m_retraceTime, PERIOD_CURRENT, PERIOD_M1, rangeLowTime);
          
          // 计算反弹绝对值
-         m_retraceDiff = m_retracePrice - m_rangeLow;
+         m_retraceDiff = m_retracePrice - rangeLow;
            
          // 计算反弹百分比 - 使用区间高低点差值作为分母
-         double rangeDiff = m_rangeHigh - m_rangeLow;
+         double rangeDiff = rangeHigh - rangeLow;
          if(rangeDiff > 0)
             m_retracePercent = m_retraceDiff / rangeDiff * 100.0;
             
@@ -214,12 +199,12 @@ public:
       if(!m_isValid)
          return;
          
-      // 根据趋势方向计算支撑或压力
-      if(m_isUpTrend)
+      // 根据线段方向计算支撑或压力
+      if(m_mainTradingSegment.IsUptrend())
         {
          // 上涨趋势
          // 1. 计算区间高点的支撑
-         m_supportPoints.Recalculate(m_rangeHigh, SR_SUPPORT_RANGE_HIGH);
+         m_supportPoints.Recalculate(GetRangeHigh(), SR_SUPPORT_RANGE_HIGH);
          
          // 2. 如果有回撤点，计算回撤点的压力
          if(m_retracePrice > 0.0)
@@ -263,7 +248,7 @@ public:
         {
          // 下跌趋势
          // 1. 计算区间低点的压力
-         m_resistancePoints.Recalculate(m_rangeLow, SR_RESISTANCE_RANGE_LOW);
+         m_resistancePoints.Recalculate(GetRangeLow(), SR_RESISTANCE_RANGE_LOW);
          
          // 2. 如果有反弹点，计算反弹点的支撑
          if(m_retracePrice > 0.0)
@@ -336,13 +321,13 @@ public:
       if(!m_isValid)
          return "";
          
-      if(m_isUpTrend)
+      if(m_mainTradingSegment.IsUptrend())
         {
          // 上涨趋势，显示支撑位
          string supportText = DoubleToString(m_supportPoints.GetPrice(timeframe), _Digits);
          if(timeframe == PERIOD_H1 && prefix == "")
            {
-            string referenceText = DoubleToString(m_rangeHigh, _Digits);
+            string referenceText = DoubleToString(GetRangeHigh(), _Digits);
             return "支撑：参考点" + referenceText;
            }
          else
@@ -359,7 +344,7 @@ public:
          string resistanceText = DoubleToString(m_resistancePoints.GetPrice(timeframe), _Digits);
          if(timeframe == PERIOD_H1 && prefix == "")
            {
-            string referenceText = DoubleToString(m_rangeLow, _Digits);
+            string referenceText = DoubleToString(GetRangeLow(), _Digits);
             return "压力：参考点" + referenceText;
            }
          else
@@ -413,7 +398,7 @@ public:
       if(!m_isValid)
          return "";
          
-      string retraceType = m_isUpTrend ? "回撤" : "反弹";
+      string retraceType = m_mainTradingSegment.IsUptrend() ? "回撤" : "反弹";
       string priceText = DoubleToString(m_retracePrice, _Digits);
       string diffText = DoubleToString(m_retraceDiff, _Digits);
       string percentText = DoubleToString(m_retracePercent, 2);
@@ -422,40 +407,46 @@ public:
                          retraceType, priceText, diffText, percentText);
      }
      
+   // 获取主交易线段
+   static CZigzagSegment GetMainTradingSegment()
+     {
+      return m_mainTradingSegment;
+     }
+     
    // 获取区间高点
    static double GetRangeHigh()
      {
-      return m_rangeHigh;
+      return m_mainTradingSegment.IsUptrend() ? m_mainTradingSegment.EndPrice() : m_mainTradingSegment.StartPrice();
      }
      
    // 获取区间低点
    static double GetRangeLow()
      {
-      return m_rangeLow;
+      return m_mainTradingSegment.IsUptrend() ? m_mainTradingSegment.StartPrice() : m_mainTradingSegment.EndPrice();
      }
      
    // 获取区间高点时间
    static datetime GetRangeHighTime()
      {
-      return m_rangeHighTime;
+      return m_mainTradingSegment.IsUptrend() ? m_mainTradingSegment.EndTime() : m_mainTradingSegment.StartTime();
      }
      
    // 获取区间低点时间
    static datetime GetRangeLowTime()
      {
-      return m_rangeLowTime;
+      return m_mainTradingSegment.IsUptrend() ? m_mainTradingSegment.StartTime() : m_mainTradingSegment.EndTime();
      }
      
    // 获取趋势方向
    static bool IsUpTrend()
      {
-      return m_isUpTrend;
+      return m_mainTradingSegment.IsUptrend();
      }
      
    // 获取趋势方向描述
    static string GetTrendDirection()
      {
-      return m_isUpTrend ? "上涨" : "下跌";
+      return m_mainTradingSegment.IsUptrend() ? "上涨" : "下跌";
      }
      
    // 检查数据是否有效
@@ -471,11 +462,11 @@ public:
          return "区间数据无效";
          
       string direction = GetTrendDirection();
-      string highText = DoubleToString(m_rangeHigh, _Digits);
-      string lowText = DoubleToString(m_rangeLow, _Digits);
+      string highText = DoubleToString(GetRangeHigh(), _Digits);
+      string lowText = DoubleToString(GetRangeLow(), _Digits);
       
       // 根据趋势方向调整显示顺序
-      if(m_isUpTrend)
+      if(m_mainTradingSegment.IsUptrend())
         {
          // 上涨趋势，显示从低到高
          return StringFormat("区间: %s - %s (%s)", 
@@ -533,11 +524,7 @@ public:
   };
 
 // 初始化静态成员变量
-double CTradeAnalyzer::m_rangeHigh = 0.0;
-double CTradeAnalyzer::m_rangeLow = 0.0;
-datetime CTradeAnalyzer::m_rangeHighTime = 0;
-datetime CTradeAnalyzer::m_rangeLowTime = 0;
-bool CTradeAnalyzer::m_isUpTrend = false;
+CZigzagSegment CTradeAnalyzer::m_mainTradingSegment;
 bool CTradeAnalyzer::m_isValid = false;
 double CTradeAnalyzer::m_retracePrice = 0.0;
 datetime CTradeAnalyzer::m_retraceTime = 0;

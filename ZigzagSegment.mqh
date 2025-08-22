@@ -40,8 +40,11 @@ public:
    datetime             StartTime() const { return m_start_point.Time(); }
    datetime             EndTime() const { return m_end_point.Time(); }
    
-   double               PriceDiff() const { return m_price_diff; }
-   double               PriceDiffPercent() const { return m_price_diff_pct; }
+   // 获取价格差相关信息
+   double               PriceDiff() const { return m_price_diff; }           // 价格差（绝对值）
+   double               PriceDiffPercent() const { return m_price_diff_pct; } // 价格差百分比
+   double               PriceLength() const { return m_price_diff; }         // 价格长度（与PriceDiff相同，更直观的命名）
+   double               PriceLengthInPips() const { return m_price_diff * MathPow(10, _Digits); } // 价格长度（以点数表示）
    
    // 计算价格差和百分比
    void                 CalculatePriceDiff();
@@ -145,9 +148,10 @@ string CZigzagSegment::ToString() const
    string end_time = TimeToString(m_end_point.Time());
    string price_diff_str = DoubleToString(m_price_diff, _Digits);
    string price_diff_pct_str = DoubleToString(m_price_diff_pct, 2);
+   string price_length_pips_str = DoubleToString(PriceLengthInPips(), 1);
    
-   return StringFormat("线段: %s, 起点时间: %s, 终点时间: %s, 价格差: %s (%s%%)", 
-                      direction, start_time, end_time, price_diff_str, price_diff_pct_str);
+   return StringFormat("线段: %s, 起点时间: %s, 终点时间: %s, 价格长度: %s (%s点, %s%%)", 
+                      direction, start_time, end_time, price_diff_str, price_length_pips_str, price_diff_pct_str);
 }
 
 // 定义一个包装类，使CZigzagSegment可以存储在CArrayObj中
