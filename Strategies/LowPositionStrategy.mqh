@@ -8,6 +8,7 @@
 
 #include "../EnumDefinitions.mqh"
 #include "../ZigzagExtremumPoint.mqh"
+#include "../ZigzagSegment.mqh"
 
 //+------------------------------------------------------------------+
 //| 低位交易策略类                                                    |
@@ -33,7 +34,7 @@ public:
                     ~CLowPositionStrategy();
    
    // 检查进场条件
-   bool              CheckEntryCondition(const CZigzagExtremumPoint &points[], int pointCount);
+   bool              CheckEntryCondition(CZigzagExtremumPoint &points[], int pointCount);
    
    // 开始监控进场价格
    bool              StartEntryPriceMonitoring(double entryPrice, ENUM_TRADE_TYPE tradeType);
@@ -86,10 +87,47 @@ CLowPositionStrategy::~CLowPositionStrategy()
 //+------------------------------------------------------------------+
 //| 检查进场条件                                                      |
 //+------------------------------------------------------------------+
-bool CLowPositionStrategy::CheckEntryCondition(const CZigzagExtremumPoint &points[], int pointCount)
+bool CLowPositionStrategy::CheckEntryCondition(CZigzagExtremumPoint &points[], int pointCount)
   {
-   // TODO: 实现低位交易策略的进场条件逻辑
-   // 例如：检查是否形成低位反弹形态，判断是否适合做多
+   // 低位交易策略的进场条件逻辑
+   // 低位定义：回撤或反弹幅度在66.6%到100%之间
+   
+   // 检查点数是否足够
+   if(pointCount < 2)
+      return false;
+      
+   // 首先使用TradeAnalyzer分析市场区间和趋势
+   if(!CTradeAnalyzer::AnalyzeRange(points, pointCount))
+      return false;
+      
+   // 获取回撤或反弹百分比
+   double retracePercent = CTradeAnalyzer::GetRetracePercent();
+   
+   // 检查是否在低位区间（66.6%到100%之间）
+   if(retracePercent >= 66.6 && retracePercent <= 100.0)
+     {
+      // 根据趋势方向确定交易类型
+      if(CTradeAnalyzer::IsUpTrend())
+        {
+         // 上涨趋势中的深度回撤，考虑做多
+         m_currentTradeType = TRADE_TYPE_BUY;
+         
+         // 设置进场价格为回撤价格
+         m_entryPrice = CTradeAnalyzer::GetRetracePrice();
+         
+         return true;
+        }
+      else
+        {
+         // 下跌趋势中的深度反弹，考虑做空
+         m_currentTradeType = TRADE_TYPE_SELL;
+         
+         // 设置进场价格为反弹价格
+         m_entryPrice = CTradeAnalyzer::GetRetracePrice();
+         
+         return true;
+        }
+     }
    
    return false;
   }

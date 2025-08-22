@@ -11,6 +11,7 @@
 #include "LowPositionStrategy.mqh"
 #include "../EnumDefinitions.mqh"
 #include "../ZigzagExtremumPoint.mqh"
+#include "../ZigzagSegment.mqh"
 
 //+------------------------------------------------------------------+
 //| 策略管理器类 - 用于统一管理不同位置的交易策略                      |
@@ -39,10 +40,10 @@ public:
                           int maxBars = 200);
    
    // 分析市场位置
-   ENUM_MARKET_POSITION AnalyzeMarketPosition(const CZigzagExtremumPoint &points[], int pointCount);
+   ENUM_MARKET_POSITION AnalyzeMarketPosition(CZigzagExtremumPoint &points[], int pointCount);
    
    // 检查进场条件
-   bool              CheckEntryCondition(const CZigzagExtremumPoint &points[], int pointCount);
+   bool              CheckEntryCondition(CZigzagExtremumPoint &points[], int pointCount);
    
    // 开始监控进场价格
    bool              StartEntryPriceMonitoring(double entryPrice, ENUM_TRADE_TYPE tradeType);
@@ -70,6 +71,14 @@ public:
    double            GetEntryPrice() const;
    double            GetExitPrice() const;
    ENUM_TRADE_TYPE   GetTradeType() const;
+   
+   // 获取当前策略描述
+   string            GetPositionTypeDescription() const;
+   string            GetStrategyDescription() const;
+   
+   // 静态方法 - 用于InfoPanel显示
+   static string     GetPositionTypeDescription();
+   static string     GetStrategyDescription();
   };
 
 //+------------------------------------------------------------------+
@@ -152,18 +161,30 @@ bool CStrategyManager::Init(double highStopLoss = 100.0, double highTakeProfit =
 //+------------------------------------------------------------------+
 //| 分析市场位置                                                      |
 //+------------------------------------------------------------------+
-ENUM_MARKET_POSITION CStrategyManager::AnalyzeMarketPosition(const CZigzagExtremumPoint &points[], int pointCount)
+ENUM_MARKET_POSITION CStrategyManager::AnalyzeMarketPosition(CZigzagExtremumPoint &points[], int pointCount)
   {
-   // TODO: 实现市场位置分析逻辑
-   // 根据ZigZag极值点分析当前市场是处于高位、中位还是低位
+   // 首先使用TradeAnalyzer分析市场区间和趋势
+   if(!CTradeAnalyzer::AnalyzeRange(points, pointCount))
+      return POSITION_TYPE_NONE;
+      
+   // 获取回撤或反弹百分比
+   double retracePercent = CTradeAnalyzer::GetRetracePercent();
    
-   return POSITION_TYPE_NONE;
+   // 根据回撤或反弹百分比确定市场位置
+   if(retracePercent >= 0.0 && retracePercent <= 33.3)
+      return POSITION_TYPE_HIGH;
+   else if(retracePercent > 33.3 && retracePercent <= 66.6)
+      return POSITION_TYPE_MID;
+   else if(retracePercent > 66.6 && retracePercent <= 100.0)
+      return POSITION_TYPE_LOW;
+   else
+      return POSITION_TYPE_NONE;
   }
 
 //+------------------------------------------------------------------+
 //| 检查进场条件                                                      |
 //+------------------------------------------------------------------+
-bool CStrategyManager::CheckEntryCondition(const CZigzagExtremumPoint &points[], int pointCount)
+bool CStrategyManager::CheckEntryCondition(CZigzagExtremumPoint &points[], int pointCount)
   {
    // 首先分析市场位置
    m_activePositionType = AnalyzeMarketPosition(points, pointCount);
@@ -403,5 +424,73 @@ ENUM_TRADE_TYPE CStrategyManager::GetTradeType() const
       default:
          return TRADE_TYPE_NONE;
      }
+  }
+
+//+------------------------------------------------------------------+
+//| 获取当前位置类型的描述                                            |
+//+------------------------------------------------------------------+
+string CStrategyManager::GetPositionTypeDescription() const
+  {
+   switch(m_activePositionType)
+     {
+      case POSITION_TYPE_HIGH:
+         return "高位区间 (0%-33.3%)";
+         
+      case POSITION_TYPE_MID:
+         return "中位区间 (33.3%-66.6%)";
+         
+      case POSITION_TYPE_LOW:
+         return "低位区间 (66.6%-100%)";
+         
+      default:
+         return "未确定区间";
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| 获取当前策略的描述                                                |
+//+------------------------------------------------------------------+
+string CStrategyManager::GetStrategyDescription() const
+  {
+   ENUM_TRADE_TYPE tradeType = GetTradeType();
+   string tradeDirection = (tradeType == TRADE_TYPE_BUY) ? "做多" : ((tradeType == TRADE_TYPE_SELL) ? "做空" : "无交易");
+   
+   switch(m_activePositionType)
+     {
+      case POSITION_TYPE_HIGH:
+         return "高位策略: " + tradeDirection + " - 趋势跟随，适合价格波动较小的情况";
+         
+      case POSITION_TYPE_MID:
+         return "中位策略: " + tradeDirection + " - 等待中等幅度回调/反弹后跟随趋势";
+         
+      case POSITION_TYPE_LOW:
+         return "低位策略: " + tradeDirection + " - 等待深度回调/反弹后跟随趋势";
+         
+      default:
+         return "无活跃策略";
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| 静态方法 - 获取当前位置类型的描述                                 |
+//+------------------------------------------------------------------+
+string CStrategyManager::GetPositionTypeDescription()
+  {
+   // 这里我们需要一个全局变量来存储当前的位置类型
+   // 由于静态方法无法访问实例变量，我们返回一个通用描述
+   return "高位区间 (0%-33.3%): 回撤/反弹幅度在0%-33.3%之间\n"
+          "中位区间 (33.3%-66.6%): 回撤/反弹幅度在33.3%-66.6%之间\n"
+          "低位区间 (66.6%-100%): 回撤/反弹幅度在66.6%-100%之间";
+  }
+
+//+------------------------------------------------------------------+
+//| 静态方法 - 获取当前策略的描述                                     |
+//+------------------------------------------------------------------+
+string CStrategyManager::GetStrategyDescription()
+  {
+   // 由于静态方法无法访问实例变量，我们返回一个通用描述
+   return "高位策略: 趋势跟随，适合价格波动较小的情况\n"
+          "中位策略: 等待中等幅度回调/反弹后跟随趋势\n"
+          "低位策略: 等待深度回调/反弹后跟随趋势";
   }
 //+------------------------------------------------------------------+

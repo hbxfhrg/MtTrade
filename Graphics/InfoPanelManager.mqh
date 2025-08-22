@@ -8,6 +8,7 @@
 
 // 引入交易分析类
 #include "../TradeAnalyzer.mqh"
+#include "../Strategies/StrategyManager.mqh"
 
 // 全局变量 - 信息面板管理器默认属性
 string  g_InfoPanelName = "InfoPanel";
@@ -48,7 +49,7 @@ public:
       
       // 面板位置和大小
       int panelWidth = 250;
-      int panelHeight = 180; // 增加高度，显示多行支撑/压力信息
+      int panelHeight = 220; // 增加高度，显示多行支撑/压力信息和策略信息
       int panelX = chartWidth - panelWidth - 10; // 右侧边缘留10像素间距
       int panelY = 10; // 顶部边缘留10像素间距
       
@@ -211,6 +212,42 @@ public:
          ObjectSetInteger(0, srD1Name, OBJPROP_ZORDER, 100); // 确保文本在最上层
          ObjectSetString(0, srD1Name, OBJPROP_FONT, g_InfoPanelFont);
          ObjectSetString(0, srD1Name, OBJPROP_TEXT, CTradeAnalyzer::GetSupportResistanceD1Description());
+         
+         // 创建当前区间类型文本
+         string positionTypeName = actualPanelName + "_PositionType";
+         ObjectCreate(0, positionTypeName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, positionTypeName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, positionTypeName, OBJPROP_YDISTANCE, panelY + 150); // 调整到日线下方
+         ObjectSetInteger(0, positionTypeName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, positionTypeName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, positionTypeName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, positionTypeName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, positionTypeName, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, positionTypeName, OBJPROP_TEXT, "区间定义:");
+         
+         // 创建区间定义文本
+         string positionDefName = actualPanelName + "_PositionDef";
+         ObjectCreate(0, positionDefName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, positionDefName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, positionDefName, OBJPROP_YDISTANCE, panelY + 170); // 调整到区间类型下方
+         ObjectSetInteger(0, positionDefName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, positionDefName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, positionDefName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, positionDefName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, positionDefName, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, positionDefName, OBJPROP_TEXT, "高位(0-33.3%) 中位(33.3-66.6%) 低位(66.6-100%)");
+         
+         // 创建当前策略描述文本
+         string strategyDescName = actualPanelName + "_StrategyDesc";
+         ObjectCreate(0, strategyDescName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, strategyDescName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, strategyDescName, OBJPROP_YDISTANCE, panelY + 190); // 调整到区间定义下方
+         ObjectSetInteger(0, strategyDescName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, strategyDescName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, strategyDescName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, strategyDescName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, strategyDescName, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, strategyDescName, OBJPROP_TEXT, "当前策略: " + (CTradeAnalyzer::IsUpTrend() ? "上涨趋势" : "下跌趋势"));
         }
       else
         {

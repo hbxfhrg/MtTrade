@@ -8,6 +8,7 @@
 
 #include "../EnumDefinitions.mqh"
 #include "../ZigzagExtremumPoint.mqh"
+#include "../ZigzagSegment.mqh"
 
 //+------------------------------------------------------------------+
 //| 中位交易策略类                                                    |
@@ -33,7 +34,7 @@ public:
                     ~CMidPositionStrategy();
    
    // 检查进场条件
-   bool              CheckEntryCondition(const CZigzagExtremumPoint &points[], int pointCount);
+   bool              CheckEntryCondition(CZigzagExtremumPoint &points[], int pointCount);
    
    // 开始监控进场价格
    bool              StartEntryPriceMonitoring(double entryPrice, ENUM_TRADE_TYPE tradeType);
@@ -86,7 +87,7 @@ CMidPositionStrategy::~CMidPositionStrategy()
 //+------------------------------------------------------------------+
 //| 检查进场条件                                                      |
 //+------------------------------------------------------------------+
-bool CMidPositionStrategy::CheckEntryCondition(const CZigzagExtremumPoint &points[], int pointCount)
+bool CMidPositionStrategy::CheckEntryCondition(CZigzagExtremumPoint &points[], int pointCount)
   {
    // 中位交易策略的进场条件逻辑
    // 中位定义：回撤或反弹幅度在33.3%到66.6%之间
