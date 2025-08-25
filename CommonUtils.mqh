@@ -393,19 +393,13 @@ bool ConvertExtremumPointsToSegments(const CZigzagExtremumPoint &points[], CZigz
    ArrayResize(segments, segmentCount);
    
    // 生成线段
+   // 注意：由于GetExtremumPoints现在返回按时间排序的极值点（最新的在前面），
+   // 我们需要确保线段的起点时间早于终点时间
    for(int i = 0; i < segmentCount; i++)
      {
-      // 确保时间顺序正确：起点时间应该早于终点时间
-      if(points[i].Time() < points[i+1].Time())
-        {
-         // points[i]时间更早，作为起点
-         segments[i] = new CZigzagSegment(points[i], points[i+1], timeframe);
-        }
-      else
-        {
-         // points[i+1]时间更早，作为起点
-         segments[i] = new CZigzagSegment(points[i+1], points[i], timeframe);
-        }
+      // 由于极值点已按时间排序（最新在前），points[i]的时间 >= points[i+1]的时间
+      // 因此points[i+1]应该作为起点（时间更早），points[i]作为终点（时间更晚）
+      segments[i] = new CZigzagSegment(points[i+1], points[i], timeframe);
      }
    
    return segmentCount > 0;
@@ -681,6 +675,35 @@ bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENU
    
    return count > 0;
   }
+
+//+------------------------------------------------------------------+
+//| 按时间排序线段数组（从晚到早，最近的在前面）                        |
+//+------------------------------------------------------------------+
+void SortSegmentsByTime(CZigzagSegment* &segments[])
+{
+   int size = ArraySize(segments);
+   if(size <= 1)
+      return;
+      
+   // 使用简单的冒泡排序，按时间从晚到早排序
+   for(int i = 0; i < size - 1; i++)
+   {
+      for(int j = 0; j < size - i - 1; j++)
+      {
+         if(segments[j] != NULL && segments[j+1] != NULL)
+         {
+            // 按开始时间反向排序（最近的时间在前面）
+            if(segments[j].StartTime() < segments[j+1].StartTime())
+            {
+               // 交换位置
+               CZigzagSegment* temp = segments[j];
+               segments[j] = segments[j+1];
+               segments[j+1] = temp;
+            }
+         }
+      }
+   }
+}
 
 // 包含ZigzagSegment.mqh，放在文件末尾以避免循环引用
 #include "ZigzagSegment.mqh"

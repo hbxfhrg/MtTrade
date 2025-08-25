@@ -629,7 +629,21 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
    // 调整输出数组大小
    ArrayResize(points, filtered_count);
    
-   // 复制过滤后的结果
+   // 按时间排序（从最新到最旧）
+   for(int i = 0; i < filtered_count - 1; i++)
+     {
+      for(int j = i + 1; j < filtered_count; j++)
+        {
+         if(filtered_points[i].Time() < filtered_points[j].Time())
+           {
+            CZigzagExtremumPoint temp = filtered_points[i];
+            filtered_points[i] = filtered_points[j];
+            filtered_points[j] = temp;
+           }
+        }
+     }
+   
+   // 复制排序后的结果
    for(int i = 0; i < filtered_count; i++)
      {
       points[i] = filtered_points[i];
@@ -646,24 +660,10 @@ bool CZigzagCalculator::GetRecentExtremumPoints(CZigzagExtremumPoint &points[], 
    if(count <= 0)
       return false;
       
-   // 获取所有极值点
+   // 获取所有极值点（已经按时间排序，最新的在前面）
    CZigzagExtremumPoint all_points[];
    if(!GetExtremumPoints(all_points))
       return false;
-      
-   // 按时间排序（从最近到最远）
-   for(int i = 0; i < ArraySize(all_points) - 1; i++)
-     {
-      for(int j = i + 1; j < ArraySize(all_points); j++)
-        {
-         if(all_points[i].Time() < all_points[j].Time())
-           {
-            CZigzagExtremumPoint temp = all_points[i];
-            all_points[i] = all_points[j];
-            all_points[j] = temp;
-           }
-        }
-     }
       
    // 确定要返回的点数
    int total_points = ArraySize(all_points);
@@ -672,7 +672,7 @@ bool CZigzagCalculator::GetRecentExtremumPoints(CZigzagExtremumPoint &points[], 
    // 调整输出数组大小
    ArrayResize(points, return_count);
    
-   // 复制最近的N个点
+   // 复制最近的N个点（由于GetExtremumPoints已经排序，直接取前N个即可）
    for(int i = 0; i < return_count; i++)
      {
       points[i] = all_points[i];
