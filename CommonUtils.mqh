@@ -14,8 +14,6 @@
 // 前向声明
 class CZigzagSegment;
 
-// 在包含ZigzagSegment.mqh之前先声明所需的类
-
 //+------------------------------------------------------------------+
 //| 通用工具类 - 提供项目中使用的各种通用方法                           |
 //+------------------------------------------------------------------+
@@ -173,7 +171,6 @@ double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_T
       return 0.0;
      }
    
-  
    // 如果是当前K线（索引为0），则切换到更小的周期
    if(barIndex == 0 && smallerTimeframe != timeframe)
      {
@@ -202,7 +199,6 @@ double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_T
    // 记录最高点的时间
    highTime = iTime(Symbol(), timeframe, highestPriceIndex);
    
-  
    return highestPrice;
   }
 
@@ -244,7 +240,6 @@ double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_T
       return 0.0;
      }
    
-  
    // 如果是当前K线（索引为0），则切换到更小的周期
    if(barIndex == 0 && smallerTimeframe != timeframe)
      {
@@ -272,7 +267,6 @@ double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_T
    
    // 记录最低点的时间
    lowTime = iTime(Symbol(), timeframe, lowestPriceIndex);
-   
    
    return lowestPrice;
   }
@@ -317,8 +311,9 @@ bool GetExtremumPointsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime,
      {
       datetime pointTime = allPoints[i].Time();
       
-      // 如果极值点在指定的时间范围内，则添加到结果中
-      if(pointTime >= startTime && pointTime <= endTime)
+      // 扩大时间范围，确保不遗漏边界上的极值点
+      // 使用更宽松的条件：startTime-3600 <= pointTime <= endTime+3600 (前后各扩展1小时)
+      if(pointTime >= (startTime - 3600) && pointTime <= (endTime + 3600))
         {
          ArrayResize(tempPoints, count + 1);
          tempPoints[count++] = allPoints[i];
@@ -400,8 +395,17 @@ bool ConvertExtremumPointsToSegments(const CZigzagExtremumPoint &points[], CZigz
    // 生成线段
    for(int i = 0; i < segmentCount; i++)
      {
-      // 创建新线段（注意：线段的起点是i+1，终点是i，这样可以保持与ZigzagSegmentManager中相同的顺序）
-      segments[i] = new CZigzagSegment(points[i+1], points[i], timeframe);
+      // 确保时间顺序正确：起点时间应该早于终点时间
+      if(points[i].Time() < points[i+1].Time())
+        {
+         // points[i]时间更早，作为起点
+         segments[i] = new CZigzagSegment(points[i], points[i+1], timeframe);
+        }
+      else
+        {
+         // points[i+1]时间更早，作为起点
+         segments[i] = new CZigzagSegment(points[i+1], points[i], timeframe);
+        }
      }
    
    return segmentCount > 0;
@@ -547,6 +551,110 @@ bool GetSegmentsByTrendInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int e
      }
    
    return result;
+  }
+
+//+------------------------------------------------------------------+
+//| 获取小周期线段，基于区间高点时间确定获取范围                        |
+//+------------------------------------------------------------------+
+bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENUM_TIMEFRAMES largeTimeframe,
+                                           datetime startTime, datetime endTime,
+                                           CZigzagSegment* &segments[], ENUM_SEGMENT_TREND trendType = SEGMENT_TREND_ALL,
+                                           int maxCount = 0, int depth = 12, int deviation = 5, int backstep = 3)
+  {
+   // 先获取大周期的极值点，用于确定区间高低点
+   CZigzagExtremumPoint largePoints[];
+   if(!GetExtremumPointsInTimeRange(largeTimeframe, startTime, endTime, largePoints, 0, depth, deviation, backstep))
+     {
+      Print("无法获取大周期极值点");
+      return false;
+     }
+   
+   // 找到最近的区间高点时间
+   datetime latestHighTime = 0;
+   for(int i = 0; i < ArraySize(largePoints); i++)
+     {
+      if(largePoints[i].Type() == EXTREMUM_PEAK) // 高点
+        {
+         if(largePoints[i].Time() > latestHighTime)
+           {
+            latestHighTime = largePoints[i].Time();
+           }
+        }
+     }
+   
+   // 如果找到了区间高点，则调整获取小周期线段的时间范围
+   datetime adjustedStartTime = startTime;
+   if(latestHighTime > 0)
+     {
+      adjustedStartTime = latestHighTime; // 从区间高点时间开始获取
+      Print("找到最近区间高点时间: ", TimeToString(latestHighTime), "，调整小周期线段获取范围");
+     }
+   else
+     {
+      Print("未找到区间高点，使用原始时间范围");
+     }
+   
+   // 获取调整后时间范围内的小周期线段
+   CZigzagSegment* allSmallSegments[];
+   if(!GetSegmentsInTimeRange(smallTimeframe, adjustedStartTime, endTime, allSmallSegments, 0, depth, deviation, backstep))
+     {
+      Print("无法获取小周期线段");
+      return false;
+     }
+   
+   // 根据趋势类型筛选线段
+   CZigzagSegment* filteredSegments[];
+   int count = 0;
+   
+   for(int i = 0; i < ArraySize(allSmallSegments); i++)
+     {
+      if(allSmallSegments[i] != NULL)
+        {
+         // 根据趋势类型筛选
+         bool shouldAdd = false;
+         switch(trendType)
+           {
+            case SEGMENT_TREND_ALL:
+               shouldAdd = true;
+               break;
+            case SEGMENT_TREND_UP:
+               shouldAdd = allSmallSegments[i].IsUptrend();
+               break;
+            case SEGMENT_TREND_DOWN:
+               shouldAdd = allSmallSegments[i].IsDowntrend();
+               break;
+           }
+         
+         if(shouldAdd)
+           {
+            ArrayResize(filteredSegments, count + 1);
+            filteredSegments[count] = new CZigzagSegment(*allSmallSegments[i]);
+            count++;
+            
+            // 如果达到最大数量限制，则停止添加
+            if(maxCount > 0 && count >= maxCount)
+               break;
+           }
+        }
+     }
+   
+   // 调整结果数组大小
+   ArrayResize(segments, count);
+   
+   // 复制筛选后的线段
+   for(int i = 0; i < count; i++)
+     {
+      segments[i] = filteredSegments[i];
+     }
+   
+   // 释放原始线段数组中的对象
+   for(int i = 0; i < ArraySize(allSmallSegments); i++)
+     {
+      if(allSmallSegments[i] != NULL)
+         delete allSmallSegments[i];
+     }
+   
+   return count > 0;
   }
 
 // 包含ZigzagSegment.mqh，放在文件末尾以避免循环引用

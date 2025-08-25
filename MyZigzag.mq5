@@ -621,6 +621,141 @@ int OnCalculate(const int rates_total,
                // 创建包含交易分析结果的面板
                CInfoPanelManager::CreateTradeInfoPanel(infoPanel);
                
+               // 获取1小时周期的线段，排除4小时周期区间内的线段
+               CZigzagSegment* h1Segments[];
+               // 使用更远的时间范围确保获取完整的线段数据
+               datetime startTime = iTime(Symbol(), PERIOD_H1, 200); // 获取最远200根1小时K线的时间范围
+               datetime endTime = TimeCurrent();
+               
+               // 使用新的方法获取小周期线段，排除大周期区间内的线段
+               Print("=== 开始获取1小时线段（排除4小时区间内线段）===");
+               Print("时间范围: ", TimeToString(startTime), " 到 ", TimeToString(endTime));
+               Print("扩展后的时间范围: ", TimeToString(startTime - 3600), " 到 ", TimeToString(endTime + 3600));
+               
+               // 先获取极值点来调试
+               CZigzagExtremumPoint debugPoints[];
+               if(::GetExtremumPointsInTimeRange(PERIOD_H1, startTime, endTime, debugPoints, 0))
+                 {
+                  Print("=== 调试：获取到的极值点 ===");
+                  for(int j = 0; j < ArraySize(debugPoints); j++)
+                    {
+                     string pointType = debugPoints[j].Type() == EXTREMUM_PEAK ? "高点" : "低点";
+                     Print("极值点 ", j, ": ", pointType, " 价格: ", DoubleToString(debugPoints[j].Value(), _Digits), 
+                           " 时间: ", TimeToString(debugPoints[j].Time()));
+                    }
+                 }
+               
+               // 使用新方法获取1小时线段，排除4小时周期区间内的线段
+               if(::GetSmallTimeframeSegmentsExcludingRange(PERIOD_H1, PERIOD_H4, startTime, endTime, h1Segments, SEGMENT_TREND_ALL, 50))
+                 {
+                  Print("成功获取到 ", ArraySize(h1Segments), " 个1小时线段");
+                  
+                  // 输出所有线段的详细信息
+                  for(int i = 0; i < ArraySize(h1Segments); i++)
+                    {
+                     if(h1Segments[i] != NULL)
+                       {
+                        string direction = h1Segments[i].IsUptrend() ? "上涨" : "下跌";
+                        Print("线段 ", i, ": ", direction, 
+                              " 起点: ", DoubleToString(h1Segments[i].StartPrice(), _Digits),
+                              " 终点: ", DoubleToString(h1Segments[i].EndPrice(), _Digits),
+                              " 起点时间: ", TimeToString(h1Segments[i].StartTime()),
+                              " 终点时间: ", TimeToString(h1Segments[i].EndTime()));
+                       }
+                    }
+                  
+                  // 获取上涨和下跌线段
+                  CZigzagSegment* uptrendSegments[];
+                  CZigzagSegment* downtrendSegments[];
+                  
+                  // 筛选上涨和下跌线段
+                  Print("=== 开始筛选线段 ===");
+                  ::FilterSegmentsByTrend(h1Segments, uptrendSegments, SEGMENT_TREND_UP);
+                  ::FilterSegmentsByTrend(h1Segments, downtrendSegments, SEGMENT_TREND_DOWN);
+                  
+                  Print("筛选结果: 上涨线段 ", ArraySize(uptrendSegments), " 个, 下跌线段 ", ArraySize(downtrendSegments), " 个");
+                  
+                  // 输出上涨线段详情
+                  Print("=== 上涨线段详情 ===");
+                  for(int i = 0; i < ArraySize(uptrendSegments); i++)
+                    {
+                     if(uptrendSegments[i] != NULL)
+                       {
+                        Print("上涨线段 ", i, ": ",
+                              DoubleToString(uptrendSegments[i].StartPrice(), _Digits), " → ",
+                              DoubleToString(uptrendSegments[i].EndPrice(), _Digits),
+                              " 时间: ", TimeToString(uptrendSegments[i].StartTime()), " → ",
+                              TimeToString(uptrendSegments[i].EndTime()));
+                       }
+                    }
+                  
+                  // 输出下跌线段详情
+                  Print("=== 下跌线段详情 ===");
+                  for(int i = 0; i < ArraySize(downtrendSegments); i++)
+                    {
+                     if(downtrendSegments[i] != NULL)
+                       {
+                        Print("下跌线段 ", i, ": ",
+                              DoubleToString(downtrendSegments[i].StartPrice(), _Digits), " → ",
+                              DoubleToString(downtrendSegments[i].EndPrice(), _Digits),
+                              " 时间: ", TimeToString(downtrendSegments[i].StartTime()), " → ",
+                              TimeToString(downtrendSegments[i].EndTime()));
+                       }
+                    }
+                  
+                  // 按时间排序线段（从早到晚）
+                  // 使用自定义方法排序，而不是ArraySort
+                  Print("=== 开始排序线段 ===");
+                  SortSegmentsByTime(uptrendSegments);
+                  SortSegmentsByTime(downtrendSegments);
+                  
+                  // 输出排序后的上涨线段
+                  Print("=== 排序后的上涨线段 ===");
+                  for(int i = 0; i < ArraySize(uptrendSegments); i++)
+                    {
+                     if(uptrendSegments[i] != NULL)
+                       {
+                        Print("排序后上涨线段 ", i, ": ",
+                              DoubleToString(uptrendSegments[i].StartPrice(), _Digits), " → ",
+                              DoubleToString(uptrendSegments[i].EndPrice(), _Digits),
+                              " 时间: ", TimeToString(uptrendSegments[i].StartTime()), " → ",
+                              TimeToString(uptrendSegments[i].EndTime()));
+                       }
+                    }
+                  
+                  // 输出排序后的下跌线段
+                  Print("=== 排序后的下跌线段 ===");
+                  for(int i = 0; i < ArraySize(downtrendSegments); i++)
+                    {
+                     if(downtrendSegments[i] != NULL)
+                       {
+                        Print("排序后下跌线段 ", i, ": ",
+                              DoubleToString(downtrendSegments[i].StartPrice(), _Digits), " → ",
+                              DoubleToString(downtrendSegments[i].EndPrice(), _Digits),
+                              " 时间: ", TimeToString(downtrendSegments[i].StartTime()), " → ",
+                              TimeToString(downtrendSegments[i].EndTime()));
+                       }
+                    }
+                  
+                  // 在信息面板上添加线段信息
+                  Print("=== 更新信息面板 ===");
+                  CInfoPanelManager::AddSegmentInfo(infoPanel, uptrendSegments, downtrendSegments, InpInfoPanelColor);
+                  
+                  // 释放内存
+                  for(int i = 0; i < ArraySize(h1Segments); i++)
+                    {
+                     if(h1Segments[i] != NULL)
+                       {
+                        delete h1Segments[i];
+                        h1Segments[i] = NULL;
+                       }
+                    }
+                 }
+               else
+                 {
+                  Print("获取1小时线段失败");
+                 }
+               
                // 绘制支撑或压力线
                CShapeManager::DrawSupportResistanceLines();
               }
@@ -646,5 +781,46 @@ int OnCalculate(const int rates_total,
    return(rates_total);
   }
 
+//+------------------------------------------------------------------+
+//| 按时间排序线段数组（从晚到早，最近的在前面）                        |
+//+------------------------------------------------------------------+
+void SortSegmentsByTime(CZigzagSegment* &segments[])
+{
+   int size = ArraySize(segments);
+   if(size <= 1)
+      return;
+      
+   // 使用简单的冒泡排序，按时间从晚到早排序
+   for(int i = 0; i < size - 1; i++)
+   {
+      for(int j = 0; j < size - i - 1; j++)
+      {
+         if(segments[j] != NULL && segments[j+1] != NULL)
+         {
+            // 按开始时间反向排序（最近的时间在前面）
+            if(segments[j].StartTime() < segments[j+1].StartTime())
+            {
+               // 交换位置
+               CZigzagSegment* temp = segments[j];
+               segments[j] = segments[j+1];
+               segments[j+1] = temp;
+            }
+         }
+      }
+   }
+}
 
+//+------------------------------------------------------------------+
+//| 检查价格是否在极值点数组中出现                                    |
+//+------------------------------------------------------------------+
+bool IsPriceInArray(double price, CZigzagExtremumPoint &points[])
+{
+   for(int i = 0; i < ArraySize(points); i++)
+   {
+      // 考虑价格精度，使用MathAbs和Point()进行比较
+      if(MathAbs(points[i].Value() - price) < Point() * 2)
+         return true;
+   }
+   return false;
+}
 //+------------------------------------------------------------------+
