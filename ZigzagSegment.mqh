@@ -8,35 +8,12 @@
 
 // 引入必要的头文件
 #include "ZigzagExtremumPoint.mqh"
-#include "ZigzagCalculator.mqh"  // 包含CZigzagCalculator类定义
 #include <Arrays\\ArrayObj.mqh>  // 添加CArrayObj的头文件
 
 // 前向声明
-string TimeframeToString(ENUM_TIMEFRAMES timeframe); // 从CommonUtils.mqh中引用的函数
-//+------------------------------------------------------------------+
-//|                                                ZigzagSegment.mqh |
-//|                             Copyright 2000-2025, MetaQuotes Ltd. |
-//|                                             https://www.mql5.com |
-//+------------------------------------------------------------------+
-#property copyright "Copyright 2000-2025, MetaQuotes Ltd."
-#property link      "https://www.mql5.com"
-
-//+------------------------------------------------------------------+
-//|                                                ZigzagSegment.mqh |
-//|                             Copyright 2000-2025, MetaQuotes Ltd. |
-//|                                             https://www.mql5.com |
-//+------------------------------------------------------------------+
-#property copyright "Copyright 2000-2025, MetaQuotes Ltd."
-#property link      "https://www.mql5.com"
-
-// 引入必要的头文件
-#include "ZigzagExtremumPoint.mqh"
-#include "ZigzagCalculator.mqh"  // 包含CZigzagCalculator类定义
-#include "CommonUtils.mqh"       // 包含通用工具函数
-#include <Arrays\\ArrayObj.mqh>  // 添加CArrayObj的头文件
-
-// 前向声明ZigzagSegmentManager的CalculateSegments方法
 class CZigzagSegmentManager;
+class CZigzagCalculator;
+string TimeframeToString(ENUM_TIMEFRAMES timeframe); // 从CommonUtils.mqh中引用的函数
 
 //+------------------------------------------------------------------+
 //| ZigZag线段类，包含两个极值点（峰值和谷值）                           |
@@ -322,4 +299,3 @@ bool CZigzagSegment::GetSmallerTimeframeSegments(CZigzagSegment* &segments[], EN
    
    return count > 0;
 }
-//+------------------------------------------------------------------+

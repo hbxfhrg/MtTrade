@@ -737,6 +737,131 @@ int OnCalculate(const int rates_total,
                        }
                     }
                   
+                  // 获取最近一个1小时级别线段时间范围内的5分钟线段
+                  Print("=== 获取最近一个1小时线段的5分钟线段 ===");
+                  CZigzagSegment* m5Segments[];
+                  
+                  // 找到离当前时间最近的1小时线段
+                  datetime m5StartTime = 0;
+                  datetime m5EndTime = 0;
+                  datetime currentTime = TimeCurrent();
+                  CZigzagSegment* nearestSegment = NULL;
+                  datetime minTimeDiff = LONG_MAX;
+                  
+                  // 遍历所有1小时线段，找到离当前时间最近的那个
+                  for(int segIdx = 0; segIdx < ArraySize(h1Segments); segIdx++)
+                    {
+                     if(h1Segments[segIdx] != NULL)
+                       {
+                        // 计算线段结束时间与当前时间的差值
+                        datetime segEndTime = h1Segments[segIdx].EndTime();
+                        datetime timeDiff = MathAbs(currentTime - segEndTime);
+                        
+                        if(timeDiff < minTimeDiff)
+                          {
+                           minTimeDiff = timeDiff;
+                           nearestSegment = h1Segments[segIdx];
+                          }
+                       }
+                    }
+                  
+                  if(nearestSegment != NULL)
+                    {
+                     // 使用离当前时间最近的1小时线段的时间范围
+                     m5StartTime = nearestSegment.StartTime();
+                     m5EndTime = nearestSegment.EndTime();
+                     
+                     string segmentDirection = nearestSegment.IsUptrend() ? "上涨" : "下跌";
+                     Print("使用离当前时间最近的1小时", segmentDirection, "线段时间范围: ", 
+                           TimeToString(m5StartTime), " 到 ", TimeToString(m5EndTime));
+                     Print("1小时线段价格: ", DoubleToString(nearestSegment.StartPrice(), _Digits), 
+                           " → ", DoubleToString(nearestSegment.EndPrice(), _Digits));
+                     Print("该线段结束时间与当前时间差: ", (int)(minTimeDiff / 60), " 分钟");
+                    }
+                  else
+                    {
+                     // 如果没有1小时线段，使用默认时间范围
+                     m5StartTime = iTime(Symbol(), PERIOD_H1, 1);
+                     m5EndTime = TimeCurrent();
+                     Print("未找到1小时线段，使用默认时间范围: ", TimeToString(m5StartTime), " 到 ", TimeToString(m5EndTime));
+                    }
+                  
+                  // 使用新方法获取5分钟线段，排除4小时周期区间内的线段
+                  if(::GetSmallTimeframeSegmentsExcludingRange(PERIOD_M5, PERIOD_H4, m5StartTime, m5EndTime, m5Segments, SEGMENT_TREND_ALL, 20))
+                    {
+                     Print("成功获取到 ", ArraySize(m5Segments), " 个5分钟线段");
+                     
+                     // 输出所有5分钟线段的详细信息
+                     for(int k = 0; k < ArraySize(m5Segments); k++)
+                       {
+                        if(m5Segments[k] != NULL)
+                          {
+                           string direction = m5Segments[k].IsUptrend() ? "上涨" : "下跌";
+                           Print("5分钟线段 ", k, ": ", direction, 
+                                 " 起点: ", DoubleToString(m5Segments[k].StartPrice(), _Digits),
+                                 " 终点: ", DoubleToString(m5Segments[k].EndPrice(), _Digits),
+                                 " 起点时间: ", TimeToString(m5Segments[k].StartTime()),
+                                 " 终点时间: ", TimeToString(m5Segments[k].EndTime()));
+                          }
+                       }
+                     
+                     // 获取上涨和下跌的5分钟线段
+                     CZigzagSegment* m5UptrendSegments[];
+                     CZigzagSegment* m5DowntrendSegments[];
+                     
+                     // 筛选5分钟上涨和下跌线段
+                     ::FilterSegmentsByTrend(m5Segments, m5UptrendSegments, SEGMENT_TREND_UP);
+                     ::FilterSegmentsByTrend(m5Segments, m5DowntrendSegments, SEGMENT_TREND_DOWN);
+                     
+                     Print("5分钟线段筛选结果: 上涨线段 ", ArraySize(m5UptrendSegments), " 个, 下跌线段 ", ArraySize(m5DowntrendSegments), " 个");
+                     
+                     // 按时间排序5分钟线段（从晚到早）
+                     SortSegmentsByTime(m5UptrendSegments);
+                     SortSegmentsByTime(m5DowntrendSegments);
+                     
+                     // 输出排序后的5分钟上涨线段
+                     Print("=== 排序后的5分钟上涨线段 ===");
+                     for(int k = 0; k < ArraySize(m5UptrendSegments); k++)
+                       {
+                        if(m5UptrendSegments[k] != NULL)
+                          {
+                           Print("5分钟上涨线段 ", k, ": ",
+                                 DoubleToString(m5UptrendSegments[k].StartPrice(), _Digits), " → ",
+                                 DoubleToString(m5UptrendSegments[k].EndPrice(), _Digits),
+                                 " 时间: ", TimeToString(m5UptrendSegments[k].StartTime()), " → ",
+                                 TimeToString(m5UptrendSegments[k].EndTime()));
+                          }
+                       }
+                     
+                     // 输出排序后的5分钟下跌线段
+                     Print("=== 排序后的5分钟下跌线段 ===");
+                     for(int k = 0; k < ArraySize(m5DowntrendSegments); k++)
+                       {
+                        if(m5DowntrendSegments[k] != NULL)
+                          {
+                           Print("5分钟下跌线段 ", k, ": ",
+                                 DoubleToString(m5DowntrendSegments[k].StartPrice(), _Digits), " → ",
+                                 DoubleToString(m5DowntrendSegments[k].EndPrice(), _Digits),
+                                 " 时间: ", TimeToString(m5DowntrendSegments[k].StartTime()), " → ",
+                                 TimeToString(m5DowntrendSegments[k].EndTime()));
+                          }
+                       }
+                     
+                     // 释放5分钟线段内存
+                     for(int k = 0; k < ArraySize(m5Segments); k++)
+                       {
+                        if(m5Segments[k] != NULL)
+                          {
+                           delete m5Segments[k];
+                           m5Segments[k] = NULL;
+                          }
+                       }
+                    }
+                  else
+                    {
+                     Print("获取5分钟线段失败");
+                    }
+                  
                   // 在信息面板上添加线段信息
                   Print("=== 更新信息面板 ===");
                   CInfoPanelManager::AddSegmentInfo(infoPanel, uptrendSegments, downtrendSegments, InpInfoPanelColor);
