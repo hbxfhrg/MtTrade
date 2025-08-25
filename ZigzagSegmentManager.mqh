@@ -7,7 +7,7 @@
 #property link      "https://www.mql5.com"
 
 // 引入必要的头文件
-#include "ZigzagCommon.mqh"      // 包含公共定义和前向声明
+#include "EnumDefinitions.mqh"      // 包含公共枚举定义
 #include "ZigzagExtremumPoint.mqh"  // 包含CZigzagExtremumPoint类定义
 #include "ZigzagCalculator.mqh"
 #include "CommonUtils.mqh"          // 包含通用工具函数
@@ -307,31 +307,17 @@ bool CZigzagSegmentManager::GetUptrendSegments(ENUM_TIMEFRAMES timeframe, CZigza
    if(maxCount <= 0 || total == 0)
       return false;
    
-   // 临时数组，用于存储上涨线段
-   CZigzagSegment* tempSegments[];
-   ArrayResize(tempSegments, total);
+   // 获取所有线段
+   CZigzagSegment* allSegments[];
+   ArrayResize(allSegments, total);
    
-   // 找出所有上涨线段
-   int count = 0;
-   for(int i = 0; i < total && count < maxCount; i++)
+   for(int i = 0; i < total; i++)
    {
-      CZigzagSegment* segment = GetSegment(timeframe, i);
-      if(segment != NULL && segment.IsUptrend())
-      {
-         tempSegments[count++] = segment;
-      }
+      allSegments[i] = GetSegment(timeframe, i);
    }
    
-   // 调整结果数组大小
-   ArrayResize(segments, count);
-   
-   // 复制上涨线段
-   for(int i = 0; i < count; i++)
-   {
-      segments[i] = tempSegments[i];
-   }
-   
-   return count > 0;
+   // 使用CommonUtils中的静态方法筛选上涨线段
+   return FilterSegmentsByTrend(allSegments, segments, SEGMENT_TREND_UP, maxCount);
 }
 
 //+------------------------------------------------------------------+
@@ -350,31 +336,17 @@ bool CZigzagSegmentManager::GetDowntrendSegments(ENUM_TIMEFRAMES timeframe, CZig
    if(maxCount <= 0 || total == 0)
       return false;
    
-   // 临时数组，用于存储下跌线段
-   CZigzagSegment* tempSegments[];
-   ArrayResize(tempSegments, total);
+   // 获取所有线段
+   CZigzagSegment* allSegments[];
+   ArrayResize(allSegments, total);
    
-   // 找出所有下跌线段
-   int count = 0;
-   for(int i = 0; i < total && count < maxCount; i++)
+   for(int i = 0; i < total; i++)
    {
-      CZigzagSegment* segment = GetSegment(timeframe, i);
-      if(segment != NULL && segment.IsDowntrend())
-      {
-         tempSegments[count++] = segment;
-      }
+      allSegments[i] = GetSegment(timeframe, i);
    }
    
-   // 调整结果数组大小
-   ArrayResize(segments, count);
-   
-   // 复制下跌线段
-   for(int i = 0; i < count; i++)
-   {
-      segments[i] = tempSegments[i];
-   }
-   
-   return count > 0;
+   // 使用CommonUtils中的静态方法筛选下跌线段
+   return FilterSegmentsByTrend(allSegments, segments, SEGMENT_TREND_DOWN, maxCount);
 }
 
 //+------------------------------------------------------------------+
@@ -425,6 +397,19 @@ void CZigzagSegmentManager::PrintSegments(ENUM_TIMEFRAMES timeframe, int count)
 bool CZigzagSegmentManager::GetSegmentsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime, datetime endTime, 
                                                   CZigzagSegment* &segments[], int maxCount)
 {
+   // 检查参数有效性
+   if(maxCount <= 0)
+      return false;
+      
+   // 如果需要计算新的线段，使用CommonUtils中的静态方法
+   if(m_calculator != NULL)
+   {
+      // 使用CommonUtils中的静态方法获取时间范围内的线段
+      return ::GetSegmentsInTimeRange(timeframe, startTime, endTime, segments, maxCount, 
+                                     m_calculator.Depth(), m_calculator.Deviation(), m_calculator.Backstep());
+   }
+   
+   // 如果没有计算器，则从缓存中获取
    CArrayObj* segmentsArray = GetSegmentArrayByTimeframe(timeframe);
    
    if(segmentsArray == NULL)
@@ -432,32 +417,42 @@ bool CZigzagSegmentManager::GetSegmentsInTimeRange(ENUM_TIMEFRAMES timeframe, da
       
    int total = segmentsArray.Total();
    
-   // 检查参数有效性
-   if(maxCount <= 0 || total == 0)
+   if(total == 0)
       return false;
+   
+   // 获取所有线段
+   CZigzagSegment* allSegments[];
+   ArrayResize(allSegments, total);
+   
+   for(int i = 0; i < total; i++)
+   {
+      allSegments[i] = GetSegment(timeframe, i);
+   }
    
    // 临时数组，用于存储符合条件的线段
    CZigzagSegment* tempSegments[];
-   ArrayResize(tempSegments, total);
+   int count = 0;
    
    // 找出时间范围内的线段
-   int count = 0;
    for(int i = 0; i < total && count < maxCount; i++)
    {
-      CZigzagSegment* segment = GetSegment(timeframe, i);
-      
-      if(segment != NULL)
+      if(allSegments[i] != NULL)
       {
          // 检查线段是否在指定的时间范围内
-         datetime segStartTime = segment.StartTime();
-         datetime segEndTime = segment.EndTime();
+         datetime segStartTime = allSegments[i].StartTime();
+         datetime segEndTime = allSegments[i].EndTime();
          
          // 如果线段的时间范围与指定的时间范围有重叠，则添加到结果中
          if((segStartTime >= startTime && segStartTime <= endTime) || 
             (segEndTime >= startTime && segEndTime <= endTime) ||
             (segStartTime <= startTime && segEndTime >= endTime))
          {
-            tempSegments[count++] = segment;
+            // 调整数组大小
+            ArrayResize(tempSegments, count + 1);
+            
+            // 创建线段的副本（避免内存问题）
+            tempSegments[count] = new CZigzagSegment(*allSegments[i]);
+            count++;
          }
       }
    }
@@ -545,5 +540,4 @@ bool CZigzagSegmentManager::CalculateSegments(ENUM_TIMEFRAMES timeframe, CZigzag
 }
 //+------------------------------------------------------------------+
 
-// 包含ZigzagHelper类定义（放在文件末尾以避免循环引用）
-#include "ZigzagHelper.mqh"
+

@@ -85,3 +85,13 @@ enum ENUM_MARKET_POSITION
 // 全局变量 - 控制是否显示已被穿越的价格点
 bool g_ShowPenetratedPoints = false;
 
+//+------------------------------------------------------------------+
+//| 线段趋势方向枚举                                                  |
+//+------------------------------------------------------------------+
+enum ENUM_SEGMENT_TREND
+  {
+   SEGMENT_TREND_ALL,     // 所有趋势
+   SEGMENT_TREND_UP,      // 上涨趋势
+   SEGMENT_TREND_DOWN     // 下跌趋势
+  };
+

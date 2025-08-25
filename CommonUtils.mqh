@@ -6,6 +6,16 @@
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
 
+// 引入必要的头文件
+#include "EnumDefinitions.mqh"
+#include "ZigzagExtremumPoint.mqh"
+#include "ZigzagCalculator.mqh"
+
+// 前向声明
+class CZigzagSegment;
+
+// 在包含ZigzagSegment.mqh之前先声明所需的类
+
 //+------------------------------------------------------------------+
 //| 通用工具类 - 提供项目中使用的各种通用方法                           |
 //+------------------------------------------------------------------+
@@ -282,10 +292,10 @@ bool GetExtremumPointsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime,
      }
       
    // 创建ZigZag计算器
-   CZigzagCalculator calculator(depth, deviation, backstep, 3, timeframe);
+   CZigzagCalculator zigzagCalc(depth, deviation, backstep, 3, timeframe);
    
    // 计算指定周期的ZigZag值
-   if(!calculator.CalculateForSymbol(Symbol(), timeframe, 1000))
+   if(!zigzagCalc.CalculateForSymbol(Symbol(), timeframe, 1000))
      {
       Print("计算ZigZag值失败: ", GetLastError());
       return false;
@@ -293,7 +303,7 @@ bool GetExtremumPointsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime,
       
    // 获取所有极值点
    CZigzagExtremumPoint allPoints[];
-   if(!calculator.GetExtremumPoints(allPoints))
+   if(!zigzagCalc.GetExtremumPoints(allPoints))
      {
       Print("获取极值点失败: ", GetLastError());
       return false;
@@ -430,19 +440,9 @@ bool GetSegmentsInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int endBar,
   }
 
 //+------------------------------------------------------------------+
-//| 线段趋势方向枚举                                                  |
-//+------------------------------------------------------------------+
-enum ENUM_SEGMENT_TREND
-  {
-   SEGMENT_TREND_ALL,     // 所有趋势
-   SEGMENT_TREND_UP,      // 上涨趋势
-   SEGMENT_TREND_DOWN     // 下跌趋势
-  };
-
-//+------------------------------------------------------------------+
 //| 从线段数组中筛选出指定趋势方向的线段                               |
 //+------------------------------------------------------------------+
-bool FilterSegmentsByTrend(CZigzagSegment* const &sourceSegments[], CZigzagSegment* &filteredSegments[], 
+bool FilterSegmentsByTrend(CZigzagSegment* &sourceSegments[], CZigzagSegment* &filteredSegments[], 
                           ENUM_SEGMENT_TREND trendType = SEGMENT_TREND_ALL, int maxCount = 0)
   {
    // 检查参数有效性
@@ -548,3 +548,6 @@ bool GetSegmentsByTrendInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int e
    
    return result;
   }
+
+// 包含ZigzagSegment.mqh，放在文件末尾以避免循环引用
+#include "ZigzagSegment.mqh"

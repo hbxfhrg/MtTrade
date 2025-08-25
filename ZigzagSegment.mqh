@@ -7,7 +7,29 @@
 #property link      "https://www.mql5.com"
 
 // 引入必要的头文件
-#include "ZigzagCommon.mqh"      // 包含公共定义和前向声明
+#include "ZigzagExtremumPoint.mqh"
+#include "ZigzagCalculator.mqh"  // 包含CZigzagCalculator类定义
+#include <Arrays\\ArrayObj.mqh>  // 添加CArrayObj的头文件
+
+// 前向声明
+string TimeframeToString(ENUM_TIMEFRAMES timeframe); // 从CommonUtils.mqh中引用的函数
+//+------------------------------------------------------------------+
+//|                                                ZigzagSegment.mqh |
+//|                             Copyright 2000-2025, MetaQuotes Ltd. |
+//|                                             https://www.mql5.com |
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2000-2025, MetaQuotes Ltd."
+#property link      "https://www.mql5.com"
+
+//+------------------------------------------------------------------+
+//|                                                ZigzagSegment.mqh |
+//|                             Copyright 2000-2025, MetaQuotes Ltd. |
+//|                                             https://www.mql5.com |
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2000-2025, MetaQuotes Ltd."
+#property link      "https://www.mql5.com"
+
+// 引入必要的头文件
 #include "ZigzagExtremumPoint.mqh"
 #include "ZigzagCalculator.mqh"  // 包含CZigzagCalculator类定义
 #include "CommonUtils.mqh"       // 包含通用工具函数
@@ -216,7 +238,7 @@ bool CZigzagSegment::GetSmallerTimeframeSegments(CZigzagSegment* &segments[], EN
    // 检查时间周期是否合理
    if(smallerTimeframe >= m_timeframe)
    {
-      Print("错误: 指定的时间周期 ", TimeframeToString(smallerTimeframe), " 大于或等于当前线段的时间周期 ", TimeframeToString(m_timeframe));
+      Print("错误: 指定的时间周期 ", EnumToString(smallerTimeframe), " 大于或等于当前线段的时间周期 ", EnumToString(m_timeframe));
       return false;
    }
    
@@ -231,11 +253,11 @@ bool CZigzagSegment::GetSmallerTimeframeSegments(CZigzagSegment* &segments[], EN
    CZigzagExtremumPoint points[];
    
    // 先为指定的时间周期计算ZigZag值
-   if(!calculator.CalculateForSymbol(Symbol(), smallerTimeframe, 1000))
+   if(!zigzagCalc.CalculateForSymbol(Symbol(), smallerTimeframe, 1000))
       return false;
       
    // 然后获取极值点
-   if(!calculator.GetExtremumPoints(points, maxCount * 2))
+   if(!zigzagCalc.GetExtremumPoints(points, maxCount * 2))
       return false;
       
    int point_count = ArraySize(points);
