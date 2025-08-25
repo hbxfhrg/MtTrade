@@ -569,8 +569,10 @@ bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENU
       return false;
      }
    
-   // 找到最近的区间高点时间
+   // 找到最近的区间高点和低点时间
    datetime latestHighTime = 0;
+   datetime latestLowTime = 0;
+   
    for(int i = 0; i < ArraySize(largePoints); i++)
      {
       if(largePoints[i].Type() == EXTREMUM_PEAK) // 高点
@@ -580,18 +582,41 @@ bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENU
             latestHighTime = largePoints[i].Time();
            }
         }
+      else if(largePoints[i].Type() == EXTREMUM_BOTTOM) // 低点
+        {
+         if(largePoints[i].Time() > latestLowTime)
+           {
+            latestLowTime = largePoints[i].Time();
+           }
+        }
      }
    
-   // 如果找到了区间高点，则调整获取小周期线段的时间范围
+   // 根据趋势类型确定调整时间范围的逻辑
    datetime adjustedStartTime = startTime;
-   if(latestHighTime > 0)
+   
+   if(trendType == SEGMENT_TREND_UP || trendType == SEGMENT_TREND_ALL)
      {
-      adjustedStartTime = latestHighTime; // 从区间高点时间开始获取
-      Print("找到最近区间高点时间: ", TimeToString(latestHighTime), "，调整小周期线段获取范围");
+      // 对于上涨趋势，从最近的区间高点时间开始获取
+      if(latestHighTime > 0)
+        {
+         adjustedStartTime = MathMax(adjustedStartTime, latestHighTime);
+         Print("找到最近区间高点时间: ", TimeToString(latestHighTime), "，调整上涨线段获取范围");
+        }
      }
-   else
+   
+   if(trendType == SEGMENT_TREND_DOWN || trendType == SEGMENT_TREND_ALL)
      {
-      Print("未找到区间高点，使用原始时间范围");
+      // 对于下跌趋势，从最近的区间低点时间开始获取
+      if(latestLowTime > 0)
+        {
+         adjustedStartTime = MathMax(adjustedStartTime, latestLowTime);
+         Print("找到最近区间低点时间: ", TimeToString(latestLowTime), "，调整下跌线段获取范围");
+        }
+     }
+   
+   if(latestHighTime == 0 && latestLowTime == 0)
+     {
+      Print("未找到区间高低点，使用原始时间范围");
      }
    
    // 获取调整后时间范围内的小周期线段
