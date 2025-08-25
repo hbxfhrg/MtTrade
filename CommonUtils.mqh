@@ -267,3 +267,284 @@ double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_T
    return lowestPrice;
   }
 
+//+------------------------------------------------------------------+
+//| 获取指定周期和时间范围内的极点                                     |
+//+------------------------------------------------------------------+
+bool GetExtremumPointsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime, datetime endTime, 
+                                 CZigzagExtremumPoint &points[], int maxCount = 0, 
+                                 int depth = 12, int deviation = 5, int backstep = 3)
+  {
+   // 检查参数有效性
+   if(startTime >= endTime || maxCount < 0)
+     {
+      Print("参数无效: startTime=", TimeToString(startTime), ", endTime=", TimeToString(endTime), ", maxCount=", maxCount);
+      return false;
+     }
+      
+   // 创建ZigZag计算器
+   CZigzagCalculator calculator(depth, deviation, backstep, 3, timeframe);
+   
+   // 计算指定周期的ZigZag值
+   if(!calculator.CalculateForSymbol(Symbol(), timeframe, 1000))
+     {
+      Print("计算ZigZag值失败: ", GetLastError());
+      return false;
+     }
+      
+   // 获取所有极值点
+   CZigzagExtremumPoint allPoints[];
+   if(!calculator.GetExtremumPoints(allPoints))
+     {
+      Print("获取极值点失败: ", GetLastError());
+      return false;
+     }
+      
+   // 筛选出指定时间范围内的极值点
+   CZigzagExtremumPoint tempPoints[];
+   int count = 0;
+   
+   for(int i = 0; i < ArraySize(allPoints); i++)
+     {
+      datetime pointTime = allPoints[i].Time();
+      
+      // 如果极值点在指定的时间范围内，则添加到结果中
+      if(pointTime >= startTime && pointTime <= endTime)
+        {
+         ArrayResize(tempPoints, count + 1);
+         tempPoints[count++] = allPoints[i];
+         
+         // 如果达到最大数量限制，则停止添加
+         if(maxCount > 0 && count >= maxCount)
+            break;
+        }
+     }
+   
+   // 调整结果数组大小
+   ArrayResize(points, count);
+   
+   // 复制找到的极值点
+   for(int i = 0; i < count; i++)
+     {
+      points[i] = tempPoints[i];
+     }
+   
+   return count > 0;
+  }
+
+//+------------------------------------------------------------------+
+//| 获取指定周期和K线范围内的极点                                      |
+//+------------------------------------------------------------------+
+bool GetExtremumPointsInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int endBar, 
+                                CZigzagExtremumPoint &points[], int maxCount = 0, 
+                                int depth = 12, int deviation = 5, int backstep = 3)
+  {
+   // 检查参数有效性
+   if(startBar < 0 || endBar < 0 || startBar < endBar || maxCount < 0)
+     {
+      Print("参数无效: startBar=", startBar, ", endBar=", endBar, ", maxCount=", maxCount);
+      return false;
+     }
+      
+   // 获取K线的时间
+   datetime startTime = iTime(Symbol(), timeframe, startBar);
+   datetime endTime = iTime(Symbol(), timeframe, endBar);
+   
+   if(startTime == 0 || endTime == 0)
+     {
+      Print("无法获取K线时间: startBar=", startBar, ", endBar=", endBar);
+      return false;
+     }
+      
+   // 调用按时间范围获取极值点的方法
+   return GetExtremumPointsInTimeRange(timeframe, endTime, startTime, points, maxCount, depth, deviation, backstep);
+  }
+
+//+------------------------------------------------------------------+
+//| 将极点数组转换为线段数组                                           |
+//+------------------------------------------------------------------+
+bool ConvertExtremumPointsToSegments(const CZigzagExtremumPoint &points[], CZigzagSegment* &segments[], ENUM_TIMEFRAMES timeframe)
+  {
+   // 检查参数有效性
+   int pointCount = ArraySize(points);
+   if(pointCount < 2)
+     {
+      Print("极点数量不足，无法生成线段: pointCount=", pointCount);
+      return false;
+     }
+      
+   // 确保极点是交替的（峰值和谷值）
+   for(int i = 1; i < pointCount; i++)
+     {
+      if(points[i].Type() == points[i-1].Type())
+        {
+         Print("警告: 极点类型不交替，可能导致线段生成错误: index=", i, ", type=", EnumToString(points[i].Type()));
+        }
+     }
+   
+   // 计算可以生成的线段数量
+   int segmentCount = pointCount - 1;
+   
+   // 调整线段数组大小
+   ArrayResize(segments, segmentCount);
+   
+   // 生成线段
+   for(int i = 0; i < segmentCount; i++)
+     {
+      // 创建新线段（注意：线段的起点是i+1，终点是i，这样可以保持与ZigzagSegmentManager中相同的顺序）
+      segments[i] = new CZigzagSegment(points[i+1], points[i], timeframe);
+     }
+   
+   return segmentCount > 0;
+  }
+
+//+------------------------------------------------------------------+
+//| 获取指定周期和时间范围内的线段                                     |
+//+------------------------------------------------------------------+
+bool GetSegmentsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime, datetime endTime, 
+                           CZigzagSegment* &segments[], int maxCount = 0, 
+                           int depth = 12, int deviation = 5, int backstep = 3)
+  {
+   // 先获取极点
+   CZigzagExtremumPoint points[];
+   if(!GetExtremumPointsInTimeRange(timeframe, startTime, endTime, points, maxCount > 0 ? maxCount + 1 : 0, depth, deviation, backstep))
+      return false;
+      
+   // 将极点转换为线段
+   return ConvertExtremumPointsToSegments(points, segments, timeframe);
+  }
+
+//+------------------------------------------------------------------+
+//| 获取指定周期和K线范围内的线段                                      |
+//+------------------------------------------------------------------+
+bool GetSegmentsInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int endBar, 
+                          CZigzagSegment* &segments[], int maxCount = 0, 
+                          int depth = 12, int deviation = 5, int backstep = 3)
+  {
+   // 先获取极点
+   CZigzagExtremumPoint points[];
+   if(!GetExtremumPointsInBarRange(timeframe, startBar, endBar, points, maxCount > 0 ? maxCount + 1 : 0, depth, deviation, backstep))
+      return false;
+      
+   // 将极点转换为线段
+   return ConvertExtremumPointsToSegments(points, segments, timeframe);
+  }
+
+//+------------------------------------------------------------------+
+//| 线段趋势方向枚举                                                  |
+//+------------------------------------------------------------------+
+enum ENUM_SEGMENT_TREND
+  {
+   SEGMENT_TREND_ALL,     // 所有趋势
+   SEGMENT_TREND_UP,      // 上涨趋势
+   SEGMENT_TREND_DOWN     // 下跌趋势
+  };
+
+//+------------------------------------------------------------------+
+//| 从线段数组中筛选出指定趋势方向的线段                               |
+//+------------------------------------------------------------------+
+bool FilterSegmentsByTrend(CZigzagSegment* const &sourceSegments[], CZigzagSegment* &filteredSegments[], 
+                          ENUM_SEGMENT_TREND trendType = SEGMENT_TREND_ALL, int maxCount = 0)
+  {
+   // 检查参数有效性
+   int sourceCount = ArraySize(sourceSegments);
+   if(sourceCount == 0)
+     {
+      Print("源线段数组为空");
+      return false;
+     }
+      
+   // 临时数组，用于存储筛选后的线段
+   CZigzagSegment* tempSegments[];
+   int count = 0;
+   
+   // 遍历所有线段，根据趋势方向筛选
+   for(int i = 0; i < sourceCount; i++)
+     {
+      if(sourceSegments[i] != NULL)
+        {
+         bool shouldAdd = false;
+         
+         // 根据趋势类型筛选
+         switch(trendType)
+           {
+            case SEGMENT_TREND_ALL:  // 所有趋势
+               shouldAdd = true;
+               break;
+               
+            case SEGMENT_TREND_UP:   // 上涨趋势
+               shouldAdd = sourceSegments[i].IsUptrend();
+               break;
+               
+            case SEGMENT_TREND_DOWN: // 下跌趋势
+               shouldAdd = sourceSegments[i].IsDowntrend();
+               break;
+           }
+         
+         if(shouldAdd)
+           {
+            // 调整数组大小
+            ArrayResize(tempSegments, count + 1);
+            
+            // 创建线段的副本（避免内存问题）
+            tempSegments[count] = new CZigzagSegment(*sourceSegments[i]);
+            count++;
+            
+            // 如果达到最大数量限制，则停止添加
+            if(maxCount > 0 && count >= maxCount)
+               break;
+           }
+        }
+     }
+   
+   // 调整结果数组大小
+   ArrayResize(filteredSegments, count);
+   
+   // 复制找到的线段
+   for(int i = 0; i < count; i++)
+     {
+      filteredSegments[i] = tempSegments[i];
+     }
+   
+   return count > 0;
+  }
+
+//+------------------------------------------------------------------+
+//| 获取指定周期、时间范围和趋势方向的线段                             |
+//+------------------------------------------------------------------+
+bool GetSegmentsByTrendInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime, datetime endTime, 
+                                  CZigzagSegment* &segments[], ENUM_SEGMENT_TREND trendType = SEGMENT_TREND_ALL, 
+                                  int maxCount = 0, int depth = 12, int deviation = 5, int backstep = 3)
+  {
+   // 先获取所有线段
+   CZigzagSegment* allSegments[];
+   if(!GetSegmentsInTimeRange(timeframe, startTime, endTime, allSegments, 0, depth, deviation, backstep))
+      return false;
+      
+   // 根据趋势方向筛选线段
+   return FilterSegmentsByTrend(allSegments, segments, trendType, maxCount);
+  }
+
+//+------------------------------------------------------------------+
+//| 获取指定周期、K线范围和趋势方向的线段                              |
+//+------------------------------------------------------------------+
+bool GetSegmentsByTrendInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int endBar, 
+                                 CZigzagSegment* &segments[], ENUM_SEGMENT_TREND trendType = SEGMENT_TREND_ALL, 
+                                 int maxCount = 0, int depth = 12, int deviation = 5, int backstep = 3)
+  {
+   // 先获取所有线段
+   CZigzagSegment* allSegments[];
+   if(!GetSegmentsInBarRange(timeframe, startBar, endBar, allSegments, 0, depth, deviation, backstep))
+      return false;
+      
+   // 根据趋势方向筛选线段
+   bool result = FilterSegmentsByTrend(allSegments, segments, trendType, maxCount);
+   
+   // 释放原始线段数组中的对象
+   for(int i = 0; i < ArraySize(allSegments); i++)
+     {
+      if(allSegments[i] != NULL)
+         delete allSegments[i];
+     }
+   
+   return result;
+  }
