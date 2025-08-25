@@ -767,16 +767,16 @@ int OnCalculate(const int rates_total,
                   
                   if(nearestSegment != NULL)
                     {
-                     // 使用离当前时间最近的1小时线段的时间范围
-                     m5StartTime = nearestSegment.StartTime();
-                     m5EndTime = nearestSegment.EndTime();
+                     // 从1小时线段结束时间开始，获取之后的5分钟线段
+                     m5StartTime = nearestSegment.EndTime();
+                     m5EndTime = TimeCurrent();
                      
                      string segmentDirection = nearestSegment.IsUptrend() ? "上涨" : "下跌";
-                     Print("使用离当前时间最近的1小时", segmentDirection, "线段时间范围: ", 
+                     Print("使用离当前时间最近的1小时", segmentDirection, "线段结束后的时间范围: ", 
                            TimeToString(m5StartTime), " 到 ", TimeToString(m5EndTime));
                      Print("1小时线段价格: ", DoubleToString(nearestSegment.StartPrice(), _Digits), 
                            " → ", DoubleToString(nearestSegment.EndPrice(), _Digits));
-                     Print("该线段结束时间与当前时间差: ", (int)(minTimeDiff / 60), " 分钟");
+                     Print("从1小时线段结束价格 ", DoubleToString(nearestSegment.EndPrice(), _Digits), " 之后开始获取5分钟线段");
                     }
                   else
                     {
@@ -786,8 +786,8 @@ int OnCalculate(const int rates_total,
                      Print("未找到1小时线段，使用默认时间范围: ", TimeToString(m5StartTime), " 到 ", TimeToString(m5EndTime));
                     }
                   
-                  // 使用新方法获取5分钟线段，排除4小时周期区间内的线段
-                  if(::GetSmallTimeframeSegmentsExcludingRange(PERIOD_M5, PERIOD_H4, m5StartTime, m5EndTime, m5Segments, SEGMENT_TREND_ALL, 20))
+                  // 直接获取指定时间范围内的5分钟线段
+                  if(::GetSegmentsInTimeRange(PERIOD_M5, m5StartTime, m5EndTime, m5Segments, 20))
                     {
                      Print("成功获取到 ", ArraySize(m5Segments), " 个5分钟线段");
                      
