@@ -131,58 +131,84 @@ public:
          return false;
          
       // 获取较大时间周期的起止时间
-      datetime startTime = largerSegment.StartTime();
-      datetime endTime = largerSegment.EndTime();
+      datetime segmentStartTime = largerSegment.StartTime();
+      datetime segmentEndTime = largerSegment.EndTime();
       
-      // 调整时间范围，确保能够获取到完整的小周期数据
-      datetime adjustedStartTime = startTime;
-      datetime adjustedEndTime = endTime;
+      // 获取当前时间
+      datetime currentTime = TimeCurrent();
+      
+      // 计算当前时间到区间两个端点的距离，找到最远的端点
+      datetime farthestTime;
+      long distanceToStart = MathAbs((long)currentTime - (long)segmentStartTime);
+      long distanceToEnd = MathAbs((long)currentTime - (long)segmentEndTime);
+      
+      if(distanceToStart > distanceToEnd)
+        {
+         farthestTime = segmentStartTime;
+        }
+      else
+        {
+         farthestTime = segmentEndTime;
+        }
+      
+      // 确定时间范围：从当前时间到最远的端点时间
+      datetime searchStartTime, searchEndTime;
+      if(currentTime < farthestTime)
+        {
+         searchStartTime = currentTime;
+         searchEndTime = farthestTime;
+        }
+      else
+        {
+         searchStartTime = farthestTime;
+         searchEndTime = currentTime;
+        }
       
       // 输出调试信息
       PrintFormat("=== 动态获取%s线段数据 ===", 
                  (smallerTimeframe == PERIOD_H1) ? "1小时" : 
                  (smallerTimeframe == PERIOD_M5) ? "5分钟" : "小周期");
-      PrintFormat("时间范围: %s 到 %s", 
-                 TimeToString(adjustedStartTime), 
-                 TimeToString(adjustedEndTime));
-      
-      // 根据线段方向调整获取范围
-      if(largerSegment.IsUptrend())
-        {
-         // 上涨线段，找最近的高点
-         datetime highTime = 0;
-         // 使用CommonUtils中的函数来查找高点后的最高价格
-         double highPrice = 0.0;
-         // 这里需要重新实现逻辑，暂时设为0
-         highTime = 0;
-         
-         if(highPrice > 0 && highTime > 0)
-           {
-            PrintFormat("找到最近区间高点时间: %s，调整上涨线段获取范围", TimeToString(highTime));
-            adjustedEndTime = highTime;
-           }
-        }
-      else
-        {
-         // 下跌线段，找最近的低点
-         datetime lowTime = 0;
-         // 使用CommonUtils中的函数来查找低点后的最低价格
-         double lowPrice = 0.0;
-         // 这里需要重新实现逻辑，暂时设为0
-         lowTime = 0;
-         
-         if(lowPrice > 0 && lowTime > 0)
-           {
-            PrintFormat("找到最近区间低点时间: %s，调整下跌线段获取范围", TimeToString(lowTime));
-            adjustedEndTime = lowTime;
-           }
-        }
+      PrintFormat("当前时间: %s", TimeToString(currentTime));
+      PrintFormat("区间端点: %s 到 %s", 
+                 TimeToString(segmentStartTime), TimeToString(segmentEndTime));
+      PrintFormat("最远端点: %s", TimeToString(farthestTime));
+      PrintFormat("搜索范围: %s 到 %s", 
+                 TimeToString(searchStartTime), TimeToString(searchEndTime));
       
       // 获取小周期线段的极值点（使用CommonUtils中的全局函数）
       CZigzagExtremumPoint smallerPoints[];
-      if(!::GetExtremumPointsInTimeRange(smallerTimeframe, adjustedStartTime, adjustedEndTime, smallerPoints, 0, m_zigzagDepth, m_zigzagDeviation, m_zigzagBackstep))
+      
+      // 先计算搜索范围的价格范围
+      double highPrice = 0.0;
+      double lowPrice = DBL_MAX;
+      
+      // 通过正向遍历K线获取价格范围
+      int barCount = 1000;
+      for(int i = 0; i < barCount; i++)
         {
-         Print("无法获取小周期线段");
+         datetime barTime = iTime(Symbol(), smallerTimeframe, i);
+         if(barTime == 0) break;
+         
+         if(barTime >= MathMin(searchStartTime, searchEndTime) && barTime <= MathMax(searchStartTime, searchEndTime))
+           {
+            double high = iHigh(Symbol(), smallerTimeframe, i);
+            double low = iLow(Symbol(), smallerTimeframe, i);
+            
+            if(high > highPrice) highPrice = high;
+            if(low < lowPrice) lowPrice = low;
+           }
+         
+         if(barTime < MathMin(searchStartTime, searchEndTime))
+            break;
+        }
+      
+      if(highPrice <= lowPrice)
+        {
+         return false;
+        }
+      
+      if(!::GetExtremumPointsInPriceRange(smallerTimeframe, highPrice, lowPrice, smallerPoints, 0))
+        {
          return false;
         }
       
@@ -197,6 +223,12 @@ public:
       
       // 创建小周期线段
       smallerSegment = CZigzagSegment(smallerPoints[1], smallerPoints[0]);
+      
+      // 输出成功信息
+      PrintFormat("成功获取%s线段: %s", 
+                 (smallerTimeframe == PERIOD_H1) ? "1小时" : 
+                 (smallerTimeframe == PERIOD_M5) ? "5分钟" : "小周期",
+                 smallerSegment.ToString());
       
       return true;
      }
@@ -473,6 +505,18 @@ public:
    datetime GetResistanceTime(ENUM_TIMEFRAMES timeframe)
      {
       return m_resistancePoints.GetTime(timeframe);
+     }
+     
+   // 获取支撑点对象
+   CDynamicPricePoint* GetSupportPointsObject()
+     {
+      return &m_supportPoints;
+     }
+     
+   // 获取压力点对象
+   CDynamicPricePoint* GetResistancePointsObject()
+     {
+      return &m_resistancePoints;
      }
      
    // 获取指定时间周期的支撑/压力描述

@@ -215,7 +215,6 @@ bool CZigzagSegment::GetSmallerTimeframeSegments(CZigzagSegment* &segments[], EN
    // 检查时间周期是否合理
    if(smallerTimeframe >= m_timeframe)
    {
-      Print("错误: 指定的时间周期 ", EnumToString(smallerTimeframe), " 大于或等于当前线段的时间周期 ", EnumToString(m_timeframe));
       return false;
    }
    

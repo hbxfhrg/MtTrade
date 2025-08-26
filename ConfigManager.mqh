@@ -33,7 +33,6 @@ private:
       int fileHandle = FileOpen(filePath, FILE_WRITE|FILE_TXT);
       if(fileHandle == INVALID_HANDLE)
         {
-         Print("无法打开配置文件进行写入: ", GetLastError());
          return false;
         }
       
@@ -61,7 +60,6 @@ private:
       int fileHandle = FileOpen(filePath, FILE_READ|FILE_TXT);
       if(fileHandle == INVALID_HANDLE)
         {
-         Print("无法打开配置文件进行读取: ", GetLastError());
          return "";
         }
       

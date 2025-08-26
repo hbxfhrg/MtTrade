@@ -134,6 +134,72 @@ bool IsPriceInArray(double price, const CZigzagExtremumPoint &points[], double t
   }
 
 //+------------------------------------------------------------------+
+//| 通过价格查找K线序号（使用ENUM_SERIESMODE）                        |
+//+------------------------------------------------------------------+
+int FindBarIndexByPrice(double targetPrice, ENUM_SERIESMODE seriesMode, ENUM_TIMEFRAMES timeframe = PERIOD_CURRENT, int maxBarsToCheck = 1000)
+  {
+   // 根据时间周期调整检查的K线数量，小周期不限制数量
+   int barsToCheck;
+   if(timeframe == PERIOD_M1)  // 1分钟周期，搜索范围最大
+     {
+      barsToCheck = MathMin(maxBarsToCheck, 5000);  // 1分钟周期最大5000根K线
+     }
+   else if(timeframe <= PERIOD_M5)  // 5分钟及以下的小周期，使用更大的搜索范围
+     {
+      barsToCheck = MathMin(maxBarsToCheck, 3000);  // 5分钟周期最大3000根K线
+     }
+   else if(timeframe <= PERIOD_M15)  // 15分钟周期
+     {
+      barsToCheck = MathMin(maxBarsToCheck, 1500);  // 15分钟周期最大1500根K线
+     }
+   else if(timeframe <= PERIOD_H1)  // 1小时及以下的中等周期
+     {
+      barsToCheck = MathMin(maxBarsToCheck, 800);   // 1小时周期最大800根K线
+     }
+   else  // 大周期
+     {
+      barsToCheck = MathMin(maxBarsToCheck, 300);   // 大周期最大300根K线
+     }
+   
+   // 设置固定容差（使用点值的0.1倍作为容差）
+   double tolerance = _Point * 0.1;
+   
+   for(int i = 0; i < barsToCheck; i++)
+     {
+      double price;
+      
+      // 根据ENUM_SERIESMODE类型获取相应的价格
+      switch(seriesMode)
+        {
+         case MODE_HIGH:
+            price = iHigh(Symbol(), timeframe, i);
+            break;
+         case MODE_LOW:
+            price = iLow(Symbol(), timeframe, i);
+            break;
+         case MODE_OPEN:
+            price = iOpen(Symbol(), timeframe, i);
+            break;
+         case MODE_CLOSE:
+            price = iClose(Symbol(), timeframe, i);
+            break;
+         default:
+            return -1;
+        }
+      
+      // 使用固定容差判断价格是否匹配
+      if(MathAbs(price - targetPrice) <= tolerance)
+        {
+         return i;
+        }
+     }
+   
+
+   
+   return -1;
+  }
+
+//+------------------------------------------------------------------+
 //| 在指定周期定位低点价格，然后向未来方向搜索最高价格                   |
 //+------------------------------------------------------------------+
 double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_TIMEFRAMES timeframe = PERIOD_H1, ENUM_TIMEFRAMES smallerTimeframe = PERIOD_M1, datetime startTime = 0)
@@ -166,7 +232,6 @@ double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_T
    // 如果找不到匹配的K线
    if(barIndex < 0)
      {
-      Print("无法在", EnumToString(timeframe), "周期上找到与价格 ", DoubleToString(lowPrice, _Digits), " 接近的K线");
       highTime = 0;
       return 0.0;
      }
@@ -235,7 +300,6 @@ double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_T
    // 如果找不到匹配的K线
    if(barIndex < 0)
      {
-      Print("无法在", EnumToString(timeframe), "周期上找到与价格 ", DoubleToString(highPrice, _Digits), " 接近的K线");
       lowTime = 0;
       return 0.0;
      }
@@ -272,26 +336,45 @@ double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_T
   }
 
 //+------------------------------------------------------------------+
-//| 获取指定周期和时间范围内的极点                                     |
+//| 根据价格范围获取极值点                                             |
 //+------------------------------------------------------------------+
-bool GetExtremumPointsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime, datetime endTime, 
-                                 CZigzagExtremumPoint &points[], int maxCount = 0, 
-                                 int depth = 12, int deviation = 5, int backstep = 3)
+bool GetExtremumPointsInPriceRange(ENUM_TIMEFRAMES timeframe, double highPrice, double lowPrice,
+                                  CZigzagExtremumPoint &points[], int maxCount = 0)
   {
    // 检查参数有效性
-   if(startTime >= endTime || maxCount < 0)
+   if(highPrice <= lowPrice || maxCount < 0)
      {
-      Print("参数无效: startTime=", TimeToString(startTime), ", endTime=", TimeToString(endTime), ", maxCount=", maxCount);
       return false;
      }
-      
+   
+   // 使用默认的ZigZag参数
+   int depth = 12;     // 默认值
+   int deviation = 5;  // 默认值
+   int backstep = 3;   // 默认值
+   
+
+   
    // 创建ZigZag计算器
    CZigzagCalculator zigzagCalc(depth, deviation, backstep, 3, timeframe);
    
+   // 使用通用方法查找高低点价格对应的K线序号
+   int highPriceBarIndex = FindBarIndexByPrice(highPrice, MODE_HIGH, timeframe);
+   int lowPriceBarIndex = FindBarIndexByPrice(lowPrice, MODE_LOW, timeframe);
+   
+   if(highPriceBarIndex == -1 && lowPriceBarIndex == -1)
+     {
+      return false;
+     }
+   
+   // 找到序号离当前时间最远的值（序号最大的值）
+   int farthestBarIndex = MathMax(highPriceBarIndex, lowPriceBarIndex);
+   if(highPriceBarIndex == -1) farthestBarIndex = lowPriceBarIndex;
+   if(lowPriceBarIndex == -1) farthestBarIndex = highPriceBarIndex;
+   
+
    // 计算指定周期的ZigZag值
    if(!zigzagCalc.CalculateForSymbol(Symbol(), timeframe, 1000))
      {
-      Print("计算ZigZag值失败: ", GetLastError());
       return false;
      }
       
@@ -299,21 +382,22 @@ bool GetExtremumPointsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime,
    CZigzagExtremumPoint allPoints[];
    if(!zigzagCalc.GetExtremumPoints(allPoints))
      {
-      Print("获取极值点失败: ", GetLastError());
       return false;
      }
       
-   // 筛选出指定时间范围内的极值点
+   // 筛选出在指定价格范围内的极值点
    CZigzagExtremumPoint tempPoints[];
    int count = 0;
    
+   // 筛选的逻辑更换成高低点价格所在周期的K线序号最大值到当前序号0之间的所有极点值
    for(int i = 0; i < ArraySize(allPoints); i++)
      {
+      // 获取极值点的时间和对应的K线序号
       datetime pointTime = allPoints[i].Time();
+      int pointBarIndex = iBarShift(Symbol(), timeframe, pointTime);
       
-      // 扩大时间范围，确保不遗漏边界上的极值点
-      // 使用更宽松的条件：startTime-3600 <= pointTime <= endTime+3600 (前后各扩展1小时)
-      if(pointTime >= (startTime - 3600) && pointTime <= (endTime + 3600))
+      // 检查该极值点是否在指定的K线序号范围内（从最远序号到当前序号0）
+      if(pointBarIndex >= 0 && pointBarIndex <= farthestBarIndex)
         {
          ArrayResize(tempPoints, count + 1);
          tempPoints[count++] = allPoints[i];
@@ -333,6 +417,8 @@ bool GetExtremumPointsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime,
       points[i] = tempPoints[i];
      }
    
+
+   
    return count > 0;
   }
 
@@ -340,28 +426,34 @@ bool GetExtremumPointsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime,
 //| 获取指定周期和K线范围内的极点                                      |
 //+------------------------------------------------------------------+
 bool GetExtremumPointsInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int endBar, 
-                                CZigzagExtremumPoint &points[], int maxCount = 0, 
-                                int depth = 12, int deviation = 5, int backstep = 3)
+                                CZigzagExtremumPoint &points[], int maxCount = 0)
   {
    // 检查参数有效性
    if(startBar < 0 || endBar < 0 || startBar < endBar || maxCount < 0)
      {
-      Print("参数无效: startBar=", startBar, ", endBar=", endBar, ", maxCount=", maxCount);
       return false;
      }
       
-   // 获取K线的时间
-   datetime startTime = iTime(Symbol(), timeframe, startBar);
-   datetime endTime = iTime(Symbol(), timeframe, endBar);
+   // 获取K线范围内的价格范围
+   double highPrice = 0.0;
+   double lowPrice = DBL_MAX;
    
-   if(startTime == 0 || endTime == 0)
+   for(int i = endBar; i <= startBar; i++)
      {
-      Print("无法获取K线时间: startBar=", startBar, ", endBar=", endBar);
+      double high = iHigh(Symbol(), timeframe, i);
+      double low = iLow(Symbol(), timeframe, i);
+      
+      if(high > highPrice) highPrice = high;
+      if(low < lowPrice) lowPrice = low;
+     }
+   
+   if(highPrice <= lowPrice)
+     {
       return false;
      }
       
-   // 调用按时间范围获取极值点的方法
-   return GetExtremumPointsInTimeRange(timeframe, endTime, startTime, points, maxCount, depth, deviation, backstep);
+   // 调用基于价格范围获取极值点的方法
+   return GetExtremumPointsInPriceRange(timeframe, highPrice, lowPrice, points, maxCount);
   }
 
 //+------------------------------------------------------------------+
@@ -373,7 +465,6 @@ bool ConvertExtremumPointsToSegments(const CZigzagExtremumPoint &points[], CZigz
    int pointCount = ArraySize(points);
    if(pointCount < 2)
      {
-      Print("极点数量不足，无法生成线段: pointCount=", pointCount);
       return false;
      }
       
@@ -382,7 +473,7 @@ bool ConvertExtremumPointsToSegments(const CZigzagExtremumPoint &points[], CZigz
      {
       if(points[i].Type() == points[i-1].Type())
         {
-         Print("警告: 极点类型不交替，可能导致线段生成错误: index=", i, ", type=", EnumToString(points[i].Type()));
+         // 极点类型不交替，可能导致线段生成错误
         }
      }
    
@@ -406,15 +497,14 @@ bool ConvertExtremumPointsToSegments(const CZigzagExtremumPoint &points[], CZigz
   }
 
 //+------------------------------------------------------------------+
-//| 获取指定周期和时间范围内的线段                                     |
+//| 根据价格范围获取线段                                             |
 //+------------------------------------------------------------------+
-bool GetSegmentsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime, datetime endTime, 
-                           CZigzagSegment* &segments[], int maxCount = 0, 
-                           int depth = 12, int deviation = 5, int backstep = 3)
+bool GetSegmentsInPriceRange(ENUM_TIMEFRAMES timeframe, double highPrice, double lowPrice, 
+                           CZigzagSegment* &segments[], int maxCount = 0)
   {
    // 先获取极点
    CZigzagExtremumPoint points[];
-   if(!GetExtremumPointsInTimeRange(timeframe, startTime, endTime, points, maxCount > 0 ? maxCount + 1 : 0, depth, deviation, backstep))
+   if(!GetExtremumPointsInPriceRange(timeframe, highPrice, lowPrice, points, maxCount > 0 ? maxCount + 1 : 0))
       return false;
       
    // 将极点转换为线段
@@ -422,15 +512,57 @@ bool GetSegmentsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime, datet
   }
 
 //+------------------------------------------------------------------+
+//| 获取指定周期和时间范围内的线段（兼容性方法）                     |
+//+------------------------------------------------------------------+
+bool GetSegmentsInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime, datetime endTime, 
+                           CZigzagSegment* &segments[], int maxCount = 0)
+  {
+   // 获取时间范围内的价格范围
+   double highPrice = 0.0;
+   double lowPrice = DBL_MAX;
+   
+   // 通过正向遍历K线获取价格范围
+   datetime currentTime = TimeCurrent();
+   int barCount = 1000; // 限制检查的K线数量
+   
+   for(int i = 0; i < barCount; i++)
+     {
+      datetime barTime = iTime(Symbol(), timeframe, i);
+      if(barTime == 0) break; // 如果没有更多数据，退出
+      
+      // 检查是否在时间范围内
+      if(barTime >= MathMin(startTime, endTime) && barTime <= MathMax(startTime, endTime))
+        {
+         double high = iHigh(Symbol(), timeframe, i);
+         double low = iLow(Symbol(), timeframe, i);
+         
+         if(high > highPrice) highPrice = high;
+         if(low < lowPrice) lowPrice = low;
+        }
+      
+      // 如果时间超出范围，停止查找
+      if(barTime < MathMin(startTime, endTime))
+         break;
+     }
+   
+   if(highPrice <= lowPrice)
+     {
+      return false;
+     }
+   
+   // 调用基于价格范围的方法
+   return GetSegmentsInPriceRange(timeframe, highPrice, lowPrice, segments, maxCount);
+  }
+
+//+------------------------------------------------------------------+
 //| 获取指定周期和K线范围内的线段                                      |
 //+------------------------------------------------------------------+
 bool GetSegmentsInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int endBar, 
-                          CZigzagSegment* &segments[], int maxCount = 0, 
-                          int depth = 12, int deviation = 5, int backstep = 3)
+                          CZigzagSegment* &segments[], int maxCount = 0)
   {
    // 先获取极点
    CZigzagExtremumPoint points[];
-   if(!GetExtremumPointsInBarRange(timeframe, startBar, endBar, points, maxCount > 0 ? maxCount + 1 : 0, depth, deviation, backstep))
+   if(!GetExtremumPointsInBarRange(timeframe, startBar, endBar, points, maxCount > 0 ? maxCount + 1 : 0))
       return false;
       
    // 将极点转换为线段
@@ -447,7 +579,6 @@ bool FilterSegmentsByTrend(CZigzagSegment* &sourceSegments[], CZigzagSegment* &f
    int sourceCount = ArraySize(sourceSegments);
    if(sourceCount == 0)
      {
-      Print("源线段数组为空");
       return false;
      }
       
@@ -511,11 +642,11 @@ bool FilterSegmentsByTrend(CZigzagSegment* &sourceSegments[], CZigzagSegment* &f
 //+------------------------------------------------------------------+
 bool GetSegmentsByTrendInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime, datetime endTime, 
                                   CZigzagSegment* &segments[], ENUM_SEGMENT_TREND trendType = SEGMENT_TREND_ALL, 
-                                  int maxCount = 0, int depth = 12, int deviation = 5, int backstep = 3)
+                                  int maxCount = 0)
   {
    // 先获取所有线段
    CZigzagSegment* allSegments[];
-   if(!GetSegmentsInTimeRange(timeframe, startTime, endTime, allSegments, 0, depth, deviation, backstep))
+   if(!GetSegmentsInTimeRange(timeframe, startTime, endTime, allSegments, 0))
       return false;
       
    // 根据趋势方向筛选线段
@@ -527,11 +658,11 @@ bool GetSegmentsByTrendInTimeRange(ENUM_TIMEFRAMES timeframe, datetime startTime
 //+------------------------------------------------------------------+
 bool GetSegmentsByTrendInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int endBar, 
                                  CZigzagSegment* &segments[], ENUM_SEGMENT_TREND trendType = SEGMENT_TREND_ALL, 
-                                 int maxCount = 0, int depth = 12, int deviation = 5, int backstep = 3)
+                                 int maxCount = 0)
   {
    // 先获取所有线段
    CZigzagSegment* allSegments[];
-   if(!GetSegmentsInBarRange(timeframe, startBar, endBar, allSegments, 0, depth, deviation, backstep))
+   if(!GetSegmentsInBarRange(timeframe, startBar, endBar, allSegments, 0))
       return false;
       
    // 根据趋势方向筛选线段
@@ -553,13 +684,44 @@ bool GetSegmentsByTrendInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int e
 bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENUM_TIMEFRAMES largeTimeframe,
                                            datetime startTime, datetime endTime,
                                            CZigzagSegment* &segments[], ENUM_SEGMENT_TREND trendType = SEGMENT_TREND_ALL,
-                                           int maxCount = 0, int depth = 12, int deviation = 5, int backstep = 3)
+                                           int maxCount = 0)
   {
+   // 获取大周期的价格范围
+   double highPrice = 0.0;
+   double lowPrice = DBL_MAX;
+   
+   // 通过正向遍历K线获取价格范围
+   int barCount = 1000; // 限制检查的K线数量
+   
+   for(int i = 0; i < barCount; i++)
+     {
+      datetime barTime = iTime(Symbol(), largeTimeframe, i);
+      if(barTime == 0) break; // 如果没有更多数据，退出
+      
+      // 检查是否在时间范围内
+      if(barTime >= MathMin(startTime, endTime) && barTime <= MathMax(startTime, endTime))
+        {
+         double high = iHigh(Symbol(), largeTimeframe, i);
+         double low = iLow(Symbol(), largeTimeframe, i);
+         
+         if(high > highPrice) highPrice = high;
+         if(low < lowPrice) lowPrice = low;
+        }
+      
+      // 如果时间超出范围，停止查找
+      if(barTime < MathMin(startTime, endTime))
+         break;
+     }
+   
+   if(highPrice <= lowPrice)
+     {
+      return false;
+     }
+   
    // 先获取大周期的极值点，用于确定区间高低点
    CZigzagExtremumPoint largePoints[];
-   if(!GetExtremumPointsInTimeRange(largeTimeframe, startTime, endTime, largePoints, 0, depth, deviation, backstep))
+   if(!GetExtremumPointsInPriceRange(largeTimeframe, highPrice, lowPrice, largePoints, 0))
      {
-      Print("无法获取大周期极值点");
       return false;
      }
    
@@ -594,7 +756,6 @@ bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENU
       if(latestHighTime > 0)
         {
          adjustedStartTime = MathMax(adjustedStartTime, latestHighTime);
-         Print("找到最近区间高点时间: ", TimeToString(latestHighTime), "，调整上涨线段获取范围");
         }
      }
    
@@ -604,20 +765,15 @@ bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENU
       if(latestLowTime > 0)
         {
          adjustedStartTime = MathMax(adjustedStartTime, latestLowTime);
-         Print("找到最近区间低点时间: ", TimeToString(latestLowTime), "，调整下跌线段获取范围");
         }
      }
    
-   if(latestHighTime == 0 && latestLowTime == 0)
-     {
-      Print("未找到区间高低点，使用原始时间范围");
-     }
+
    
    // 获取调整后时间范围内的小周期线段
    CZigzagSegment* allSmallSegments[];
-   if(!GetSegmentsInTimeRange(smallTimeframe, adjustedStartTime, endTime, allSmallSegments, 0, depth, deviation, backstep))
+   if(!GetSegmentsInTimeRange(smallTimeframe, adjustedStartTime, endTime, allSmallSegments, 0))
      {
-      Print("无法获取小周期线段");
       return false;
      }
    
@@ -704,6 +860,7 @@ void SortSegmentsByTime(CZigzagSegment* &segments[])
       }
    }
 }
+
 
 // 包含ZigzagSegment.mqh，放在文件末尾以避免循环引用
 #include "ZigzagSegment.mqh"

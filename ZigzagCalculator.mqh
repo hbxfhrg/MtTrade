@@ -471,7 +471,6 @@ bool CZigzagCalculator::GetZigzagValuesForTimeframe(string symbol, ENUM_TIMEFRAM
    MqlRates rates[];
    if(CopyRates(symbol, timeframe, 0, bars_count + m_depth, rates) <= 0)
      {
-      Print("无法获取历史数据: ", GetLastError());
       return false;
      }
      
@@ -513,8 +512,6 @@ bool CZigzagCalculator::CalculateForSymbol(const string symbol, ENUM_TIMEFRAMES 
    
    if(copied <= 0)
      {
-      int error = GetLastError();
-      Print("无法获取历史数据: ", error);
       return false;
      }
    
@@ -553,25 +550,39 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
   {
    // 检查缓冲区是否已初始化
    int size = ArraySize(ZigzagPeakBuffer);
-   if(size == 0)
+   int bottom_size = ArraySize(ZigzagBottomBuffer);
+   if(size == 0 || bottom_size == 0)
       return false;
+      
+   // 确保两个缓冲区大小一致
+   if(size != bottom_size)
+     {
+      Print("错误：ZigZag缓冲区大小不一致: Peak=", size, ", Bottom=", bottom_size);
+      size = MathMin(size, bottom_size); // 使用较小的尺寸
+     }
    
    // 获取时间数组
    datetime time_array[];
    int copied = CopyTime(Symbol(), m_timeframe, 0, size, time_array);
    if(copied <= 0)
      {
-      Print("无法获取时间数据: ", GetLastError());
       return false;
      }
+   
+   // 确保时间数组大小不超过缓冲区大小
+   int valid_size = MathMin(size, copied);
    
    // 临时数组存储所有极值点
    CZigzagExtremumPoint temp_points[];
    int temp_count = 0;
    
-   // 收集所有极值点
-   for(int i = 0; i < size; i++)
+   // 收集所有极值点 - 使用valid_size防止越界
+   for(int i = 0; i < valid_size; i++)
      {
+      // 额外检查：确保i不会超出任何数组的边界
+      if(i >= ArraySize(ZigzagPeakBuffer) || i >= ArraySize(ZigzagBottomBuffer) || i >= ArraySize(time_array))
+         break;
+         
       if(ZigzagPeakBuffer[i] != 0)
         {
          ArrayResize(temp_points, temp_count + 1);

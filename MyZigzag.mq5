@@ -95,7 +95,7 @@ void OnInit()
          showPenetratedPoints
       );
       
-      Print("已从配置文件加载设置");
+      // 配置加载成功
      }
    else
      {
@@ -109,11 +109,11 @@ void OnInit()
          showPenetratedPoints
       ))
         {
-         Print("已将当前设置保存到配置文件");
+         // 已保存当前配置
         }
       else
         {
-         Print("保存配置文件失败");
+         // 保存配置失败
         }
      }
 
@@ -204,11 +204,11 @@ void OnDeinit(const int reason)
          g_ShowPenetratedPoints
       ))
         {
-         Print("指标卸载时已保存配置");
+         // 指标卸载时已保存配置
         }
       else
         {
-         Print("指标卸载时保存配置失败");
+         // 指标卸载时保存配置失败
         }
      }
    
@@ -241,201 +241,62 @@ void OnDeinit(const int reason)
   }
 
 //+------------------------------------------------------------------+
-//| Custom indicator calculation function                             |
+//| 计算ZigZag数据                                                  |
 //+------------------------------------------------------------------+
-int OnCalculate(const int rates_total,
-                const int prev_calculated,
-                const datetime &time[],
-                const double &open[],
-                const double &high[],
-                const double &low[],
-                const double &close[],
-                const long &tick_volume[],
-                const long &volume[],
-                const int &spread[])
+void CalculateZigZagData(const int rates_total, const int prev_calculated, 
+                        const double &high[], const double &low[], 
+                        CZigzagExtremumPoint &points4H[], bool &has4HPoints)
   {
-   if(rates_total < 100)
-      return(0);
-      
-   // 初始化缓冲区
-   if(prev_calculated == 0)
+   // 计算当前周期ZigZag
+   calculator.Calculate(high, low, rates_total, prev_calculated);
+   
+   // 计算4H周期ZigZag - 只有在需要时才计算
+   if(InpShow4H)
      {
-      ArrayInitialize(calculator.ZigzagPeakBuffer, 0.0);
-      ArrayInitialize(calculator.ZigzagBottomBuffer, 0.0);
-      ArrayInitialize(calculator.ColorBuffer, 0.0);
+      // 获取4H周期价格数据
+      double h4_high[];
+      double h4_low[];
       
-      // 重置缓存状态
-      cacheInitialized = false;
+      // 尝试从4H周期获取数据
+      int h4_copied_high = CopyHigh(Symbol(), PERIOD_H4, 0, 200, h4_high);
+      int h4_copied_low = CopyLow(Symbol(), PERIOD_H4, 0, 200, h4_low);
+      
+      if(h4_copied_high > 0 && h4_copied_low > 0)
+        {
+         // 计算4H周期ZigZag
+         calculator4H.Calculate(h4_high, h4_low, h4_copied_high, 0);
+         
+         // 获取4H周期极值点
+         if(calculator4H.GetExtremumPoints(points4H))
+           {
+            has4HPoints = true;
+           }
+        }
      }
-   
-   // 声明各周期极值点数组（提升作用域到整个函数）
-   CZigzagExtremumPoint points4H[]; // 大周期(4H)
-   CZigzagExtremumPoint points[]; // 当前周期
-   bool has4HPoints = false;
-   bool hasCurrentPoints = false;
-   
-   // 计算当前周期ZigZag - 用于图形绘制
-   if(calculator != NULL)
+  }
+
+//+------------------------------------------------------------------+
+//| 处理标签绘制功能                                                |
+//+------------------------------------------------------------------+
+void ProcessLabelDrawing(CZigzagExtremumPoint &points4H[], bool has4HPoints)
+  {
+   // 如果需要显示文本标签
+   if(InpShowLabels)
      {
-      // 如果是1小时周期，使用增量计算和缓存结果
-      if(Period() == PERIOD_H1)
-        {
-         // 获取当前时间
-         datetime currentTime = TimeCurrent();
-         
-         // 检查是否需要重新计算
-         bool needRecalculate = false;
-         
-         // 如果缓存未初始化，或者上次计算时间距离现在超过缓存超时时间，或者K线数量变化，则需要重新计算
-         if(!cacheInitialized || 
-            currentTime - lastCalculationTime > InpCacheTimeout || 
-            lastCalculatedBars != rates_total)
-           {
-            needRecalculate = true;
-           }
-         
-         // 如果需要重新计算
-         if(needRecalculate)
-           {
-            // 如果是首次计算或K线数量变化，则完全重新计算
-            if(!cacheInitialized || lastCalculatedBars != rates_total)
-              {
-               // 计算要处理的K线数量
-               int bars_to_process = rates_total;
-               
-               // 如果设置了最大K线数限制，则只处理最近的K线
-               if(InpMaxBarsH1 > 0 && bars_to_process > InpMaxBarsH1)
-                 {
-                  // 创建临时数组
-                  double temp_high[], temp_low[];
-                  ArrayResize(temp_high, rates_total);
-                  ArrayResize(temp_low, rates_total);
-                  
-                  // 复制所有K线数据
-                  for(int i = 0; i < rates_total; i++)
-                    {
-                     temp_high[i] = high[i];
-                     temp_low[i] = low[i];
-                    }
-                  
-                  // 计算ZigZag
-                  calculator.Calculate(temp_high, temp_low, rates_total, 0);
-                 }
-               else
-                 {
-                  // 正常计算所有K线
-                  calculator.Calculate(high, low, rates_total, 0);
-                 }
-              }
-            else
-              {
-               // 增量计算，只计算新增的K线
-               calculator.Calculate(high, low, rates_total, prev_calculated);
-              }
-            
-            // 更新缓存状态
-            lastCalculationTime = currentTime;
-            lastCalculatedBars = rates_total;
-            cacheInitialized = true;
-           }
-        }
-      else
-        {
-         // 其他周期正常计算
-         calculator.Calculate(high, low, rates_total, prev_calculated);
-        }
+      // 静态变量用于跟踪上次更新时间和最后一个极点
+      static datetime lastLabelUpdateTime = 0;
+      static datetime lastExtremumTime = 0;
       
-      // 计算4H周期ZigZag(大周期) - 用于策略缓存和图形显示
-      if(calculator4H != NULL && InpShow4H)
+      // 获取当前时间
+      datetime currentLabelTime = TimeCurrent();
+      
+      // 清除旧标签
+      if(calculator != NULL)
         {
-         // 获取当前时间
-         datetime currentTime = TimeCurrent();
-         
-         // 检查是否需要重新计算4H数据
-         bool needRecalculate4H = false;
-         
-         // 如果缓存未初始化，或者上次计算时间距离现在超过1小时，则需要重新计算
-         if(!cache4HInitialized || currentTime - last4HCalculationTime > 3600)
-           {
-            needRecalculate4H = true;
-           }
-         
-         if(needRecalculate4H)
-           {
-            // 使用CalculateForSymbol方法直接计算4H周期数据，限制为200根K线
-            int result = calculator4H.CalculateForSymbol(Symbol(), PERIOD_H4, 200);
-            
-            if(result >= 0)
-              {
-               // 获取4H周期极值点
-               has4HPoints = calculator4H.GetExtremumPoints(points4H);
-               
-               // 更新缓存状态
-               last4HCalculationTime = currentTime;
-               cache4HInitialized = true;
-              }
-           }
-         else
-           {
-            // 使用缓存的4H数据
-            has4HPoints = calculator4H.GetExtremumPoints(points4H);
-           }
-         
-         // 如果有4H数据，进行交易分析
-         if(has4HPoints && ArraySize(points4H) >= 2)
-           {
-            // 对极点数组进行排序，确保最近的点在前面
-            if(ArraySize(points4H) > 1)
-              {
-               // 使用冒泡排序按时间排序
-               for(int i = 0; i < ArraySize(points4H) - 1; i++)
-                 {
-                  for(int j = 0; j < ArraySize(points4H) - i - 1; j++)
-                    {
-                     // 如果当前元素的时间早于下一个元素，则交换它们
-                     if(points4H[j].Time() < points4H[j + 1].Time())
-                       {
-                        CZigzagExtremumPoint temp = points4H[j];
-                        points4H[j] = points4H[j + 1];
-                        points4H[j + 1] = temp;
-                       }
-                    }
-                 }
-              }
-            
-            // 分析区间
-            if(g_tradeAnalyzer.AnalyzeRange(points4H, 2))
-              {
-               // 获取当前价格
-               double currentPrice = CInfoPanelManager::GetCurrentPrice();
-              }
-           }
-        }
-         
-      // 如果需要显示文本标签
-      if(InpShowLabels)
-        {
-         // 静态变量用于跟踪上次更新时间和最后一个极点
-         static datetime lastLabelUpdateTime = 0;
-         static datetime lastExtremumTime = 0;
-         
-         // 获取当前时间
-         datetime currentLabelTime = TimeCurrent();
-         
-         // 清除旧标签
-         if(prev_calculated == 0)
-           {
-            CLabelManager::DeleteAllLabels("ZigzagLabel_");
-            CLabelManager::DeleteAllLabels("ZigzagLabel4H_");
-            lastLabelUpdateTime = 0; // 重置更新时间
-            lastExtremumTime = 0;    // 重置最后极点时间
-           }
-            
          // 获取当前周期极值点数组
+         CZigzagExtremumPoint points[];
          if(calculator.GetExtremumPoints(points))
            {
-            hasCurrentPoints = true;
-            
             // 检查是否有新的极点出现
             bool hasNewExtremum = false;
             datetime newestExtremumTime = lastExtremumTime;
@@ -470,16 +331,11 @@ int OnCalculate(const int rates_total,
                   //检查这个值是否在大周期峰谷值列表中出现
                   bool foundIn4H = false; // 大周期
                   
-                  // 检查4H周期(大周期) - 使用动态获取的数据
-                  if(InpShow4H)
+                  // 检查4H周期(大周期) - 使用已计算的数据
+                  if(InpShow4H && has4HPoints && ArraySize(points4H) > 0)
                     {
-                     // 动态获取4H周期极值点
-                     CZigzagExtremumPoint dynamic4HPoints[];
-                     if(::GetExtremumPointsInTimeRange(PERIOD_H4, iTime(Symbol(), PERIOD_H4, 50), TimeCurrent(), dynamic4HPoints, 0))
-                       {
-                        // 使用公共方法检查价格是否在4H周期极值点数组中出现
-                        foundIn4H = ::IsPriceInArray(points[i].Value(), dynamic4HPoints);
-                       }
+                     // 使用公共方法检查价格是否在4H周期极值点数组中出现
+                     foundIn4H = ::IsPriceInArray(points[i].Value(), points4H);
                     }
                   
                   string labelName = "ZigzagLabel_" + IntegerToString(i);
@@ -549,7 +405,13 @@ int OnCalculate(const int rates_total,
            }
         }
      }
-   
+  }
+
+//+------------------------------------------------------------------+
+//| 处理交易分析和信息面板功能                                       |
+//+------------------------------------------------------------------+
+void ProcessTradeAnalysisAndInfoPanel(CZigzagExtremumPoint &points4H[], bool has4HPoints)
+  {
    // 创建或更新信息面板（只在必要时重绘）
    if(InpShowInfoPanel && InpShow4H)
      {
@@ -566,9 +428,62 @@ int OnCalculate(const int rates_total,
          currentTime - lastInfoPanelUpdateTime > 10 || 
          MathAbs(currentPrice - lastInfoPanelPrice) > Point() * 10)
         {
-         // 动态获取4H周期极值点进行交易分析
+         // 直接使用已经计算好的4H周期极值点数据
          CZigzagExtremumPoint dynamic4HPoints[];
-         if(::GetExtremumPointsInTimeRange(PERIOD_H4, iTime(Symbol(), PERIOD_H4, 50), TimeCurrent(), dynamic4HPoints, 0) && ArraySize(dynamic4HPoints) >= 1)
+         
+         // 如果前面已经获取到4H周期数据，直接使用
+         if(has4HPoints && ArraySize(points4H) >= 1)
+           {
+            // 复制已有的4H周期极值点数据
+            ArrayResize(dynamic4HPoints, ArraySize(points4H));
+            for(int k = 0; k < ArraySize(points4H); k++)
+              {
+               dynamic4HPoints[k] = points4H[k];
+              }
+           }
+         else
+           {
+            // 如果前面没有获取到数据，直接使用交易分析器中已存在的支撑点和压力点对象
+            if(g_tradeAnalyzer.IsValid())
+              {
+               // 直接获取交易分析器中的支撑点和压力点对象
+               CDynamicPricePoint* supportPointsObj = g_tradeAnalyzer.GetSupportPointsObject();
+               CDynamicPricePoint* resistancePointsObj = g_tradeAnalyzer.GetResistancePointsObject();
+               
+               if(supportPointsObj != NULL && resistancePointsObj != NULL)
+                 {
+                  // 获取H4周期的支撑点和压力点数据
+                  double supportPrice = supportPointsObj.GetPrice(PERIOD_H4);
+                  double resistancePrice = resistancePointsObj.GetPrice(PERIOD_H4);
+                  datetime supportTime = supportPointsObj.GetTime(PERIOD_H4);
+                  datetime resistanceTime = resistancePointsObj.GetTime(PERIOD_H4);
+                  
+                  // 只有当支撑点和压力点都有有效数据时才创建极值点
+                  if(supportPrice > 0.0 && resistancePrice > 0.0)
+                    {
+                     // 创建两个极值点：支撑点和压力点
+                     ArrayResize(dynamic4HPoints, 2);
+                     
+                     if(g_tradeAnalyzer.IsUpTrend())
+                       {
+                        // 上涨趋势：支撑点在前，压力点在后
+                        dynamic4HPoints[0] = CZigzagExtremumPoint(PERIOD_H4, resistanceTime, 0, resistancePrice, EXTREMUM_PEAK);
+                        dynamic4HPoints[1] = CZigzagExtremumPoint(PERIOD_H4, supportTime, 1, supportPrice, EXTREMUM_BOTTOM);
+                       }
+                     else
+                       {
+                        // 下跌趋势：压力点在前，支撑点在后
+                        dynamic4HPoints[0] = CZigzagExtremumPoint(PERIOD_H4, supportTime, 0, supportPrice, EXTREMUM_BOTTOM);
+                        dynamic4HPoints[1] = CZigzagExtremumPoint(PERIOD_H4, resistanceTime, 1, resistancePrice, EXTREMUM_PEAK);
+                       }
+                    }
+                 }
+              }
+            // 如果交易分析器无效或支撑压力点数据不完整，不使用备用方案。直接返回空数组
+            // 这样可以确保数据的一致性和可靠性
+           }
+         
+         if(ArraySize(dynamic4HPoints) >= 1)
            {
             // 使用信息面板管理器创建统一的信息面板
             // 这里同时显示交易区间和趋势方向信息，以及其他必要信息
@@ -582,13 +497,10 @@ int OnCalculate(const int rates_total,
                datetime startTime = iTime(Symbol(), PERIOD_H1, 100); // 获取最近100根1小时K线的时间范围
                datetime endTime = TimeCurrent();
                
-               Print("=== 动态获取1小时线段数据 ===");
-               Print("时间范围: ", TimeToString(startTime), " 到 ", TimeToString(endTime));
-               
                // 使用动态方法获取1小时线段，排除4小时周期区间内的线段
                if(::GetSmallTimeframeSegmentsExcludingRange(PERIOD_H1, PERIOD_H4, startTime, endTime, h1Segments, SEGMENT_TREND_ALL, 50))
                  {
-                  Print("动态获取到 ", ArraySize(h1Segments), " 个1小时线段");
+                  // 动态获取到了线段数据
                   
                   // 获取上涨和下跌线段
                   CZigzagSegment* uptrendSegments[];
@@ -598,14 +510,10 @@ int OnCalculate(const int rates_total,
                   ::FilterSegmentsByTrend(h1Segments, uptrendSegments, SEGMENT_TREND_UP);
                   ::FilterSegmentsByTrend(h1Segments, downtrendSegments, SEGMENT_TREND_DOWN);
                   
-                  Print("筛选结果: 上涨线段 ", ArraySize(uptrendSegments), " 个, 下跌线段 ", ArraySize(downtrendSegments), " 个");
-                  
                   // 按时间排序线段（从晚到早）
                   ::SortSegmentsByTime(uptrendSegments);
                   ::SortSegmentsByTime(downtrendSegments);
                   
-                  // 获取最近一个1小时级别线段时间范围内的5分钟线段
-                  Print("=== 动态获取5分钟线段数据 ===");
                   CZigzagSegment* m5Segments[];
                   
                   // 找到离当前时间最近的1小时线段
@@ -637,26 +545,17 @@ int OnCalculate(const int rates_total,
                      // 从1小时线段结束时间开始，获取之后的5分钟线段
                      m5StartTime = nearestSegment.EndTime();
                      m5EndTime = TimeCurrent();
-                     
-                     string segmentDirection = nearestSegment.IsUptrend() ? "上涨" : "下跌";
-                     Print("使用离当前时间最近的1小时", segmentDirection, "线段结束后的时间范围: ", 
-                           TimeToString(m5StartTime), " 到 ", TimeToString(m5EndTime));
-                     Print("1小时线段价格: ", DoubleToString(nearestSegment.StartPrice(), _Digits), 
-                           " → ", DoubleToString(nearestSegment.EndPrice(), _Digits));
-                     Print("从1小时线段结束价格 ", DoubleToString(nearestSegment.EndPrice(), _Digits), " 之后开始获取5分钟线段");
                     }
                   else
                     {
                      // 如果没有1小时线段，使用默认时间范围
                      m5StartTime = iTime(Symbol(), PERIOD_H1, 1);
                      m5EndTime = TimeCurrent();
-                     Print("未找到1小时线段，使用默认时间范围: ", TimeToString(m5StartTime), " 到 ", TimeToString(m5EndTime));
                     }
                   
                   // 动态获取指定时间范围内的5分钟线段
                   if(::GetSegmentsInTimeRange(PERIOD_M5, m5StartTime, m5EndTime, m5Segments, 30))
                     {
-                     Print("动态获取到 ", ArraySize(m5Segments), " 个5分钟线段");
                      
                      // 获取上涨和下跌的5分钟线段
                      CZigzagSegment* m5UptrendSegments[];
@@ -665,8 +564,6 @@ int OnCalculate(const int rates_total,
                      // 筛选5分钟上涨和下跌线段
                      ::FilterSegmentsByTrend(m5Segments, m5UptrendSegments, SEGMENT_TREND_UP);
                      ::FilterSegmentsByTrend(m5Segments, m5DowntrendSegments, SEGMENT_TREND_DOWN);
-                     
-                     Print("5分钟线段筛选结果: 上涨线段 ", ArraySize(m5UptrendSegments), " 个, 下跌线段 ", ArraySize(m5DowntrendSegments), " 个");
                      
                      // 按时间排序5分钟线段（从晚到早）
                      SortSegmentsByTime(m5UptrendSegments);
@@ -682,13 +579,8 @@ int OnCalculate(const int rates_total,
                           }
                        }
                     }
-                  else
-                    {
-                     Print("动态获取5分钟线段失败");
-                    }
                   
                   // 在信息面板上添加线段信息
-                  Print("=== 更新信息面板 ===");
                   CInfoPanelManager::AddSegmentInfo(infoPanel, uptrendSegments, downtrendSegments, InpInfoPanelColor);
                   
                   // 释放内存
@@ -700,10 +592,6 @@ int OnCalculate(const int rates_total,
                         h1Segments[i] = NULL;
                        }
                     }
-                 }
-               else
-                 {
-                  Print("动态获取1小时线段失败");
                  }
                
                // 绘制支撑或压力线
@@ -726,6 +614,49 @@ int OnCalculate(const int rates_total,
          lastInfoPanelPrice = currentPrice;
         }
      }
+  }
+
+//+------------------------------------------------------------------+
+//| Custom indicator calculation function                             |
+//+------------------------------------------------------------------+
+int OnCalculate(const int rates_total,
+                const int prev_calculated,
+                const datetime &time[],
+                const double &open[],
+                const double &high[],
+                const double &low[],
+                const double &close[],
+                const long &tick_volume[],
+                const long &volume[],
+                const int &spread[])
+  {
+   if(rates_total < 100)
+      return(0);
+      
+   // 初始化缓冲区
+   if(prev_calculated == 0)
+     {
+      ArrayInitialize(calculator.ZigzagPeakBuffer, 0.0);
+      ArrayInitialize(calculator.ZigzagBottomBuffer, 0.0);
+      ArrayInitialize(calculator.ColorBuffer, 0.0);
+      
+      // 清除旧标签
+      CLabelManager::DeleteAllLabels("ZigzagLabel_");
+      CLabelManager::DeleteAllLabels("ZigzagLabel4H_");
+     }
+   
+   // 声明各周期极值点数组（提升作用域到整个函数）
+   CZigzagExtremumPoint points4H[]; // 大周期(4H)
+   bool has4HPoints = false;
+   
+   // 计算当前周期ZigZag和4H周期ZigZag
+   CalculateZigZagData(rates_total, prev_calculated, high, low, points4H, has4HPoints);
+   
+   // 处理标签绘制功能
+   ProcessLabelDrawing(points4H, has4HPoints);
+   
+   // 处理交易分析和信息面板功能
+   ProcessTradeAnalysisAndInfoPanel(points4H, has4HPoints);
    
    // 返回计算的柱数
    return(rates_total);
