@@ -24,6 +24,7 @@
 #include "CommonUtils.mqh"
 #include "TradeAnalyzer.mqh"
 #include "ConfigManager.mqh"
+#include "GlobalInstances.mqh"
 
 //--- 输入参数
 input int    InpDepth = 12;            // 深度
@@ -140,7 +141,7 @@ void OnInit()
    CInfoPanelManager::Init(infoPanel, infoPanelColor, infoPanelBgColor);
    
 //--- 初始化交易分析器
-   CTradeAnalyzer::Init();
+   g_tradeAnalyzer.Init();
    
 //--- 指标缓冲区 mapping - 用于图形绘制
    SetIndexBuffer(0, calculator.ZigzagPeakBuffer, INDICATOR_DATA);
@@ -403,7 +404,7 @@ int OnCalculate(const int rates_total,
               }
             
             // 分析区间
-            if(CTradeAnalyzer::AnalyzeRange(points4H, 2))
+            if(g_tradeAnalyzer.AnalyzeRange(points4H, 2))
               {
                // 获取当前价格
                double currentPrice = CInfoPanelManager::GetCurrentPrice();
@@ -571,7 +572,7 @@ int OnCalculate(const int rates_total,
            {
             // 使用信息面板管理器创建统一的信息面板
             // 这里同时显示交易区间和趋势方向信息，以及其他必要信息
-            if(CTradeAnalyzer::AnalyzeRange(dynamic4HPoints, 2) && CTradeAnalyzer::IsValid())
+            if(g_tradeAnalyzer.AnalyzeRange(dynamic4HPoints, 2) && g_tradeAnalyzer.IsValid())
               {
                // 创建包含交易分析结果的面板
                CInfoPanelManager::CreateTradeInfoPanel(infoPanel);

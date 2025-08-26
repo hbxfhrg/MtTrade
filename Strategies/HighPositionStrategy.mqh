@@ -11,6 +11,7 @@
 #include "../ZigzagExtremumPoint.mqh"
 #include "../ZigzagSegment.mqh"
 #include "../TradeAnalyzer.mqh"
+#include "../GlobalInstances.mqh"
 
 //+------------------------------------------------------------------+
 //| 高位交易策略类                                                    |
@@ -108,23 +109,23 @@ bool CHighPositionStrategy::CheckEntryCondition(CZigzagExtremumPoint &points[], 
       return false;
       
    // 首先使用TradeAnalyzer分析市场区间和趋势
-   if(!CTradeAnalyzer::AnalyzeRange(points, pointCount))
+   if(!g_tradeAnalyzer.AnalyzeRange(points, pointCount))
       return false;
       
    // 获取回撤或反弹百分比
-   double retracePercent = CTradeAnalyzer::GetRetracePercent();
+   double retracePercent = g_tradeAnalyzer.GetRetracePercent();
    
    // 检查是否在高位区间（0%到33.3%之间）
    if(retracePercent >= 0.0 && retracePercent < 33.3)
    {
       // 根据趋势方向确定交易类型
-      if(CTradeAnalyzer::IsUpTrend())
+      if(g_tradeAnalyzer.IsUpTrend())
       {
          // 上涨趋势中的回撤，考虑做多
          m_currentTradeType = TRADE_TYPE_BUY;
          
          // 设置进场价格为回撤价格
-         m_entryPrice = CTradeAnalyzer::GetRetracePrice();
+         m_entryPrice = g_tradeAnalyzer.GetRetracePrice();
          
          // 设置止损和止盈价格
          m_stopLossPrice = m_entryPrice - m_stopLoss * _Point;
@@ -138,7 +139,7 @@ bool CHighPositionStrategy::CheckEntryCondition(CZigzagExtremumPoint &points[], 
          m_currentTradeType = TRADE_TYPE_SELL;
          
          // 设置进场价格为反弹价格
-         m_entryPrice = CTradeAnalyzer::GetRetracePrice();
+         m_entryPrice = g_tradeAnalyzer.GetRetracePrice();
          
          // 设置止损和止盈价格
          m_stopLossPrice = m_entryPrice + m_stopLoss * _Point;

@@ -6,8 +6,8 @@
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
 
-// 引入交易分析类
-#include "../TradeAnalyzer.mqh"
+// 引入交易分析类和全局实例
+#include "../GlobalInstances.mqh"
 #include "../Strategies/StrategyManager.mqh"
 
 // 全局变量 - 信息面板管理器默认属性
@@ -72,7 +72,7 @@ public:
       ObjectSetInteger(0, actualPanelName, OBJPROP_ZORDER, 0);
       
       // 如果交易分析器有有效数据，添加区间分析信息
-      if(CTradeAnalyzer::IsValid())
+      if(g_tradeAnalyzer.IsValid())
         {
          // 创建区间分析文本 - 调整位置到面板顶部
          string rangeName = actualPanelName + "_Range";
@@ -86,8 +86,8 @@ public:
          ObjectSetString(0, rangeName, OBJPROP_FONT, g_InfoPanelFont);
          
          // 计算区间幅度值
-         double rangeHigh = CTradeAnalyzer::GetRangeHigh();
-         double rangeLow = CTradeAnalyzer::GetRangeLow();
+         double rangeHigh = g_tradeAnalyzer.GetRangeHigh();
+         double rangeLow = g_tradeAnalyzer.GetRangeLow();
          double rangeDiff = MathAbs(rangeHigh - rangeLow);
          
          // 格式化幅度显示
@@ -112,20 +112,20 @@ public:
            }
          
          // 根据趋势方向调整区间显示顺序
-         if(CTradeAnalyzer::IsUpTrend())
+         if(g_tradeAnalyzer.IsUpTrend())
            {
             // 上涨趋势，显示从低到高
             ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s (%s)", 
-                                                                   DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits),
-                                                                   DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits),
+                                                                   DoubleToString(g_tradeAnalyzer.GetRangeLow(), _Digits),
+                                                                   DoubleToString(g_tradeAnalyzer.GetRangeHigh(), _Digits),
                                                                    rangeDiffStr));
            }
          else
            {
             // 下跌趋势，显示从高到低
             ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s (%s)", 
-                                                                   DoubleToString(CTradeAnalyzer::GetRangeHigh(), _Digits),
-                                                                   DoubleToString(CTradeAnalyzer::GetRangeLow(), _Digits),
+                                                                   DoubleToString(g_tradeAnalyzer.GetRangeHigh(), _Digits),
+                                                                   DoubleToString(g_tradeAnalyzer.GetRangeLow(), _Digits),
                                                                    rangeDiffStr));
            }
          
@@ -140,10 +140,10 @@ public:
          ObjectSetInteger(0, trendName, OBJPROP_ZORDER, 100); // 确保文本在最上层
          ObjectSetString(0, trendName, OBJPROP_FONT, g_InfoPanelFont);
          ObjectSetString(0, trendName, OBJPROP_TEXT, StringFormat("趋势方向: %s", 
-                                                                CTradeAnalyzer::GetTrendDirection()));
+                                                                g_tradeAnalyzer.GetTrendDirection()));
          
          // 计算回撤或反弹
-         CTradeAnalyzer::CalculateRetracement();
+         g_tradeAnalyzer.CalculateRetracement();
          
          // 创建回撤或反弹文本 - 调整位置紧跟在趋势方向文本下方
          string retraceName = actualPanelName + "_Retrace";
@@ -155,10 +155,10 @@ public:
          ObjectSetInteger(0, retraceName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
          ObjectSetInteger(0, retraceName, OBJPROP_ZORDER, 100); // 确保文本在最上层
          ObjectSetString(0, retraceName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, retraceName, OBJPROP_TEXT, CTradeAnalyzer::GetRetraceDescription());
+         ObjectSetString(0, retraceName, OBJPROP_TEXT, g_tradeAnalyzer.GetRetraceDescription());
          
          // 计算多时间周期支撑和压力 - 虽然不显示，但仍然需要计算，因为可能在图表上绘制
-         CTradeAnalyzer::CalculateSupportResistance();
+         g_tradeAnalyzer.CalculateSupportResistance();
          
          // 创建区间定义标题文本
          string positionTypeName = actualPanelName + "_PositionType";
@@ -185,7 +185,7 @@ public:
          ObjectSetString(0, positionDefName, OBJPROP_TEXT, "高位(0-33.3%) 中位(33.3-66.6%) 低位(66.6-100%)");
          
          // 获取当前回撤/反弹百分比
-         double retracePercent = CTradeAnalyzer::GetRetracePercent();
+         double retracePercent = g_tradeAnalyzer.GetRetracePercent();
          
          // 确定当前所处区间
          string currentPosition = "";
@@ -236,7 +236,7 @@ public:
          ObjectSetString(0, strategyDescName, OBJPROP_FONT, g_InfoPanelFont);
          ObjectSetString(0, strategyDescName, OBJPROP_TEXT, StringFormat("适用策略: %s (%s)", 
                                                                       strategyName, 
-                                                                      CTradeAnalyzer::IsUpTrend() ? "上涨趋势" : "下跌趋势"));
+                                                                      g_tradeAnalyzer.IsUpTrend() ? "上涨趋势" : "下跌趋势"));
         }
       else
         {

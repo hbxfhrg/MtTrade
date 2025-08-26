@@ -9,6 +9,14 @@
 #include "../EnumDefinitions.mqh"
 #include "../ZigzagExtremumPoint.mqh"
 #include "../ZigzagSegment.mqh"
+#include "../TradeAnalyzer.mqh"
+#include "../GlobalInstances.mqh"
+#include "../TradeAnalyzer.mqh"
+#include "../GlobalInstances.mqh"
+#include "../TradeAnalyzer.mqh"
+#include "../GlobalInstances.mqh"
+#include "../TradeAnalyzer.mqh"
+#include "../GlobalInstances.mqh"
 
 //+------------------------------------------------------------------+
 //| 中位交易策略类                                                    |
@@ -97,23 +105,23 @@ bool CMidPositionStrategy::CheckEntryCondition(CZigzagExtremumPoint &points[], i
       return false;
       
    // 首先使用TradeAnalyzer分析市场区间和趋势
-   if(!CTradeAnalyzer::AnalyzeRange(points, pointCount))
+   if(!g_tradeAnalyzer.AnalyzeRange(points, pointCount))
       return false;
       
    // 获取回撤或反弹百分比
-   double retracePercent = CTradeAnalyzer::GetRetracePercent();
+   double retracePercent = g_tradeAnalyzer.GetRetracePercent();
    
    // 检查是否在中位区间（33.3%到66.6%之间）
    if(retracePercent >= 33.3 && retracePercent <= 66.6)
      {
       // 根据趋势方向确定交易类型
-      if(CTradeAnalyzer::IsUpTrend())
+      if(g_tradeAnalyzer.IsUpTrend())
         {
          // 上涨趋势中的回撤，考虑做多
          m_currentTradeType = TRADE_TYPE_BUY;
          
          // 设置进场价格为回撤价格
-         m_entryPrice = CTradeAnalyzer::GetRetracePrice();
+         m_entryPrice = g_tradeAnalyzer.GetRetracePrice();
          
          return true;
         }
@@ -123,7 +131,7 @@ bool CMidPositionStrategy::CheckEntryCondition(CZigzagExtremumPoint &points[], i
          m_currentTradeType = TRADE_TYPE_SELL;
          
          // 设置进场价格为反弹价格
-         m_entryPrice = CTradeAnalyzer::GetRetracePrice();
+         m_entryPrice = g_tradeAnalyzer.GetRetracePrice();
          
          return true;
         }

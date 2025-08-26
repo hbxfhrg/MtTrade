@@ -164,11 +164,11 @@ bool CStrategyManager::Init(double highStopLoss = 100.0, double highTakeProfit =
 ENUM_MARKET_POSITION CStrategyManager::AnalyzeMarketPosition(CZigzagExtremumPoint &points[], int pointCount)
   {
    // 首先使用TradeAnalyzer分析市场区间和趋势
-   if(!CTradeAnalyzer::AnalyzeRange(points, pointCount))
+   if(!g_tradeAnalyzer.AnalyzeRange(points, pointCount))
       return POSITION_TYPE_NONE;
       
    // 获取回撤或反弹百分比
-   double retracePercent = CTradeAnalyzer::GetRetracePercent();
+   double retracePercent = g_tradeAnalyzer.GetRetracePercent();
    
    // 根据回撤或反弹百分比确定市场位置
    if(retracePercent >= 0.0 && retracePercent <= 33.3)

@@ -6,8 +6,8 @@
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
 
-// 引入交易分析类
-#include "../TradeAnalyzer.mqh"
+// 引入交易分析类和全局实例
+#include "../GlobalInstances.mqh"
 #include "../DynamicPricePoint.mqh"
 
 // 全局变量 - 图形管理器默认属性
@@ -88,7 +88,7 @@ public:
    // 绘制支撑或压力线（矩形显示）
    static void DrawSupportResistanceLines()
      {
-      if(!CTradeAnalyzer::IsValid())
+      if(!g_tradeAnalyzer.IsValid())
          return;
          
       // 删除所有旧的图形对象
@@ -107,7 +107,7 @@ public:
                                    string baseName, color pointColor, 
                                    double retracePercent = 0.0)
      {
-      if(!CTradeAnalyzer::IsValid() || referencePrice <= 0)
+      if(!g_tradeAnalyzer.IsValid() || referencePrice <= 0)
          return;
          
       // 矩形高度（价格单位）
@@ -185,13 +185,13 @@ public:
             if(pointType == SR_SUPPORT_RANGE_HIGH || pointType == SR_SUPPORT_REBOUND || pointType == SR_SUPPORT)
               {
                // 支撑点 - 如果当前价格低于支撑价格，则被穿越
-               double currentPrice = CTradeAnalyzer::GetRetracePrice();
+               double currentPrice = g_tradeAnalyzer.GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice < price);
               }
             else if(pointType == SR_RESISTANCE_RETRACE)
               {
                // 回撤点压力 - 使用回撤点之后到最近区间的最高价格来判断
-               datetime retraceTime = CTradeAnalyzer::GetRetraceTime();
+               datetime retraceTime = g_tradeAnalyzer.GetRetraceTime();
                datetime highTime = 0;
                // 查找回撤点之后的最高价格
                double highestPrice = 0.0;
@@ -200,12 +200,12 @@ public:
                if(retraceTime > 0)
                  {
                   // 使用CommonUtils中的函数查找回撤点之后的最高价格
-                  highestPrice = FindHighestPriceAfterLowPrice(CTradeAnalyzer::GetRetracePrice(), highTime, PERIOD_CURRENT, PERIOD_M1, retraceTime);
+                  highestPrice = FindHighestPriceAfterLowPrice(g_tradeAnalyzer.GetRetracePrice(), highTime, PERIOD_CURRENT, PERIOD_M1, retraceTime);
                  }
                else
                  {
                   // 如果回撤时间无效，使用当前价格
-                  highestPrice = CTradeAnalyzer::GetRetracePrice();
+                  highestPrice = g_tradeAnalyzer.GetRetracePrice();
                  }
                
                // 判断最高价格是否突破了压力点
@@ -214,7 +214,7 @@ public:
             else if(pointType == SR_RESISTANCE_RANGE_LOW || pointType == SR_RESISTANCE)
               {
                // 其他压力点 - 如果当前价格高于压力价格，则被穿越
-               double currentPrice = CTradeAnalyzer::GetRetracePrice();
+               double currentPrice = g_tradeAnalyzer.GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice > price);
               }
               
@@ -226,7 +226,7 @@ public:
            {
             // 如果时间无效，使用参考时间
             if(time == 0)
-               time = CTradeAnalyzer::GetRetraceTime();
+               time = g_tradeAnalyzer.GetRetraceTime();
                
             // 计算矩形的开始和结束时间
             datetime startTime = time;
@@ -249,13 +249,13 @@ public:
             if(pointType == SR_SUPPORT_RANGE_HIGH || pointType == SR_SUPPORT_REBOUND || pointType == SR_SUPPORT)
               {
                // 支撑点 - 如果当前价格低于支撑价格，则被穿越
-               double currentPrice = CTradeAnalyzer::GetRetracePrice();
+               double currentPrice = g_tradeAnalyzer.GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice < price);
               }
             else if(pointType == SR_RESISTANCE_RETRACE || pointType == SR_RESISTANCE_RANGE_LOW || pointType == SR_RESISTANCE)
               {
                // 压力点 - 如果当前价格高于压力价格，则被穿越
-               double currentPrice = CTradeAnalyzer::GetRetracePrice();
+               double currentPrice = g_tradeAnalyzer.GetRetracePrice();
                isPenetrated = (currentPrice > 0 && currentPrice > price);
               }
             
@@ -324,13 +324,13 @@ public:
    // 绘制回撤点、反弹点和区间高低点
    static void DrawRetraceReboundPoint()
      {
-      if(!CTradeAnalyzer::IsValid())
+      if(!g_tradeAnalyzer.IsValid())
          return;
          
       // 获取回撤或反弹价格和时间
-      double retracePrice = CTradeAnalyzer::GetRetracePrice();
-      datetime retraceTime = CTradeAnalyzer::GetRetraceTime();
-      double retracePercent = CTradeAnalyzer::GetRetracePercent();
+      double retracePrice = g_tradeAnalyzer.GetRetracePrice();
+      datetime retraceTime = g_tradeAnalyzer.GetRetraceTime();
+      double retracePercent = g_tradeAnalyzer.GetRetracePercent();
       
       if(retracePrice <= 0 || retraceTime == 0)
          return;
@@ -339,12 +339,12 @@ public:
       double rectHeight = 600 * _Point; // 矩形高度为15个点，比支撑压力区域小一些
       
       // 根据趋势方向确定是回撤点还是反弹点
-      if(CTradeAnalyzer::IsUpTrend())
+      if(g_tradeAnalyzer.IsUpTrend())
         {
          // 上涨趋势，绘制回撤点压力
          
          // 获取支撑位价格
-         double support1H = CTradeAnalyzer::GetSupportPrice(PERIOD_H1);
+         double support1H = g_tradeAnalyzer.GetSupportPrice(PERIOD_H1);
          
          // 创建回撤点动态价格点对象
          CDynamicPricePoint retracePoints(retracePrice, SR_RESISTANCE_RETRACE);
@@ -355,7 +355,7 @@ public:
                              retracePercent);
                              
          // 绘制区间高点支撑 - 蓝色系
-         double rangeHigh = CTradeAnalyzer::GetRangeHigh();
+         double rangeHigh = g_tradeAnalyzer.GetRangeHigh();
          CDynamicPricePoint rangeHighPoints(rangeHigh, SR_SUPPORT_RANGE_HIGH);
          
          DrawDynamicPricePoint(rangeHighPoints, rangeHigh, 0, true, 
@@ -366,7 +366,7 @@ public:
          // 下跌趋势，绘制反弹点支撑
          
          // 获取压力位价格
-         double resistance1H = CTradeAnalyzer::GetResistancePrice(PERIOD_H1);
+         double resistance1H = g_tradeAnalyzer.GetResistancePrice(PERIOD_H1);
          
          // 创建反弹点动态价格点对象
          CDynamicPricePoint reboundPoints(retracePrice, SR_SUPPORT_REBOUND);
@@ -377,7 +377,7 @@ public:
                              retracePercent);
                              
          // 绘制区间低点压力 - 红色系
-         double rangeLow = CTradeAnalyzer::GetRangeLow();
+         double rangeLow = g_tradeAnalyzer.GetRangeLow();
          CDynamicPricePoint rangeLowPoints(rangeLow, SR_RESISTANCE_RANGE_LOW);
          
          DrawDynamicPricePoint(rangeLowPoints, rangeLow, 0, true, 

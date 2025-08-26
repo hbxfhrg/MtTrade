@@ -84,8 +84,8 @@ public:
          if(existingTime1 == time1 && existingTime2 == time2)
            {
             // 直接修改价格点
-            ObjectMove(0, name, 0, time1, price1);
-            ObjectMove(0, name, 1, time2, price2);
+            ObjectMove(0, name, 0, (datetime)time1, price1);
+            ObjectMove(0, name, 1, (datetime)time2, price2);
             
             // 更新样式属性
             ObjectSetInteger(0, name, OBJPROP_COLOR, actualColor);
