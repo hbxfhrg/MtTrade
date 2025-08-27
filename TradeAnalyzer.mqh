@@ -27,10 +27,9 @@ private:
    int       m_zigzagDeviation; // ZigZag偏差参数
    int       m_zigzagBackstep;  // ZigZag回溯步数参数
    
-   // 主交易线段 - 使用线段类来管理区间高低点
-   CZigzagSegment m_mainTradingSegment;  // 主交易线段（当前为4小时周期，将来可能是其他周期）
-   CZigzagSegment m_h1TradingSegment;    // 1小时交易线段（从4小时线段中获取）
-   CZigzagSegment m_m5TradingSegment;    // 5分钟交易线段（从1小时线段中获取）
+   // 主交易线段 - 使用线段数组来管理多个区间线段
+   CZigzagSegment* m_mainTradingSegments[];  // 主交易线段数组（当前为4小时周期，将来可能是其他周期）
+   CZigzagSegment* m_currentSegment;         // 当前线段（指向m_mainTradingSegments[0]，简化访问）
    bool      m_isValid;         // 数据是否有效
    
    // 回撤和反弹相关变量
@@ -50,10 +49,9 @@ public:
    // 构造函数
    CTradeAnalyzer(string symbol = NULL)
      {
-      // 初始化主交易线段
-      m_mainTradingSegment = CZigzagSegment();
-      m_h1TradingSegment = CZigzagSegment();
-      m_m5TradingSegment = CZigzagSegment();
+      // 初始化主交易线段数组
+      ArrayResize(m_mainTradingSegments, 0);
+      m_currentSegment = NULL;  // 初始化为空指针
       m_isValid = false;
       m_retracePrice = 0.0;
       m_retraceTime = 0;
@@ -76,10 +74,18 @@ public:
    // 初始化方法
    void Init()
      {
-      // 初始化主交易线段
-      m_mainTradingSegment = CZigzagSegment();
-      m_h1TradingSegment = CZigzagSegment();
-      m_m5TradingSegment = CZigzagSegment();
+      // 初始化主交易线段数组
+      // 释放已存在的线段对象
+      for(int i = 0; i < ArraySize(m_mainTradingSegments); i++)
+        {
+         if(m_mainTradingSegments[i] != NULL)
+           {
+            delete m_mainTradingSegments[i];
+            m_mainTradingSegments[i] = NULL;
+           }
+        }
+      ArrayResize(m_mainTradingSegments, 0);
+      m_currentSegment = NULL;  // 重置为空指针
       m_isValid = false;
       m_retracePrice = 0.0;
       m_retraceTime = 0;
@@ -91,7 +97,7 @@ public:
       m_resistancePoints = CDynamicPricePoint(0.0, SR_RESISTANCE);
      }
      
-   // 从极点数组中分析区间
+   // 从极点数组中分析区间，创建多个主交易线段
    bool AnalyzeRange(CZigzagExtremumPoint &points[], int minPoints = 2)
      {
       // 检查数据有效性
@@ -101,188 +107,79 @@ public:
          return false;
         }
         
-      // 获取最近的两个极点
-      CZigzagExtremumPoint point1 = points[0]; // 最近的点
-      CZigzagExtremumPoint point2 = points[1]; // 次近的点
+      // 清理旧的主交易线段
+      for(int i = 0; i < ArraySize(m_mainTradingSegments); i++)
+        {
+         if(m_mainTradingSegments[i] != NULL)
+           {
+            delete m_mainTradingSegments[i];
+            m_mainTradingSegments[i] = NULL;
+           }
+        }
       
-      // 使用线段类创建主交易线段
-      m_mainTradingSegment = CZigzagSegment(point2, point1);
+      // 根据极值点数量创建多个线段
+      int segmentCount = ArraySize(points) - 1; // n个极值点可以创建(n-1)个线段
+      ArrayResize(m_mainTradingSegments, segmentCount);
+      
+      // 创建所有可能的线段
+      for(int i = 0; i < segmentCount; i++)
+        {
+         // 使用相邻的两个极值点创建线段
+         m_mainTradingSegments[i] = new CZigzagSegment(points[i+1], points[i]);
+        }
+      
+      // 按时间排序，最近的线段排在前面（自动更新当前线段指针）
+      SortSegmentsByTimeDesc();
       
       m_isValid = true;
       
-      // 分析完区间后立即计算回撤或反弹
+      // 分析完区间后立即计算回撤或反弹（使用最近的线段）
       CalculateRetracement();
       
       // 计算多时间周期支撑和压力
       CalculateSupportResistance();
       
-      // 获取小周期线段
-      GetH1SegmentFromH4();
-      GetM5SegmentFromH1();
-      
       return true;
      }
      
-   // 从较大时间周期获取较小时间周期的线段
-   bool GetSegmentFromLargerTimeframe(CZigzagSegment &largerSegment, CZigzagSegment &smallerSegment, 
-                                     ENUM_TIMEFRAMES largerTimeframe, ENUM_TIMEFRAMES smallerTimeframe)
-     {
-      if(!m_isValid)
-         return false;
-         
-      // 获取较大时间周期的起止时间
-      datetime segmentStartTime = largerSegment.StartTime();
-      datetime segmentEndTime = largerSegment.EndTime();
-      
-      // 获取当前时间
-      datetime currentTime = TimeCurrent();
-      
-      // 计算当前时间到区间两个端点的距离，找到最远的端点
-      datetime farthestTime;
-      long distanceToStart = MathAbs((long)currentTime - (long)segmentStartTime);
-      long distanceToEnd = MathAbs((long)currentTime - (long)segmentEndTime);
-      
-      if(distanceToStart > distanceToEnd)
-        {
-         farthestTime = segmentStartTime;
-        }
-      else
-        {
-         farthestTime = segmentEndTime;
-        }
-      
-      // 确定时间范围：从当前时间到最远的端点时间
-      datetime searchStartTime, searchEndTime;
-      if(currentTime < farthestTime)
-        {
-         searchStartTime = currentTime;
-         searchEndTime = farthestTime;
-        }
-      else
-        {
-         searchStartTime = farthestTime;
-         searchEndTime = currentTime;
-        }
-      
-      // 输出调试信息
-      PrintFormat("=== 动态获取%s线段数据 ===", 
-                 (smallerTimeframe == PERIOD_H1) ? "1小时" : 
-                 (smallerTimeframe == PERIOD_M5) ? "5分钟" : "小周期");
-      PrintFormat("当前时间: %s", TimeToString(currentTime));
-      PrintFormat("区间端点: %s 到 %s", 
-                 TimeToString(segmentStartTime), TimeToString(segmentEndTime));
-      PrintFormat("最远端点: %s", TimeToString(farthestTime));
-      PrintFormat("搜索范围: %s 到 %s", 
-                 TimeToString(searchStartTime), TimeToString(searchEndTime));
-      
-      // 获取小周期线段的极值点（使用CommonUtils中的全局函数）
-      CZigzagExtremumPoint smallerPoints[];
-      
-      // 先计算搜索范围的价格范围
-      double highPrice = 0.0;
-      double lowPrice = DBL_MAX;
-      
-      // 通过正向遍历K线获取价格范围
-      int barCount = 1000;
-      for(int i = 0; i < barCount; i++)
-        {
-         datetime barTime = iTime(Symbol(), smallerTimeframe, i);
-         if(barTime == 0) break;
-         
-         if(barTime >= MathMin(searchStartTime, searchEndTime) && barTime <= MathMax(searchStartTime, searchEndTime))
-           {
-            double high = iHigh(Symbol(), smallerTimeframe, i);
-            double low = iLow(Symbol(), smallerTimeframe, i);
-            
-            if(high > highPrice) highPrice = high;
-            if(low < lowPrice) lowPrice = low;
-           }
-         
-         if(barTime < MathMin(searchStartTime, searchEndTime))
-            break;
-        }
-      
-      if(highPrice <= lowPrice)
-        {
-         return false;
-        }
-      
-      if(!::GetExtremumPointsInPriceRange(smallerTimeframe, highPrice, lowPrice, smallerPoints, 0))
-        {
-         return false;
-        }
-      
-      // 检查是否有足够的点
-      if(ArraySize(smallerPoints) < 2)
-        {
-         PrintFormat("动态获取%s线段失败", 
-                    (smallerTimeframe == PERIOD_H1) ? "1小时" : 
-                    (smallerTimeframe == PERIOD_M5) ? "5分钟" : "小周期");
-         return false;
-        }
-      
-      // 创建小周期线段
-      smallerSegment = CZigzagSegment(smallerPoints[1], smallerPoints[0]);
-      
-      // 输出成功信息
-      PrintFormat("成功获取%s线段: %s", 
-                 (smallerTimeframe == PERIOD_H1) ? "1小时" : 
-                 (smallerTimeframe == PERIOD_M5) ? "5分钟" : "小周期",
-                 smallerSegment.ToString());
-      
-      return true;
-     }
-     
-   // 从4小时线段获取1小时线段
-   bool GetH1SegmentFromH4()
-     {
-      return GetSegmentFromLargerTimeframe(m_mainTradingSegment, m_h1TradingSegment, PERIOD_H4, PERIOD_H1);
-     }
-     
-   // 从1小时线段获取5分钟线段
-   bool GetM5SegmentFromH1()
-     {
-      return GetSegmentFromLargerTimeframe(m_h1TradingSegment, m_m5TradingSegment, PERIOD_H1, PERIOD_M5);
-     }
-     
+
    // 获取指定时间周期的交易线段
    CZigzagSegment GetTradingSegmentByTimeframe(ENUM_TIMEFRAMES timeframe)
      {
-      switch(timeframe)
+      // 目前只支持4小时周期，其他周期应在需要时通过线段对象的GetSmallerTimeframeSegments方法获取
+      if(timeframe == PERIOD_H4)
         {
-         case PERIOD_H4:
-            return m_mainTradingSegment;
-         case PERIOD_H1:
-            return m_h1TradingSegment;
-         case PERIOD_M5:
-            return m_m5TradingSegment;
-         default:
-            return m_mainTradingSegment;
+         // 返回当前线段
+         if(m_currentSegment != NULL)
+            return *m_currentSegment;
+         else
+            return CZigzagSegment(); // 返回空线段
+        }
+      else
+        {
+         // 默认返回当前线段
+         if(m_currentSegment != NULL)
+            return *m_currentSegment;
+         else
+            return CZigzagSegment();
         }
      }
      
-   // 获取1小时交易线段
-   CZigzagSegment GetH1TradingSegment()
-     {
-      return m_h1TradingSegment;
-     }
-     
-   // 获取5分钟交易线段
-   CZigzagSegment GetM5TradingSegment()
-     {
-      return m_m5TradingSegment;
-     }
+
      
    // 计算回撤或反弹
    void CalculateRetracement()
      {
-      if(!m_isValid)
+      if(!m_isValid || m_currentSegment == NULL)
          return;
          
       double currentPrice = GetCurrentPrice();
       
+      // 使用当前线段来计算回撤或反弹
+      CZigzagSegment* latestSegment = m_currentSegment;
+      
       // 根据线段方向计算回撤或反弹
-      if(m_mainTradingSegment.IsUptrend())
+      if((*latestSegment).IsUptrend())
         {
          // 上涨趋势，计算回撤（从最高点到当前的最低点）
          // 使用通用函数查找高点之后的最低价格
@@ -389,11 +286,14 @@ public:
    // 计算多时间周期的支撑和压力
    void CalculateSupportResistance()
      {
-      if(!m_isValid)
+      if(!m_isValid || m_currentSegment == NULL)
          return;
          
+      // 使用当前线段
+      CZigzagSegment* latestSegment = m_currentSegment;
+      
       // 根据线段方向计算支撑或压力
-      if(m_mainTradingSegment.IsUptrend())
+      if((*latestSegment).IsUptrend())
         {
          // 上涨趋势
          // 1. 计算区间高点的支撑
@@ -519,13 +419,101 @@ public:
       return &m_resistancePoints;
      }
      
+   // 获取当前线段（直接访问，不需要数组检查）
+   CZigzagSegment* GetCurrentSegment()
+     {
+      return m_currentSegment;
+     }
+     
+   // 获取主交易线段数组（通过索引访问）
+   CZigzagSegment* GetMainTradingSegment(int index)
+     {
+      if(index >= 0 && index < ArraySize(m_mainTradingSegments))
+         return m_mainTradingSegments[index];
+      return NULL;
+     }
+     
+   // 获取主交易线段数组大小
+   int GetMainTradingSegmentsCount()
+     {
+      return ArraySize(m_mainTradingSegments);
+     }
+     
+   // 获取最新的主交易线段
+   CZigzagSegment* GetLatestMainTradingSegment()
+     {
+      if(ArraySize(m_mainTradingSegments) > 0)
+         return m_mainTradingSegments[0];
+      return NULL;
+     }
+     
+   // 公共方法：按结束时间降序排列线段（最近的在前）
+   void SortSegmentsByTimeDesc()
+     {
+      // 直接调用统一的排序方法：使用结束时间，降序排列
+      ::SortSegmentsByTime(m_mainTradingSegments, false, true);
+      
+      // 排序后更新当前线段指针
+      int segmentCount = ArraySize(m_mainTradingSegments);
+      m_currentSegment = (segmentCount > 0) ? m_mainTradingSegments[0] : NULL;
+     }
+     
+   // 从4H周期极值点数组初始化主交易线段
+   bool InitializeMainSegmentsFromPoints(CZigzagExtremumPoint &points[])
+     {
+      if(ArraySize(points) < 2)
+         return false;
+         
+      // 清理旧的线段
+      for(int i = 0; i < ArraySize(m_mainTradingSegments); i++)
+        {
+         if(m_mainTradingSegments[i] != NULL)
+           {
+            delete m_mainTradingSegments[i];
+            m_mainTradingSegments[i] = NULL;
+           }
+        }
+      
+      // 根据极值点数量创建多个线段
+      int segmentCount = ArraySize(points) - 1;
+      ArrayResize(m_mainTradingSegments, segmentCount);
+      
+      // 创建所有可能的线段
+      for(int i = 0; i < segmentCount; i++)
+        {
+         // 确保线段的时间顺序正确：起点时间应该早于终点时间
+         CZigzagExtremumPoint startPoint, endPoint;
+         
+         if(points[i].Time() < points[i+1].Time())
+           {
+            // points[i]时间更早，作为起点
+            startPoint = points[i];
+            endPoint = points[i+1];
+           }
+         else
+           {
+            // points[i+1]时间更早，作为起点
+            startPoint = points[i+1];
+            endPoint = points[i];
+           }
+         
+         m_mainTradingSegments[i] = new CZigzagSegment(startPoint, endPoint);
+        }
+      
+      // 按时间排序，最近的线段排在前面（自动更新当前线段指针）
+      SortSegmentsByTimeDesc();
+      
+      m_isValid = true;
+      return true;
+     }
+     
    // 获取指定时间周期的支撑/压力描述
    string GetSupportResistanceDescription(ENUM_TIMEFRAMES timeframe = PERIOD_H1, string prefix = "")
      {
-      if(!m_isValid)
+      if(!m_isValid || m_currentSegment == NULL)
          return "";
          
-      if(m_mainTradingSegment.IsUptrend())
+      if((*m_currentSegment).IsUptrend())
         {
          // 上涨趋势，显示支撑位
          string supportText = DoubleToString(m_supportPoints.GetPrice(timeframe), _Digits);
@@ -599,10 +587,10 @@ public:
    // 获取回撤或反弹描述
    string GetRetraceDescription()
      {
-      if(!m_isValid)
+      if(!m_isValid || m_currentSegment == NULL)
          return "";
          
-      string retraceType = m_mainTradingSegment.IsUptrend() ? "回撤" : "反弹";
+      string retraceType = (*m_currentSegment).IsUptrend() ? "回撤" : "反弹";
       string priceText = DoubleToString(m_retracePrice, _Digits);
       string diffText = DoubleToString(m_retraceDiff, _Digits);
       string percentText = DoubleToString(m_retracePercent, 2);
@@ -611,46 +599,69 @@ public:
                          retraceType, priceText, diffText, percentText);
      }
      
-   // 获取主交易线段
+   // 获取主交易线段（最新的）
    CZigzagSegment GetMainTradingSegment()
      {
-      return m_mainTradingSegment;
+      if(m_currentSegment != NULL)
+         return *m_currentSegment;
+      else
+         return CZigzagSegment(); // 返回空线段
      }
      
    // 获取区间高点
    double GetRangeHigh()
      {
-      return m_mainTradingSegment.IsUptrend() ? m_mainTradingSegment.EndPrice() : m_mainTradingSegment.StartPrice();
+      if(m_currentSegment != NULL)
+        {
+         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).EndPrice() : (*m_currentSegment).StartPrice();
+        }
+      return 0.0;
      }
      
    // 获取区间低点
    double GetRangeLow()
      {
-      return m_mainTradingSegment.IsUptrend() ? m_mainTradingSegment.StartPrice() : m_mainTradingSegment.EndPrice();
+      if(m_currentSegment != NULL)
+        {
+         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).StartPrice() : (*m_currentSegment).EndPrice();
+        }
+      return 0.0;
      }
      
    // 获取区间高点时间
    datetime GetRangeHighTime()
      {
-      return m_mainTradingSegment.IsUptrend() ? m_mainTradingSegment.EndTime() : m_mainTradingSegment.StartTime();
+      if(m_currentSegment != NULL)
+        {
+         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).EndTime() : (*m_currentSegment).StartTime();
+        }
+      return 0;
      }
      
    // 获取区间低点时间
    datetime GetRangeLowTime()
      {
-      return m_mainTradingSegment.IsUptrend() ? m_mainTradingSegment.StartTime() : m_mainTradingSegment.EndTime();
+      if(m_currentSegment != NULL)
+        {
+         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).StartTime() : (*m_currentSegment).EndTime();
+        }
+      return 0;
      }
      
    // 获取趋势方向
    bool IsUpTrend()
      {
-      return m_mainTradingSegment.IsUptrend();
+      if(m_currentSegment != NULL)
+         return (*m_currentSegment).IsUptrend();
+      return false;
      }
      
    // 获取趋势方向描述
    string GetTrendDirection()
      {
-      return m_mainTradingSegment.IsUptrend() ? "上涨" : "下跌";
+      if(m_currentSegment != NULL)
+         return (*m_currentSegment).IsUptrend() ? "上涨" : "下跌";
+      return "未知";
      }
      
    // 检查数据是否有效
@@ -662,7 +673,7 @@ public:
    // 获取区间分析结果的文本描述
    string GetRangeAnalysisText(double currentPrice)
      {
-      if(!m_isValid)
+      if(!m_isValid || m_currentSegment == NULL)
          return "区间数据无效";
          
       string direction = GetTrendDirection();
@@ -670,7 +681,7 @@ public:
       string lowText = DoubleToString(GetRangeLow(), _Digits);
       
       // 根据趋势方向调整显示顺序
-      if(m_mainTradingSegment.IsUptrend())
+      if((*m_currentSegment).IsUptrend())
         {
          // 上涨趋势，显示从低到高
          return StringFormat("区间: %s - %s (%s)", 

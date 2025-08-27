@@ -467,9 +467,14 @@ bool CZigzagCalculator::GetZigzagValuesForTimeframe(string symbol, ENUM_TIMEFRAM
    if(bars_count <= 0)
       return false;
       
+   // 计算复制数量
+   // CopyRates参数说明：start_pos=0表示最新K线，count表示要获取的K线数量
+   int copy_count = bars_count + m_depth;
+   int start_pos = 0;  // 从最新K线开始获取
+      
    // 获取历史数据
    MqlRates rates[];
-   if(CopyRates(symbol, timeframe, 0, bars_count + m_depth, rates) <= 0)
+   if(CopyRates(symbol, timeframe, start_pos, copy_count, rates) <= 0)
      {
       return false;
      }
@@ -506,13 +511,34 @@ bool CZigzagCalculator::CalculateForSymbol(const string symbol, ENUM_TIMEFRAMES 
    if(bars_count <= 0)
       return false;
    
+   // 计算复制数量
+   // CopyRates参数说明：start_pos=0表示最新K线，count表示要获取的K线数量
+   int copy_count = bars_count + m_depth;
+   int start_pos = 0;  // 从最新K线开始获取
+   
    // 获取历史数据
    MqlRates rates[];
-   int copied = CopyRates(symbol, timeframe, 0, bars_count + m_depth, rates);
-   
-   if(copied <= 0)
+   if(CopyRates(symbol, timeframe, start_pos, copy_count, rates) <= 0)
      {
       return false;
+     }
+   
+   int copied = ArraySize(rates);
+   
+   // 调试输出：显示GetRatesData获取的前10个K线数据
+   Print("=== GetRatesData获取的K线数据 ===");
+   Print("品种: ", symbol, ", 周期: ", EnumToString(timeframe), ", 获取数量: ", copied);
+   int showCount = MathMin(10, copied);
+   Print("显示前", showCount, "个K线数据（应该是从当前到过去的顺序）：");
+   for(int i = 0; i < showCount; i++)
+     {
+      Print(StringFormat("  K线[%d] - 时间: %s, 开盘: %.3f, 最高: %.3f, 最低: %.3f, 收盘: %.3f", 
+            i,
+            TimeToString(rates[i].time, TIME_DATE|TIME_MINUTES),
+            rates[i].open,
+            rates[i].high,
+            rates[i].low,
+            rates[i].close));
      }
    
    // 提取高点和低点数据
@@ -561,9 +587,33 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
       size = MathMin(size, bottom_size); // 使用较小的尺寸
      }
    
-   // 获取时间数组
+   // 获取时间数组 - 确保与计算的ZigZag数据顺序一致
    datetime time_array[];
-   int copied = CopyTime(Symbol(), m_timeframe, 0, size, time_array);
+   int copied;
+   
+   // 根据时间周期获取相应的时间数据，使用与CalculateForSymbol相同的参数
+   string symbol;
+   ENUM_TIMEFRAMES timeframe;
+   
+   if(m_timeframe == PERIOD_CURRENT)
+     {
+      // 当前周期，直接使用当前图表的时间
+      symbol = Symbol();
+      timeframe = (ENUM_TIMEFRAMES)Period();
+     }
+   else
+     {
+      // 指定周期，使用指定周期的时间
+      symbol = Symbol();
+      timeframe = m_timeframe;
+     }
+   
+   // 使用与CalculateForSymbol相同的参数
+   int copy_count = size + m_depth;
+   int start_pos = 0;  // 从最新K线开始获取
+   
+   copied = CopyTime(symbol, timeframe, start_pos, copy_count, time_array);
+   
    if(copied <= 0)
      {
       return false;
@@ -571,6 +621,13 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
    
    // 确保时间数组大小不超过缓冲区大小
    int valid_size = MathMin(size, copied);
+   
+   // 计算时间数组偏移量
+   // ZigZag缓冲区是基于最新的size个K线计算的
+   // 而时间数组可能包含更多的时间点
+   // 所以需要计算偏移量，确保ZigZag缓冲区索引0对应正确的时间
+   int time_offset = copied - size;  // 时间数组中多出的元素数量
+   if(time_offset < 0) time_offset = 0;
    
    // 临时数组存储所有极值点
    CZigzagExtremumPoint temp_points[];
@@ -583,16 +640,25 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
       if(i >= ArraySize(ZigzagPeakBuffer) || i >= ArraySize(ZigzagBottomBuffer) || i >= ArraySize(time_array))
          break;
          
+      // 使用偏移量来计算正确的时间索引
+      // ZigZag缓冲区索引i对应time_array[time_offset + i]
+      int time_index = time_offset + i;
+      
+      // 确保时间索引在有效范围内
+      if(time_index < 0 || time_index >= ArraySize(time_array))
+         continue;
+         
       if(ZigzagPeakBuffer[i] != 0)
         {
          ArrayResize(temp_points, temp_count + 1);
          temp_points[temp_count] = CZigzagExtremumPoint(
             m_timeframe,
-            time_array[i],
+            time_array[time_index], // 使用调整后的时间索引
             i,
             ZigzagPeakBuffer[i],
             EXTREMUM_PEAK
          );
+         
          temp_count++;
         }
       else if(ZigzagBottomBuffer[i] != 0)
@@ -600,11 +666,12 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
          ArrayResize(temp_points, temp_count + 1);
          temp_points[temp_count] = CZigzagExtremumPoint(
             m_timeframe,
-            time_array[i],
+            time_array[time_index], // 使用调整后的时间索引
             i,
             ZigzagBottomBuffer[i],
             EXTREMUM_BOTTOM
          );
+         
          temp_count++;
         }
      }

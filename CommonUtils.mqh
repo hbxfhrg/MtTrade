@@ -833,23 +833,49 @@ bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENU
   }
 
 //+------------------------------------------------------------------+
-//| 按时间排序线段数组（从晚到早，最近的在前面）                        |
+//| 按时间排序线段数组（支持正序和反序）                            |
 //+------------------------------------------------------------------+
-void SortSegmentsByTime(CZigzagSegment* &segments[])
+void SortSegmentsByTime(CZigzagSegment* &segments[], bool ascending = false, bool useEndTime = false)
 {
    int size = ArraySize(segments);
    if(size <= 1)
       return;
       
-   // 使用简单的冒泡排序，按时间从晚到早排序
+   // 使用冒泡排序，按指定时间类型和方向排序
    for(int i = 0; i < size - 1; i++)
    {
       for(int j = 0; j < size - i - 1; j++)
       {
          if(segments[j] != NULL && segments[j+1] != NULL)
          {
-            // 按开始时间反向排序（最近的时间在前面）
-            if(segments[j].StartTime() < segments[j+1].StartTime())
+            datetime time1, time2;
+            
+            // 根据参数选择使用开始时间还是结束时间
+            if(useEndTime)
+            {
+               time1 = segments[j].EndTime();
+               time2 = segments[j+1].EndTime();
+            }
+            else
+            {
+               time1 = segments[j].StartTime();
+               time2 = segments[j+1].StartTime();
+            }
+            
+            // 根据排序方向进行比较
+            bool shouldSwap = false;
+            if(ascending)
+            {
+               // 正序：早的时间在前
+               shouldSwap = (time1 > time2);
+            }
+            else
+            {
+               // 反序：晚的时间在前（默认）
+               shouldSwap = (time1 < time2);
+            }
+            
+            if(shouldSwap)
             {
                // 交换位置
                CZigzagSegment* temp = segments[j];

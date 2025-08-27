@@ -257,9 +257,12 @@ void CalculateZigZagData(const int rates_total, const int prev_calculated,
       double h4_high[];
       double h4_low[];
       
-      // 尝试从4H周期获取数据
-      int h4_copied_high = CopyHigh(Symbol(), PERIOD_H4, 0, 200, h4_high);
-      int h4_copied_low = CopyLow(Symbol(), PERIOD_H4, 0, 200, h4_low);
+      // 根据K线搜索策略，大周期最大搜索200根K线
+      int maxBars4H = 200;
+      
+      // 从最新时间往前获取4H周期数据（索引0是最新的K线）
+      int h4_copied_high = CopyHigh(Symbol(), PERIOD_H4, 0, maxBars4H, h4_high);
+      int h4_copied_low = CopyLow(Symbol(), PERIOD_H4, 0, maxBars4H, h4_low);
       
       if(h4_copied_high > 0 && h4_copied_low > 0)
         {
@@ -428,80 +431,62 @@ void ProcessTradeAnalysisAndInfoPanel(CZigzagExtremumPoint &points4H[], bool has
          currentTime - lastInfoPanelUpdateTime > 10 || 
          MathAbs(currentPrice - lastInfoPanelPrice) > Point() * 10)
         {
-         // 直接使用已经计算好的4H周期极值点数据
-         CZigzagExtremumPoint dynamic4HPoints[];
+         // 直接使用TradeAnalyzer中已存在的支撑点和压力点数据，无需转换
+         bool hasValidTradeData = false;
          
-         // 如果前面已经获取到4H周期数据，直接使用
+         // 首先检查是否有4H周期数据可用于分析
          if(has4HPoints && ArraySize(points4H) >= 1)
            {
-            // 复制已有的4H周期极值点数据
-            ArrayResize(dynamic4HPoints, ArraySize(points4H));
-            for(int k = 0; k < ArraySize(points4H); k++)
+            // 使用4H周期极值点数据进行交易分析
+            if(g_tradeAnalyzer.AnalyzeRange(points4H, 2) && g_tradeAnalyzer.IsValid())
               {
-               dynamic4HPoints[k] = points4H[k];
-              }
-           }
-         else
-           {
-            // 如果前面没有获取到数据，直接使用交易分析器中已存在的支撑点和压力点对象
-            if(g_tradeAnalyzer.IsValid())
-              {
-               // 直接获取交易分析器中的支撑点和压力点对象
-               CDynamicPricePoint* supportPointsObj = g_tradeAnalyzer.GetSupportPointsObject();
-               CDynamicPricePoint* resistancePointsObj = g_tradeAnalyzer.GetResistancePointsObject();
+               hasValidTradeData = true;
                
-               if(supportPointsObj != NULL && resistancePointsObj != NULL)
+               // 添加交易类m_mainTradingSegments的初始化，因为是初始化直接取缓存H4的极点数据以生成主线段数据
+               // 确保有足够的4H周期极值点来创建线段
+               if(ArraySize(points4H) >= 2)
                  {
-                  // 获取H4周期的支撑点和压力点数据
-                  double supportPrice = supportPointsObj.GetPrice(PERIOD_H4);
-                  double resistancePrice = resistancePointsObj.GetPrice(PERIOD_H4);
-                  datetime supportTime = supportPointsObj.GetTime(PERIOD_H4);
-                  datetime resistanceTime = resistancePointsObj.GetTime(PERIOD_H4);
-                  
-                  // 只有当支撑点和压力点都有有效数据时才创建极值点
-                  if(supportPrice > 0.0 && resistancePrice > 0.0)
-                    {
-                     // 创建两个极值点：支撑点和压力点
-                     ArrayResize(dynamic4HPoints, 2);
-                     
-                     if(g_tradeAnalyzer.IsUpTrend())
-                       {
-                        // 上涨趋势：支撑点在前，压力点在后
-                        dynamic4HPoints[0] = CZigzagExtremumPoint(PERIOD_H4, resistanceTime, 0, resistancePrice, EXTREMUM_PEAK);
-                        dynamic4HPoints[1] = CZigzagExtremumPoint(PERIOD_H4, supportTime, 1, supportPrice, EXTREMUM_BOTTOM);
-                       }
-                     else
-                       {
-                        // 下跌趋势：压力点在前，支撑点在后
-                        dynamic4HPoints[0] = CZigzagExtremumPoint(PERIOD_H4, supportTime, 0, supportPrice, EXTREMUM_BOTTOM);
-                        dynamic4HPoints[1] = CZigzagExtremumPoint(PERIOD_H4, resistanceTime, 1, resistancePrice, EXTREMUM_PEAK);
-                       }
-                    }
+                  // 直接使用初始化方法来设置主交易线段数组
+                  g_tradeAnalyzer.InitializeMainSegmentsFromPoints(points4H);
                  }
               }
-            // 如果交易分析器无效或支撑压力点数据不完整，不使用备用方案。直接返回空数组
-            // 这样可以确保数据的一致性和可靠性
+           }
+         else if(g_tradeAnalyzer.IsValid())
+           {
+            // 如果没有4H周期数据，但TradeAnalyzer已有有效的分析结果
+            // 直接使用已有的分析数据
+            CDynamicPricePoint* supportPointsObj = g_tradeAnalyzer.GetSupportPointsObject();
+            CDynamicPricePoint* resistancePointsObj = g_tradeAnalyzer.GetResistancePointsObject();
+            
+            if(supportPointsObj != NULL && resistancePointsObj != NULL)
+              {
+               double supportPrice = supportPointsObj.GetPrice(PERIOD_H4);
+               double resistancePrice = resistancePointsObj.GetPrice(PERIOD_H4);
+               
+               // 检查是否有有效的支撑和压力数据
+               if(supportPrice > 0.0 && resistancePrice > 0.0)
+                 {
+                  hasValidTradeData = true;
+                 }
+              }
            }
          
-         if(ArraySize(dynamic4HPoints) >= 1)
+         if(hasValidTradeData)
            {
             // 使用信息面板管理器创建统一的信息面板
             // 这里同时显示交易区间和趋势方向信息，以及其他必要信息
-            if(g_tradeAnalyzer.AnalyzeRange(dynamic4HPoints, 2) && g_tradeAnalyzer.IsValid())
-              {
-               // 创建包含交易分析结果的面板
-               CInfoPanelManager::CreateTradeInfoPanel(infoPanel);
+            // 创建包含交易分析结果的面板
+            CInfoPanelManager::CreateTradeInfoPanel(infoPanel);
                
                // 动态获取1小时周期的线段数据
                CZigzagSegment* h1Segments[];
-               datetime startTime = iTime(Symbol(), PERIOD_H1, 100); // 获取最近100根1小时K线的时间范围
-               datetime endTime = TimeCurrent();
                
-               // 使用动态方法获取1小时线段，排除4小时周期区间内的线段
-               if(::GetSmallTimeframeSegmentsExcludingRange(PERIOD_H1, PERIOD_H4, startTime, endTime, h1Segments, SEGMENT_TREND_ALL, 50))
+               // 使用交易分析器的当前主段对象获取H1周期的线段
+               CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
+               
+               if(currentMainSegment != NULL && currentMainSegment.GetSmallerTimeframeSegments(h1Segments, PERIOD_H1, 50))
                  {
                   // 动态获取到了线段数据
-                  
                   // 获取上涨和下跌线段
                   CZigzagSegment* uptrendSegments[];
                   CZigzagSegment* downtrendSegments[];
@@ -510,9 +495,9 @@ void ProcessTradeAnalysisAndInfoPanel(CZigzagExtremumPoint &points4H[], bool has
                   ::FilterSegmentsByTrend(h1Segments, uptrendSegments, SEGMENT_TREND_UP);
                   ::FilterSegmentsByTrend(h1Segments, downtrendSegments, SEGMENT_TREND_DOWN);
                   
-                  // 按时间排序线段（从晚到早）
-                  ::SortSegmentsByTime(uptrendSegments);
-                  ::SortSegmentsByTime(downtrendSegments);
+                  // 按时间排序线段（从晚到早，使用开始时间）
+                  ::SortSegmentsByTime(uptrendSegments, false, false);
+                  ::SortSegmentsByTime(downtrendSegments, false, false);
                   
                   CZigzagSegment* m5Segments[];
                   
@@ -565,9 +550,9 @@ void ProcessTradeAnalysisAndInfoPanel(CZigzagExtremumPoint &points4H[], bool has
                      ::FilterSegmentsByTrend(m5Segments, m5UptrendSegments, SEGMENT_TREND_UP);
                      ::FilterSegmentsByTrend(m5Segments, m5DowntrendSegments, SEGMENT_TREND_DOWN);
                      
-                     // 按时间排序5分钟线段（从晚到早）
-                     SortSegmentsByTime(m5UptrendSegments);
-                     SortSegmentsByTime(m5DowntrendSegments);
+                     // 按时间排序5分钟线段（从晚到早，使用开始时间）
+                     SortSegmentsByTime(m5UptrendSegments, false, false);
+                     SortSegmentsByTime(m5DowntrendSegments, false, false);
                      
                      // 释放5分钟线段内存
                      for(int k = 0; k < ArraySize(m5Segments); k++)
@@ -593,20 +578,18 @@ void ProcessTradeAnalysisAndInfoPanel(CZigzagExtremumPoint &points4H[], bool has
                        }
                     }
                  }
+               else
+                 {
+                  // 获取H1线段失败，使用简单信息面板
+                 }
                
                // 绘制支撑或压力线
                CShapeManager::DrawSupportResistanceLines();
-              }
-            else
-              {
-               // 使用信息面板管理器创建简单信息面板
-               CInfoPanelManager::CreateSimpleInfoPanel(infoPanel, "暂无有效的交易区间数据", InpInfoPanelColor, InpInfoPanelBgColor);
-              }
            }
          else
            {
             // 使用信息面板管理器创建简单信息面板
-            CInfoPanelManager::CreateSimpleInfoPanel(infoPanel, "暂无足够的4小时周期极点数据", InpInfoPanelColor, InpInfoPanelBgColor);
+            CInfoPanelManager::CreateSimpleInfoPanel(infoPanel, "暂无有效的交易区间数据", InpInfoPanelColor, InpInfoPanelBgColor);
            }
            
          // 更新上次更新时间和价格
