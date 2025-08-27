@@ -208,58 +208,49 @@ public:
 //+------------------------------------------------------------------+
 bool CZigzagSegment::GetSmallerTimeframeSegments(CZigzagSegment* &segments[], ENUM_TIMEFRAMES smallerTimeframe, int maxCount)
 {
-   // 检查参数有效性
-   if(m_manager == NULL || maxCount <= 0)
+   // 参数有效性检查
+   if(maxCount <= 0 || smallerTimeframe >= m_timeframe)
       return false;
-      
-   // 检查时间周期是否合理
-   if(smallerTimeframe >= m_timeframe)
-   {
-      return false;
-   }
    
-   // 获取线段的时间范围
+   // 获取主线段时间范围
    datetime startTime = m_start_point.Time();
-   datetime endTime = m_end_point.Time();
    
-   // 创建一个临时的ZigZag计算器
-   CZigzagCalculator zigzagCalc(12, 5, 3, 1000, smallerTimeframe);
+   // 根据K线搜索策略确定K线数量
+   int barsCount;
+   if(smallerTimeframe <= PERIOD_M5)
+      barsCount = 2000;
+   else if(smallerTimeframe <= PERIOD_H1) 
+      barsCount = 2000;
+   else 
+      barsCount = 500;
    
-   // 获取当前时间周期的ZigZag极点数据
+   // 创建ZigZag计算器并计算极值点
+   CZigzagCalculator zigzagCalc(12, 5, 3, barsCount, smallerTimeframe);
+   
+   if(!zigzagCalc.CalculateForSymbol(Symbol(), smallerTimeframe, barsCount))
+      return false;
+   
    CZigzagExtremumPoint points[];
-   
-   // 先为指定的时间周期计算ZigZag值
-   if(!zigzagCalc.CalculateForSymbol(Symbol(), smallerTimeframe, 1000))
+   if(!zigzagCalc.GetExtremumPoints(points) || ArraySize(points) < 2)
       return false;
       
-   // 然后获取极值点
-   if(!zigzagCalc.GetExtremumPoints(points, maxCount * 2))
-      return false;
-      
+   // 生成所有线段
    int point_count = ArraySize(points);
-   
-   if(point_count < 2)
-      return false;
-      
-   // 生成线段
    CZigzagSegment* allSegments[];
    ArrayResize(allSegments, point_count - 1);
    
    for(int i = 0; i < point_count - 1; i++)
    {
-      // 设置时间周期
       points[i].Timeframe(smallerTimeframe);
       points[i+1].Timeframe(smallerTimeframe);
       
-      // 创建新线段
       allSegments[i] = new CZigzagSegment(points[i+1], points[i], smallerTimeframe);
       
-      // 设置线段管理器引用
-      if(allSegments[i] != NULL)
+      if(allSegments[i] != NULL && m_manager != NULL)
          allSegments[i].SetManager(m_manager);
    }
    
-   // 然后筛选出时间范围内的线段
+   // 筛选有效线段：只检查子线段开始时间 >= 主线段开始时间
    int count = 0;
    CZigzagSegment* tempSegments[];
    ArrayResize(tempSegments, ArraySize(allSegments));
@@ -268,29 +259,21 @@ bool CZigzagSegment::GetSmallerTimeframeSegments(CZigzagSegment* &segments[], EN
    {
       if(allSegments[i] != NULL)
       {
-         // 检查线段是否在指定的时间范围内
          datetime segStartTime = allSegments[i].StartTime();
-         datetime segEndTime = allSegments[i].EndTime();
          
-         // 如果线段的时间范围与指定的时间范围有重叠，则添加到结果中
-         if((segStartTime >= startTime && segStartTime <= endTime) || 
-            (segEndTime >= startTime && segEndTime <= endTime) ||
-            (segStartTime <= startTime && segEndTime >= endTime))
+         if(segStartTime >= startTime)
          {
             tempSegments[count++] = allSegments[i];
          }
          else
          {
-            // 如果不在时间范围内，释放内存
             delete allSegments[i];
          }
       }
    }
    
-   // 调整结果数组大小
+   // 返回筛选结果
    ArrayResize(segments, count);
-   
-   // 复制找到的线段
    for(int i = 0; i < count; i++)
    {
       segments[i] = tempSegments[i];
