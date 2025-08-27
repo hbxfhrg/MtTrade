@@ -27,6 +27,8 @@ private:
    int               m_bar_index;    // K线序号
    double            m_value;        // 极点值
    ENUM_EXTREMUM_TYPE m_type;        // 极点类型
+   int               m_h1_index;     // 1小时K线索引
+   datetime          m_h1_time;      // 1小时K线时间
 
 public:
                      CZigzagExtremumPoint();
@@ -50,6 +52,12 @@ public:
    ENUM_EXTREMUM_TYPE Type() const { return m_type; }
    void              Type(ENUM_EXTREMUM_TYPE value) { m_type = value; }
    
+   int               H1Index() const { return m_h1_index; }
+   void              H1Index(int value) { m_h1_index = value; }
+   
+   datetime          H1Time() const { return m_h1_time; }
+   void              H1Time(datetime value) { m_h1_time = value; }
+   
    // 辅助方法
    string            TypeAsString() const;
    string            ToString() const;
@@ -59,6 +67,12 @@ public:
    
    // 比较运算符，用于排序
    int               Compare(const CZigzagExtremumPoint &other) const;
+   
+   // 查找较小时间周期中的K线索引
+   int               FindTimeframeIndex(ENUM_TIMEFRAMES smallerTimeframe);
+   
+   // 获取1小时周期K线时间
+   datetime          GetH1Time();
 };
 
 //+------------------------------------------------------------------+
@@ -71,6 +85,8 @@ CZigzagExtremumPoint::CZigzagExtremumPoint()
    m_bar_index = -1;
    m_value = 0.0;
    m_type = EXTREMUM_UNDEFINED;
+   m_h1_index = -1;
+   m_h1_time = 0;
 }
 
 //+------------------------------------------------------------------+
@@ -83,6 +99,8 @@ CZigzagExtremumPoint::CZigzagExtremumPoint(const CZigzagExtremumPoint &other)
    m_bar_index = other.m_bar_index;
    m_value = other.m_value;
    m_type = other.m_type;
+   m_h1_index = FindTimeframeIndex(ENUM_TIMEFRAMES::PERIOD_H1);
+   m_h1_time = 0;  // 初始化为0，需要时再计算
 }
 
 CZigzagExtremumPoint::CZigzagExtremumPoint(ENUM_TIMEFRAMES timeframe, datetime time, int bar_index, double value, ENUM_EXTREMUM_TYPE type)
@@ -92,6 +110,8 @@ CZigzagExtremumPoint::CZigzagExtremumPoint(ENUM_TIMEFRAMES timeframe, datetime t
    m_bar_index = bar_index;
    m_value = value;
    m_type = type;
+   m_h1_index = FindTimeframeIndex(ENUM_TIMEFRAMES::PERIOD_H1);
+   m_h1_time = 0;  // 初始化为0，需要时再计算
 }
 
 //+------------------------------------------------------------------+
@@ -127,6 +147,73 @@ string CZigzagExtremumPoint::ToString() const
    
    return StringFormat("时间周期: %s, 时间: %s, 序号: %d, 值: %s, 类型: %s", 
                       timeframe_str, time_str, m_bar_index, value_str, type_str);
+}
+
+//+------------------------------------------------------------------+
+//| 查找较小时间周期中的K线索引                                        |
+//+------------------------------------------------------------------+
+int CZigzagExtremumPoint::FindTimeframeIndex(ENUM_TIMEFRAMES smallerTimeframe)
+{
+   // 如果传入的时间周期与当前极值点的时间周期相同，直接返回当前的K线索引
+   if (smallerTimeframe == m_timeframe)
+   {
+      return m_bar_index;
+   }
+   
+   // 调用CommonUtils中的方法 FindBarIndexByPrice，根据峰谷值类型传值
+   if (m_type == EXTREMUM_PEAK)
+   {
+      // 对于峰值，使用MODE_HIGH模式查找K线索引
+      return ::FindBarIndexByPrice(m_value, MODE_HIGH, smallerTimeframe);
+   }
+   else if (m_type == EXTREMUM_BOTTOM)
+   {
+      // 对于谷值，使用MODE_LOW模式查找K线索引
+      return ::FindBarIndexByPrice(m_value, MODE_LOW, smallerTimeframe);
+   }
+   else
+   {
+      // 对于未定义类型，返回-1
+      return -1;
+   }
+}
+
+//+------------------------------------------------------------------+
+//| 获取1小时周期K线时间                                             |
+//+------------------------------------------------------------------+
+datetime CZigzagExtremumPoint::GetH1Time()
+{
+   // 如果已经计算过1小时K线时间，直接返回
+   if (m_h1_time > 0)
+   {
+      return m_h1_time;
+   }
+   
+   // 如果当前极值点就是1小时周期数据，直接返回其时间并存储
+   if (m_timeframe == PERIOD_H1)
+   {
+      m_h1_time = m_time;
+      return m_h1_time;
+   }
+   
+   // 如果已计算过1小时K线索引，直接使用该索引获取时间
+   if (m_h1_index >= 0)
+   {
+      m_h1_time = iTime(Symbol(), PERIOD_H1, m_h1_index);
+      return m_h1_time;
+   }
+   
+   // 否则计算1小时K线索引并获取时间
+   int h1Index = FindTimeframeIndex(PERIOD_H1);
+   if (h1Index >= 0)
+   {
+      m_h1_index = h1Index;
+      m_h1_time = iTime(Symbol(), PERIOD_H1, h1Index);
+      return m_h1_time;
+   }
+   
+   // 如果无法找到，返回0
+   return 0;
 }
 
 //+------------------------------------------------------------------+

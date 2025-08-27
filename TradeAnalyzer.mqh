@@ -463,7 +463,7 @@ public:
      {
       if(ArraySize(points) < 2)
          return false;
-         
+      
       // 清理旧的线段
       for(int i = 0; i < ArraySize(m_mainTradingSegments); i++)
         {
@@ -473,39 +473,39 @@ public:
             m_mainTradingSegments[i] = NULL;
            }
         }
+   
+   // 根据极值点数量创建多个线段
+   int segmentCount = ArraySize(points) - 1;
+   ArrayResize(m_mainTradingSegments, segmentCount);
+   
+   // 创建所有可能的线段
+   for(int i = 0; i < segmentCount; i++)
+     {
+      // 确保线段的时间顺序正确：起点时间应该早于终点时间
+      CZigzagExtremumPoint startPoint, endPoint;
       
-      // 根据极值点数量创建多个线段
-      int segmentCount = ArraySize(points) - 1;
-      ArrayResize(m_mainTradingSegments, segmentCount);
-      
-      // 创建所有可能的线段
-      for(int i = 0; i < segmentCount; i++)
+      if(points[i].Time() < points[i+1].Time())
         {
-         // 确保线段的时间顺序正确：起点时间应该早于终点时间
-         CZigzagExtremumPoint startPoint, endPoint;
-         
-         if(points[i].Time() < points[i+1].Time())
-           {
-            // points[i]时间更早，作为起点
-            startPoint = points[i];
-            endPoint = points[i+1];
-           }
-         else
-           {
-            // points[i+1]时间更早，作为起点
-            startPoint = points[i+1];
-            endPoint = points[i];
-           }
-         
-         m_mainTradingSegments[i] = new CZigzagSegment(startPoint, endPoint);
+         // points[i]时间更早，作为起点
+         startPoint = points[i];
+         endPoint = points[i+1];
+        }
+      else
+        {
+         // points[i+1]时间更早，作为起点
+         startPoint = points[i+1];
+         endPoint = points[i];
         }
       
-      // 按时间排序，最近的线段排在前面（自动更新当前线段指针）
-      SortSegmentsByTimeDesc();
-      
-      m_isValid = true;
-      return true;
+      m_mainTradingSegments[i] = new CZigzagSegment(startPoint, endPoint);
      }
+   
+   // 按时间排序，最近的线段排在前面（自动更新当前线段指针）
+   SortSegmentsByTimeDesc();
+   
+   m_isValid = true;
+   return true;
+  }
      
    // 获取指定时间周期的支撑/压力描述
    string GetSupportResistanceDescription(ENUM_TIMEFRAMES timeframe = PERIOD_H1, string prefix = "")

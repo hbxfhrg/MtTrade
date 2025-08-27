@@ -525,22 +525,6 @@ bool CZigzagCalculator::CalculateForSymbol(const string symbol, ENUM_TIMEFRAMES 
    
    int copied = ArraySize(rates);
    
-   // 调试输出：显示GetRatesData获取的前10个K线数据
-   Print("=== GetRatesData获取的K线数据 ===");
-   Print("品种: ", symbol, ", 周期: ", EnumToString(timeframe), ", 获取数量: ", copied);
-   int showCount = MathMin(10, copied);
-   Print("显示前", showCount, "个K线数据（应该是从当前到过去的顺序）：");
-   for(int i = 0; i < showCount; i++)
-     {
-      Print(StringFormat("  K线[%d] - 时间: %s, 开盘: %.3f, 最高: %.3f, 最低: %.3f, 收盘: %.3f", 
-            i,
-            TimeToString(rates[i].time, TIME_DATE|TIME_MINUTES),
-            rates[i].open,
-            rates[i].high,
-            rates[i].low,
-            rates[i].close));
-     }
-   
    // 提取高点和低点数据
    double high[], low[];
    ArrayResize(high, copied);
