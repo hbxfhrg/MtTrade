@@ -246,8 +246,8 @@ void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &points4H[])
    // 绘制4H极值点标签
    DrawExtremumPointLabels(points4H, "4H", true);
    
-   // 绘制1H子线段
-   Draw1HSubSegments();
+   // 绘制1H子线段，传递4H标签点用于重叠检测
+   Draw1HSubSegments(points4H);
   }
 
 //+------------------------------------------------------------------+
@@ -331,7 +331,7 @@ void DrawSegmentLines(CZigzagExtremumPoint &points[], string source, bool isMain
 //+------------------------------------------------------------------+
 //| 绘制1小时子线段                                                  |
 //+------------------------------------------------------------------+
-void Draw1HSubSegments()
+void Draw1HSubSegments(CZigzagExtremumPoint &points4H[])
   {
    // 获取当前主线段
    CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
@@ -556,18 +556,33 @@ void Draw1HSubSegments()
          string startLabelText = StringFormat("1H: %s", DoubleToString(validSegments[i].StartPrice(), _Digits));
          string endLabelText = StringFormat("1H: %s", DoubleToString(validSegments[i].EndPrice(), _Digits));
          
+         // 检查起点标签是否与4小时标签重叠
+         bool startOverlapsWith4H = IsLabelOverlappingWith4HLabels(validSegments[i].StartTime(), points4H);
+         datetime startTime = validSegments[i].StartTime();
+         
          // 创建起点标签
          ObjectDelete(0, startLabelName);
          bool startLabelCreated = ObjectCreate(0, startLabelName, OBJ_TEXT, 0, 
-                                              validSegments[i].StartTime(), validSegments[i].StartPrice());
+                                              startTime, validSegments[i].StartPrice());
          
          if(startLabelCreated)
            {
+            // 根据是否重叠设置不同的标签文本和颜色
+            string actualStartLabelText = startLabelText;
+            color actualStartLabelColor = clrWhite;  // 默认白色
+            
+            if(startOverlapsWith4H)
+              {
+               // 重叠时修改文本为4H标签格式
+               actualStartLabelText = StringFormat("4H: %s", DoubleToString(validSegments[i].StartPrice(), _Digits));
+               actualStartLabelColor = clrOrange;  // 重叠时使用橙色（4H标签颜色）
+              }
+            
             // 设置标签属性
-            ObjectSetString(0, startLabelName, OBJPROP_TEXT, startLabelText);
+            ObjectSetString(0, startLabelName, OBJPROP_TEXT, actualStartLabelText);
             ObjectSetString(0, startLabelName, OBJPROP_FONT, "Arial");
             ObjectSetInteger(0, startLabelName, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, startLabelName, OBJPROP_COLOR, clrWhite);
+            ObjectSetInteger(0, startLabelName, OBJPROP_COLOR, actualStartLabelColor);
             ObjectSetInteger(0, startLabelName, OBJPROP_WIDTH, 1);
             ObjectSetInteger(0, startLabelName, OBJPROP_SELECTABLE, false);
             ObjectSetDouble(0, startLabelName, OBJPROP_ANGLE, 0);
@@ -588,18 +603,33 @@ void Draw1HSubSegments()
             Print(StringFormat("警告: 线段%d起点标签创建失败", i));
            }
          
+         // 检查终点标签是否与4小时标签重叠
+         bool endOverlapsWith4H = IsLabelOverlappingWith4HLabels(validSegments[i].EndTime(), points4H);
+         datetime endTime = validSegments[i].EndTime();
+         
          // 创建终点标签
          ObjectDelete(0, endLabelName);
          bool endLabelCreated = ObjectCreate(0, endLabelName, OBJ_TEXT, 0, 
-                                            validSegments[i].EndTime(), validSegments[i].EndPrice());
+                                            endTime, validSegments[i].EndPrice());
          
          if(endLabelCreated)
            {
+            // 根据是否重叠设置不同的标签文本和颜色
+            string actualEndLabelText = endLabelText;
+            color actualEndLabelColor = clrWhite;  // 默认白色
+            
+            if(endOverlapsWith4H)
+              {
+               // 重叠时修改文本为4H标签格式
+               actualEndLabelText = StringFormat("4H: %s", DoubleToString(validSegments[i].EndPrice(), _Digits));
+               actualEndLabelColor = clrOrange;  // 重叠时使用橙色（4H标签颜色）
+              }
+            
             // 设置标签属性
-            ObjectSetString(0, endLabelName, OBJPROP_TEXT, endLabelText);
+            ObjectSetString(0, endLabelName, OBJPROP_TEXT, actualEndLabelText);
             ObjectSetString(0, endLabelName, OBJPROP_FONT, "Arial");
             ObjectSetInteger(0, endLabelName, OBJPROP_FONTSIZE, 8);
-            ObjectSetInteger(0, endLabelName, OBJPROP_COLOR, clrWhite);
+            ObjectSetInteger(0, endLabelName, OBJPROP_COLOR, actualEndLabelColor);
             ObjectSetInteger(0, endLabelName, OBJPROP_WIDTH, 1);
             ObjectSetInteger(0, endLabelName, OBJPROP_SELECTABLE, false);
             ObjectSetDouble(0, endLabelName, OBJPROP_ANGLE, 0);
@@ -709,4 +739,26 @@ void ProcessTradeAnalysisAndInfoPanel()
    // 更新时间和价格
    lastInfoPanelUpdateTime = currentTime;
    lastInfoPanelPrice = currentPrice;
+  }
+
+//+------------------------------------------------------------------+
+//| 检查标签时间是否与4小时标签重叠                                  |
+//+------------------------------------------------------------------+
+bool IsLabelOverlappingWith4HLabels(datetime labelTime, CZigzagExtremumPoint &points4H[])
+  {
+   // 检查给定的时间是否与任何4小时标签时间重叠（时间差在1小时内）
+   for(int i = 0; i < ArraySize(points4H); i++)
+     {
+      // 获取4小时标签的时间（使用1小时周期时间）
+      datetime h1Time = points4H[i].GetH1Time();
+      if(h1Time > 0)
+        {
+         // 如果时间差在1小时内，认为是重叠的
+         if(MathAbs(labelTime - h1Time) < 3600)  // 3600秒 = 1小时
+           {
+            return true;
+           }
+        }
+     }
+   return false;
   }
