@@ -19,6 +19,7 @@
 #include "TradeAnalyzer.mqh"
 #include "ConfigManager.mqh"
 #include "GlobalInstances.mqh"
+#include "ZigzagSegmentManager.mqh"
 
 //--- 输入参数（简化版本，专注于显示控制）
 input bool   InpShowLabels = true;        // 显示极值点标签
@@ -345,11 +346,20 @@ void Draw1HSubSegments(CZigzagExtremumPoint &points4H[])
    datetime mainStartTime = currentMainSegment.StartTime();
    datetime mainEndTime = currentMainSegment.EndTime();
    
-   // 获取1H子线段（仅限当前主交易区间内）
-   CZigzagSegment* h1Segments[];
-   if(!currentMainSegment.GetSmallerTimeframeSegments(h1Segments, PERIOD_H1, 50))
+   // 获取1H子线段管理器（仅限当前主交易区间内）
+   CZigzagSegmentManager* segmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1, 50);
+   if(segmentManager == NULL)
      {
-      Print("警告: 无法获取1H子线段");
+      Print("警告: 无法获取1H子线段管理器");
+      return;
+     }
+   
+   // 从管理器中获取线段数组
+   CZigzagSegment* h1Segments[];
+   if(!segmentManager.GetSegments(h1Segments, 50))
+     {
+      Print("警告: 无法从管理器获取1H线段数组");
+      delete segmentManager;
       return;
      }
    
@@ -362,6 +372,7 @@ void Draw1HSubSegments(CZigzagExtremumPoint &points4H[])
    if(totalSegments == 0)
      {
       Print("警告: 获取到的1H子线段数量为0");
+      delete segmentManager;
       return;
      }
    
@@ -482,6 +493,7 @@ void Draw1HSubSegments(CZigzagExtremumPoint &points4H[])
             h1Segments[i] = NULL;
            }
         }
+      delete segmentManager;
       return;
      }
    
@@ -673,6 +685,9 @@ void Draw1HSubSegments(CZigzagExtremumPoint &points4H[])
          h1Segments[i] = NULL;
         }
      }
+   
+   // 释放线段管理器
+   delete segmentManager;
   }
 
 //+------------------------------------------------------------------+
@@ -704,32 +719,40 @@ void ProcessTradeAnalysisAndInfoPanel()
    CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
    if(currentMainSegment != NULL)
      {
-      CZigzagSegment* h1Segments[];
-      if(currentMainSegment.GetSmallerTimeframeSegments(h1Segments, PERIOD_H1, 50))
+      // 获取1H子线段管理器
+      CZigzagSegmentManager* segmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1, 50);
+      if(segmentManager != NULL)
         {
-         // 筛选上涨和下跌线段
-         CZigzagSegment* uptrendSegments[];
-         CZigzagSegment* downtrendSegments[];
-         
-         ::FilterSegmentsByTrend(h1Segments, uptrendSegments, SEGMENT_TREND_UP);
-         ::FilterSegmentsByTrend(h1Segments, downtrendSegments, SEGMENT_TREND_DOWN);
-         
-         // 按时间排序
-         ::SortSegmentsByTime(uptrendSegments, false, false);
-         ::SortSegmentsByTime(downtrendSegments, false, false);
-         
-         // 在信息面板上添加线段信息
-         CInfoPanelManager::AddSegmentInfo(infoPanel, uptrendSegments, downtrendSegments, InpInfoPanelColor);
-         
-         // 释放内存
-         for(int i = 0; i < ArraySize(h1Segments); i++)
+         // 从管理器中获取线段数组
+         CZigzagSegment* h1Segments[];
+         if(segmentManager.GetSegments(h1Segments, 50))
            {
-            if(h1Segments[i] != NULL)
+            // 筛选上涨和下跌线段
+            CZigzagSegment* uptrendSegments[];
+            CZigzagSegment* downtrendSegments[];
+            
+            ::FilterSegmentsByTrend(h1Segments, uptrendSegments, SEGMENT_TREND_UP);
+            ::FilterSegmentsByTrend(h1Segments, downtrendSegments, SEGMENT_TREND_DOWN);
+            
+            // 按时间排序
+            ::SortSegmentsByTime(uptrendSegments, false, false);
+            ::SortSegmentsByTime(downtrendSegments, false, false);
+            
+            // 在信息面板上添加线段信息
+            CInfoPanelManager::AddSegmentInfo(infoPanel, uptrendSegments, downtrendSegments, InpInfoPanelColor);
+            
+            // 释放内存
+            for(int i = 0; i < ArraySize(h1Segments); i++)
               {
-               delete h1Segments[i];
-               h1Segments[i] = NULL;
+               if(h1Segments[i] != NULL)
+                 {
+                  delete h1Segments[i];
+                  h1Segments[i] = NULL;
+                 }
               }
            }
+         // 释放线段管理器
+         delete segmentManager;
         }
      }
    

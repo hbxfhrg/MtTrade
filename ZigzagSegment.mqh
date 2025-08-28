@@ -43,7 +43,7 @@ public:
    void                 Timeframe(ENUM_TIMEFRAMES value) { m_timeframe = value; }
    
    // 获取更小周期的线段
-   bool                 GetSmallerTimeframeSegments(CZigzagSegment* &segments[], ENUM_TIMEFRAMES smallerTimeframe, int maxCount = 10);
+   CZigzagSegmentManager* GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe, int maxCount);
    
    // 获取/设置属性
    CZigzagExtremumPoint StartPoint() const { return m_start_point; }
@@ -206,14 +206,23 @@ public:
 //+------------------------------------------------------------------+
 //| 获取更小周期的线段                                                |
 //+------------------------------------------------------------------+
-bool CZigzagSegment::GetSmallerTimeframeSegments(CZigzagSegment* &segments[], ENUM_TIMEFRAMES smallerTimeframe, int maxCount)
+CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe, int maxCount)
 {
    // 参数有效性检查
    if(maxCount <= 0 || smallerTimeframe >= m_timeframe)
-      return false;
+      return NULL;
    
    // 获取主线段时间范围
    datetime startTime = m_start_point.Time();
+   datetime endTime = m_end_point.Time();
+   
+   // 确保startTime是较早的时间，endTime是较晚的时间
+   if(startTime > endTime)
+   {
+      datetime temp = startTime;
+      startTime = endTime;
+      endTime = temp;
+   }
    
    // 根据K线搜索策略确定K线数量
    int barsCount;
@@ -228,56 +237,49 @@ bool CZigzagSegment::GetSmallerTimeframeSegments(CZigzagSegment* &segments[], EN
    CZigzagCalculator zigzagCalc(12, 5, 3, barsCount, smallerTimeframe);
    
    if(!zigzagCalc.CalculateForSymbol(Symbol(), smallerTimeframe, barsCount))
-      return false;
+      return NULL;
    
    CZigzagExtremumPoint points[];
    if(!zigzagCalc.GetExtremumPoints(points) || ArraySize(points) < 2)
-      return false;
+      return NULL;
       
    // 生成所有线段
    int point_count = ArraySize(points);
    CZigzagSegment* allSegments[];
    ArrayResize(allSegments, point_count - 1);
    
-   for(int i = 0; i < point_count - 1; i++)
+   int segmentCount = 0;
+   for(int i = 0; i < point_count - 1 && segmentCount < maxCount; i++)
    {
       points[i].Timeframe(smallerTimeframe);
       points[i+1].Timeframe(smallerTimeframe);
       
-      allSegments[i] = new CZigzagSegment(points[i+1], points[i], smallerTimeframe);
+      // 创建新线段
+      CZigzagSegment* newSegment = new CZigzagSegment(points[i+1], points[i], smallerTimeframe);
       
-      if(allSegments[i] != NULL && m_manager != NULL)
-         allSegments[i].SetManager(m_manager);
-   }
-   
-   // 筛选有效线段：只检查子线段开始时间 >= 主线段开始时间
-   int count = 0;
-   CZigzagSegment* tempSegments[];
-   ArrayResize(tempSegments, ArraySize(allSegments));
-   
-   for(int i = 0; i < ArraySize(allSegments) && count < maxCount; i++)
-   {
-      if(allSegments[i] != NULL)
+      if(newSegment != NULL)
       {
-         datetime segStartTime = allSegments[i].StartTime();
+         datetime segStartTime = newSegment.StartTime();
+         datetime segEndTime = newSegment.EndTime();
          
-         if(segStartTime >= startTime)
+         // 检查线段是否在主线段时间范围内
+         // 线段的开始时间必须在主线段区间内才是有效的
+         if(segStartTime >= startTime )
          {
-            tempSegments[count++] = allSegments[i];
+            allSegments[segmentCount++] = newSegment;
          }
          else
          {
-            delete allSegments[i];
+            // 释放不在时间范围内的线段
+            delete newSegment;
          }
       }
    }
    
-   // 返回筛选结果
-   ArrayResize(segments, count);
-   for(int i = 0; i < count; i++)
-   {
-      segments[i] = tempSegments[i];
-   }
+   // 调整数组大小
+   ArrayResize(allSegments, segmentCount);
    
-   return count > 0;
+   // 创建并返回线段管理器
+   CZigzagSegmentManager* segmentManager = new CZigzagSegmentManager(allSegments, segmentCount, maxCount);
+   return segmentManager;
 }
