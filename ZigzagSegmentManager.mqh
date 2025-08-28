@@ -24,15 +24,14 @@ class CZigzagSegmentManager
 private:
    CZigzagSegment*      m_segments[];        // 线段数组，承接线段类中取小周期返回的线段
    CZigzagSegment*      m_main_segment;      // 主交易线段，离现在最近的一个线段
-   int                  m_max_segments;      // 最大线段数量
    
 public:
-                     CZigzagSegmentManager(int maxSegments = 50);
-                     CZigzagSegmentManager(CZigzagSegment* &segments[], int segmentCount, int maxSegments = 50);
+                     CZigzagSegmentManager();
+                     CZigzagSegmentManager(CZigzagSegment* &segments[], int segmentCount);
                     ~CZigzagSegmentManager();
    
    // 获取线段数组
-   bool              GetSegments(CZigzagSegment* &segments[], int maxCount);
+   bool              GetSegments(CZigzagSegment* &segments[]);
    
    // 获取主交易线段
    CZigzagSegment*   GetMainSegment() const { return m_main_segment; }
@@ -51,9 +50,8 @@ public:
 //+------------------------------------------------------------------+
 //| 构造函数                                                          |
 //+------------------------------------------------------------------+
-CZigzagSegmentManager::CZigzagSegmentManager(int maxSegments)
+CZigzagSegmentManager::CZigzagSegmentManager()
 {
-   m_max_segments = maxSegments;
    m_main_segment = NULL;
    ArrayResize(m_segments, 0);
 }
@@ -61,13 +59,12 @@ CZigzagSegmentManager::CZigzagSegmentManager(int maxSegments)
 //+------------------------------------------------------------------+
 //| 从线段数组构造函数                                                |
 //+------------------------------------------------------------------+
-CZigzagSegmentManager::CZigzagSegmentManager(CZigzagSegment* &segments[], int segmentCount, int maxSegments)
+CZigzagSegmentManager::CZigzagSegmentManager(CZigzagSegment* &segments[], int segmentCount)
 {
-   m_max_segments = MathMax(maxSegments, segmentCount);
    m_main_segment = NULL;
    
    // 复制线段数组
-   int count = MathMin(segmentCount, m_max_segments);
+   int count = segmentCount;
    ArrayResize(m_segments, count);
    
    for(int i = 0; i < count; i++)
@@ -117,28 +114,23 @@ void CZigzagSegmentManager::Clear()
 //+------------------------------------------------------------------+
 //| 获取线段数组                                                      |
 //+------------------------------------------------------------------+
-bool CZigzagSegmentManager::GetSegments(CZigzagSegment* &segments[], int maxCount)
+bool CZigzagSegmentManager::GetSegments(CZigzagSegment* &segments[])
 {
-   // 检查参数有效性
-   if(maxCount <= 0)
-      return false;
-      
    int total = ArraySize(m_segments);
    
    if(total == 0)
       return false;
    
    // 调整数组大小
-   int count = MathMin(maxCount, total);
-   ArrayResize(segments, count);
+   ArrayResize(segments, total);
    
    // 复制线段
-   for(int i = 0; i < count; i++)
+   for(int i = 0; i < total; i++)
    {
       segments[i] = new CZigzagSegment(*m_segments[i]);
    }
    
-   return count > 0;
+   return total > 0;
 }
 
 //+------------------------------------------------------------------+

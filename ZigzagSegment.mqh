@@ -43,7 +43,7 @@ public:
    void                 Timeframe(ENUM_TIMEFRAMES value) { m_timeframe = value; }
    
    // 获取更小周期的线段
-   CZigzagSegmentManager* GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe, int maxCount);
+   CZigzagSegmentManager* GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe);
    
    // 获取/设置属性
    CZigzagExtremumPoint StartPoint() const { return m_start_point; }
@@ -206,10 +206,10 @@ public:
 //+------------------------------------------------------------------+
 //| 获取更小周期的线段                                                |
 //+------------------------------------------------------------------+
-CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe, int maxCount)
+CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe)
 {
    // 参数有效性检查
-   if(maxCount <= 0 || smallerTimeframe >= m_timeframe)
+   if(smallerTimeframe >= m_timeframe)
       return NULL;
    
    // 获取主线段时间范围
@@ -249,7 +249,7 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
    ArrayResize(allSegments, point_count - 1);
    
    int segmentCount = 0;
-   for(int i = 0; i < point_count - 1 && segmentCount < maxCount; i++)
+   for(int i = 0; i < point_count - 1; i++)
    {
       points[i].Timeframe(smallerTimeframe);
       points[i+1].Timeframe(smallerTimeframe);
@@ -264,7 +264,7 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
          
          // 检查线段是否在主线段时间范围内
          // 线段的开始时间必须在主线段区间内才是有效的
-         if(segStartTime >= startTime )
+         if(segStartTime >= startTime)
          {
             allSegments[segmentCount++] = newSegment;
          }
@@ -280,6 +280,6 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
    ArrayResize(allSegments, segmentCount);
    
    // 创建并返回线段管理器
-   CZigzagSegmentManager* segmentManager = new CZigzagSegmentManager(allSegments, segmentCount, maxCount);
+   CZigzagSegmentManager* segmentManager = new CZigzagSegmentManager(allSegments, segmentCount);
    return segmentManager;
 }
