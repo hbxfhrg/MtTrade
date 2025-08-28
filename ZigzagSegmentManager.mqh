@@ -11,7 +11,7 @@
 #include "ZigzagExtremumPoint.mqh"  // 包含CZigzagExtremumPoint类定义
 #include "ZigzagCalculator.mqh"
 #include "CommonUtils.mqh"          // 包含通用工具函数
-#include <Arrays\\ArrayObj.mqh>
+#include <Arrays\ArrayObj.mqh>
 
 // 包含ZigzagSegment类定义
 #include "ZigzagSegment.mqh"

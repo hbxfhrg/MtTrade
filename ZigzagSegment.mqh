@@ -8,7 +8,7 @@
 
 // 引入必要的头文件
 #include "ZigzagExtremumPoint.mqh"
-#include <Arrays\\ArrayObj.mqh>  // 添加CArrayObj的头文件
+#include <Arrays\ArrayObj.mqh>  // 修复路径分隔符
 
 // 前向声明
 class CZigzagSegmentManager;

@@ -413,4 +413,92 @@ public:
       
       ObjectSetString(0, downtrendName, OBJPROP_TEXT, downtrendText);
      }
+     
+   // 在现有面板上添加指定时间周期的线段信息
+   static void AddSegmentInfo(string panelName, CZigzagSegment* &uptrendSegments[], CZigzagSegment* &downtrendSegments[], color textColor, string timeFrame)
+     {
+      // 使用默认值或传入的参数
+      string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
+      color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
+      
+      // 获取面板位置和大小
+      int panelX = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_XDISTANCE);
+      int panelY = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_YDISTANCE);
+      int panelWidth = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_XSIZE);
+      int panelHeight = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_YSIZE);
+      
+      // 增加面板高度以容纳线段信息
+      ObjectSetInteger(0, actualPanelName, OBJPROP_YSIZE, panelHeight + 80);
+      
+      // 创建线段信息标题
+      string segmentTitleName = actualPanelName + "_" + timeFrame + "_SegmentTitle";
+      ObjectCreate(0, segmentTitleName, OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, segmentTitleName, OBJPROP_XDISTANCE, panelX + 10);
+      ObjectSetInteger(0, segmentTitleName, OBJPROP_YDISTANCE, panelY + panelHeight + 10);
+      ObjectSetInteger(0, segmentTitleName, OBJPROP_COLOR, actualTextColor);
+      ObjectSetInteger(0, segmentTitleName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+      ObjectSetInteger(0, segmentTitleName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, segmentTitleName, OBJPROP_ZORDER, 100);
+      ObjectSetString(0, segmentTitleName, OBJPROP_FONT, g_InfoPanelFont);
+      ObjectSetString(0, segmentTitleName, OBJPROP_TEXT, StringFormat("%s线段: 上涨%d个, 下跌%d个", 
+                                                                    timeFrame,
+                                                                    ArraySize(uptrendSegments), 
+                                                                    ArraySize(downtrendSegments)));
+      
+      // 创建上涨线段信息
+      string uptrendName = actualPanelName + "_" + timeFrame + "_UptrendSegments";
+      ObjectCreate(0, uptrendName, OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, uptrendName, OBJPROP_XDISTANCE, panelX + 10);
+      ObjectSetInteger(0, uptrendName, OBJPROP_YDISTANCE, panelY + panelHeight + 30);
+      ObjectSetInteger(0, uptrendName, OBJPROP_COLOR, actualTextColor);
+      ObjectSetInteger(0, uptrendName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+      ObjectSetInteger(0, uptrendName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, uptrendName, OBJPROP_ZORDER, 100);
+      ObjectSetString(0, uptrendName, OBJPROP_FONT, g_InfoPanelFont);
+      
+      // 构建上涨线段信息文本
+      string uptrendText = "上涨线段: ";
+      int maxUptrend = MathMin(3, ArraySize(uptrendSegments)); // 最多显示3个上涨线段
+      
+      for(int i = 0; i < maxUptrend; i++)
+      {
+         if(uptrendSegments[i] != NULL)
+         {
+            // 线段方向是从过去向未来，所以起点是过去，终点是未来
+            uptrendText += StringFormat("%s→%s ", 
+                           DoubleToString(uptrendSegments[i].StartPrice(), _Digits),
+                           DoubleToString(uptrendSegments[i].EndPrice(), _Digits));
+         }
+      }
+      
+      ObjectSetString(0, uptrendName, OBJPROP_TEXT, uptrendText);
+      
+      // 创建下跌线段信息
+      string downtrendName = actualPanelName + "_" + timeFrame + "_DowntrendSegments";
+      ObjectCreate(0, downtrendName, OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, downtrendName, OBJPROP_XDISTANCE, panelX + 10);
+      ObjectSetInteger(0, downtrendName, OBJPROP_YDISTANCE, panelY + panelHeight + 50);
+      ObjectSetInteger(0, downtrendName, OBJPROP_COLOR, actualTextColor);
+      ObjectSetInteger(0, downtrendName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+      ObjectSetInteger(0, downtrendName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, downtrendName, OBJPROP_ZORDER, 100);
+      ObjectSetString(0, downtrendName, OBJPROP_FONT, g_InfoPanelFont);
+      
+      // 构建下跌线段信息文本
+      string downtrendText = "下跌线段: ";
+      int maxDowntrend = MathMin(3, ArraySize(downtrendSegments)); // 最多显示3个下跌线段
+      
+      for(int i = 0; i < maxDowntrend; i++)
+      {
+         if(downtrendSegments[i] != NULL)
+         {
+            // 线段方向是从过去向未来，所以起点是过去，终点是未来
+            downtrendText += StringFormat("%s→%s ", 
+                            DoubleToString(downtrendSegments[i].StartPrice(), _Digits),
+                            DoubleToString(downtrendSegments[i].EndPrice(), _Digits));
+         }
+      }
+      
+      ObjectSetString(0, downtrendName, OBJPROP_TEXT, downtrendText);
+     }
   };
