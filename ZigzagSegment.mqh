@@ -271,7 +271,11 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
          else
          {
             // 释放不在时间范围内的线段
-            delete newSegment;
+            if(newSegment != NULL)
+            {
+               delete newSegment;
+               newSegment = NULL;
+            }
          }
       }
    }
