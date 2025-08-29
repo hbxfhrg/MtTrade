@@ -1,5 +1,4 @@
 //+------------------------------------------------------------------+
-//+------------------------------------------------------------------+
 //|                                                    MyZigzag.mq5 |
 //|                             Copyright 2000-2025, MetaQuotes Ltd. |
 //|                                             https://www.mql5.com |
@@ -46,6 +45,11 @@ bool              cacheInitialized = false; // 缓存是否已初始化
 //--- 4H周期缓存变量
 datetime          last4HCalculationTime = 0;  // 上次4H计算的时间
 bool              cache4HInitialized = false; // 4H缓存是否已初始化
+
+//--- 新增：控制交易分析器计算频率的变量
+static datetime   lastTradeAnalyzerCalcTime = 0;  // 上次交易分析器计算时间
+static bool       needRecalculateTradeAnalyzer = true;  // 是否需要重新计算交易分析器
+static int        lastMinute = -1;  // 上次检查的分钟数
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
@@ -121,8 +125,6 @@ void OnDeinit(const int reason)
    ObjectDelete(0, infoPanel);
   }
 
-
-
 //+------------------------------------------------------------------+
 //| Custom indicator calculation function                             |
 //+------------------------------------------------------------------+
@@ -149,9 +151,16 @@ int OnCalculate(const int rates_total,
       CLineManager::DeleteAllLines("ZigzagLine4H_");
      }
    
-   // 初始化交易分析器并获取4H数据
+   // 检查是否需要重新计算交易分析器（1分钟K线收线时）
+   CheckTradeAnalyzerRecalculation();
+   
+   // 初始化交易分析器并获取4H数据（仅在需要时）
    CZigzagExtremumPoint points4H[];
-   InitializeTradeAnalyzer(points4H);
+   if(needRecalculateTradeAnalyzer)
+     {
+      InitializeTradeAnalyzer(points4H);
+      needRecalculateTradeAnalyzer = false;  // 重置标志
+     }
    
    // 处理标签绘制功能（基于交易分析器数据）
    ProcessTradeAnalyzerLabelDrawing(points4H);
@@ -161,6 +170,33 @@ int OnCalculate(const int rates_total,
    
    // 返回计算的柱数
    return(rates_total);
+  }
+
+//+------------------------------------------------------------------+
+//| 检查是否需要重新计算交易分析器                                   |
+//+------------------------------------------------------------------+
+void CheckTradeAnalyzerRecalculation()
+  {
+   // 获取当前时间
+   datetime currentTime = TimeCurrent();
+   
+   // 获取当前分钟数（使用正确的方法）
+   MqlDateTime timeStruct;
+   TimeToStruct(currentTime, timeStruct);
+   int currentMinute = timeStruct.min;
+   
+   // 检查是否到了新的分钟（即1分钟K线收线时）
+   if(currentMinute != lastMinute)
+     {
+      // 检查是否距离上次计算至少1分钟
+      if(currentTime - lastTradeAnalyzerCalcTime >= 60)
+        {
+         needRecalculateTradeAnalyzer = true;
+         lastTradeAnalyzerCalcTime = currentTime;
+        }
+      // 更新上次检查的分钟数
+      lastMinute = currentMinute;
+     }
   }
 
 //+------------------------------------------------------------------+
@@ -288,8 +324,6 @@ void Draw1HSubSegments(CZigzagExtremumPoint &points4H[])
  
   }
 
-
-
 //+------------------------------------------------------------------+
 //| 处理交易分析和信息面板功能                                       |
 //+------------------------------------------------------------------+
@@ -354,7 +388,7 @@ void ProcessTradeAnalysisAndInfoPanel()
            {
             // 从1小时主线段获取5分钟线段管理器
             //这里赋值的参数是false，只关注最后一根小时线，用true的话，可能1小时还没形成，主要是强势行情，1小时顶点没那么快形成
-            CZigzagSegmentManager* m5SegmentManager = mainH1Segment.GetSmallerTimeframeSegments(PERIOD_M5,false);
+            CZigzagSegmentManager* m5SegmentManager = mainH1Segment.GetSmallerTimeframeSegments(PERIOD_M5,true);
             if(m5SegmentManager != NULL)
               {
                // 从5分钟线段管理器中获取线段数组

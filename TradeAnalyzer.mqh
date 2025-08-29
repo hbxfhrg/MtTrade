@@ -37,13 +37,18 @@ private:
    datetime  m_retraceTime;     // 回撤或反弹点的时间
    double    m_retracePercent;  // 回撤或反弹的百分比
    double    m_retraceDiff;     // 回撤或反弹的绝对值差距
-   
+   double    m_tradeBasePrice;  //交易参考的基准价
+   //交易参考的基准价格处理逻辑，区间上涨趋势，找到区间开始时间之后的最高点的价格即可，下降同理区间开始时间最低价格即可。
    // 动态价格点
    CDynamicPricePoint m_supportPoints;    // 支撑点集合
    CDynamicPricePoint m_resistancePoints; // 压力点集合
    
    // 品种名称
    string    m_symbol;          // 交易品种名称
+
+   // 新增：上次计算时间，用于控制计算频率
+   datetime  m_lastCalcTime;    // 上次计算时间
+   int       m_calcInterval;    // 计算间隔（秒）
 
 public:
    // 构造函数
@@ -55,6 +60,7 @@ public:
       m_isValid = false;
       m_retracePrice = 0.0;
       m_retraceTime = 0;
+      m_tradeBasePrice = 0.0;
       m_retracePercent = 0.0;
       m_retraceDiff = 0.0;
       
@@ -69,6 +75,10 @@ public:
       
       // 初始化品种名称
       m_symbol = (symbol == NULL) ? Symbol() : symbol;
+      
+      // 初始化计算控制变量
+      m_lastCalcTime = 0;
+      m_calcInterval = 60;  // 默认1分钟计算间隔
      }
      
    // 初始化方法
@@ -89,12 +99,42 @@ public:
       m_isValid = false;
       m_retracePrice = 0.0;
       m_retraceTime = 0;
+      m_tradeBasePrice = 0.0;
       m_retracePercent = 0.0;
       m_retraceDiff = 0.0;
       
       // 初始化动态价格点
       m_supportPoints = CDynamicPricePoint(0.0, SR_SUPPORT);
       m_resistancePoints = CDynamicPricePoint(0.0, SR_RESISTANCE);
+      
+      // 重置计算时间
+      m_lastCalcTime = 0;
+     }
+     
+   // 设置计算间隔
+   void SetCalcInterval(int seconds)
+     {
+      m_calcInterval = seconds;
+     }
+     
+   // 检查是否需要重新计算
+   bool NeedRecalculate()
+     {
+      datetime currentTime = TimeCurrent();
+      
+      // 如果是第一次计算，或者距离上次计算时间超过设定间隔，则需要重新计算
+      if(m_lastCalcTime == 0 || (currentTime - m_lastCalcTime) >= m_calcInterval)
+        {
+         return true;
+        }
+      
+      return false;
+     }
+     
+   // 更新最后计算时间
+   void UpdateLastCalcTime()
+     {
+      m_lastCalcTime = TimeCurrent();
      }
      
    // 从极点数组中分析区间，创建多个主交易线段
@@ -136,13 +176,21 @@ public:
       // 分析完区间后立即计算回撤或反弹（使用最近的线段）
       CalculateRetracement();
       
+      // 计算交易参考基准价格
+      CalculateTradeBasePrice();
+      
       // 计算多时间周期支撑和压力
       CalculateSupportResistance();
+      
+      // 计算交易参考基准价格
+      CalculateTradeBasePrice();
+      
+      // 更新最后计算时间
+      UpdateLastCalcTime();
       
       return true;
      }
      
-
    // 获取指定时间周期的交易线段
    CZigzagSegment GetTradingSegmentByTimeframe(ENUM_TIMEFRAMES timeframe)
      {
@@ -164,8 +212,6 @@ public:
             return CZigzagSegment();
         }
      }
-     
-
      
    // 计算回撤或反弹
    void CalculateRetracement()
@@ -281,7 +327,6 @@ public:
            }
         }
      }
-     
      
    // 计算多时间周期的支撑和压力
    void CalculateSupportResistance()
@@ -474,38 +519,45 @@ public:
            }
         }
    
-   // 根据极值点数量创建多个线段
-   int segmentCount = ArraySize(points) - 1;
-   ArrayResize(m_mainTradingSegments, segmentCount);
+      // 根据极值点数量创建多个线段
+      int segmentCount = ArraySize(points) - 1;
+      ArrayResize(m_mainTradingSegments, segmentCount);
    
-   // 创建所有可能的线段
-   for(int i = 0; i < segmentCount; i++)
-     {
-      // 确保线段的时间顺序正确：起点时间应该早于终点时间
-      CZigzagExtremumPoint startPoint, endPoint;
-      
-      if(points[i].Time() < points[i+1].Time())
+      // 创建所有可能的线段
+      for(int i = 0; i < segmentCount; i++)
         {
-         // points[i]时间更早，作为起点
-         startPoint = points[i];
-         endPoint = points[i+1];
-        }
-      else
-        {
-         // points[i+1]时间更早，作为起点
-         startPoint = points[i+1];
-         endPoint = points[i];
-        }
+         // 确保线段的时间顺序正确：起点时间应该早于终点时间
+         CZigzagExtremumPoint startPoint, endPoint;
       
-      m_mainTradingSegments[i] = new CZigzagSegment(startPoint, endPoint);
+         if(points[i].Time() < points[i+1].Time())
+           {
+            // points[i]时间更早，作为起点
+            startPoint = points[i];
+            endPoint = points[i+1];
+           }
+         else
+           {
+            // points[i+1]时间更早，作为起点
+            startPoint = points[i+1];
+            endPoint = points[i];
+           }
+      
+         m_mainTradingSegments[i] = new CZigzagSegment(startPoint, endPoint);
+        }
+   
+      // 按时间排序，最近的线段排在前面（自动更新当前线段指针）
+      SortSegmentsByTimeDesc();
+   
+      m_isValid = true;
+      
+      // 计算交易参考基准价格
+      CalculateTradeBasePrice();
+      
+      // 更新最后计算时间
+      UpdateLastCalcTime();
+      
+      return true;
      }
-   
-   // 按时间排序，最近的线段排在前面（自动更新当前线段指针）
-   SortSegmentsByTimeDesc();
-   
-   m_isValid = true;
-   return true;
-  }
      
    // 获取指定时间周期的支撑/压力描述
    string GetSupportResistanceDescription(ENUM_TIMEFRAMES timeframe = PERIOD_H1, string prefix = "")
@@ -564,6 +616,39 @@ public:
    double GetRetracePrice()
      {
       return m_retracePrice;
+     }
+     
+   // 计算交易参考基准价格
+   void CalculateTradeBasePrice()
+     {
+      if(m_currentSegment == NULL)
+         return;
+         
+      datetime segmentStartTime = (*m_currentSegment).StartTime();
+      
+      // 根据趋势方向计算基准价
+      if((*m_currentSegment).IsUptrend())
+        {
+         // 上涨趋势，找到区间开始时间之后的最高点价格
+         datetime highTime = 0;
+         m_tradeBasePrice = FindHighestPriceAfterLowPrice((*m_currentSegment).StartPrice(), highTime, PERIOD_CURRENT, PERIOD_M1, segmentStartTime);
+        }
+      else
+        {
+         // 下跌趋势，找到区间开始时间之后的最低点价格
+         datetime lowTime = 0;
+         m_tradeBasePrice = FindLowestPriceAfterHighPrice((*m_currentSegment).StartPrice(), lowTime, PERIOD_CURRENT, PERIOD_M1, segmentStartTime);
+        }
+     }
+     
+   // 获取交易参考基准价格
+   double GetTradeBasePrice()
+     {
+      // 如果基准价为0，先计算一次
+      if(m_tradeBasePrice == 0.0)
+         CalculateTradeBasePrice();
+         
+      return m_tradeBasePrice;
      }
      
    // 获取回撤或反弹时间
@@ -737,4 +822,3 @@ public:
       return FindHighestPriceAfterLowPrice(lowestPrice, highTime, PERIOD_CURRENT, PERIOD_M1, lowestTime);
      }
   };
-

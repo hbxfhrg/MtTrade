@@ -160,11 +160,23 @@ public:
          // 计算多时间周期支撑和压力 - 虽然不显示，但仍然需要计算，因为可能在图表上绘制
          g_tradeAnalyzer.CalculateSupportResistance();
          
+         // 创建交易参考基准价格文本
+         string tradePriceName = actualPanelName + "_TradeBasePrice";
+         ObjectCreate(0, tradePriceName, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, tradePriceName, OBJPROP_XDISTANCE, panelX + 10);
+         ObjectSetInteger(0, tradePriceName, OBJPROP_YDISTANCE, panelY + 70); // 调整到回撤信息下方
+         ObjectSetInteger(0, tradePriceName, OBJPROP_COLOR, actualTextColor);
+         ObjectSetInteger(0, tradePriceName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+         ObjectSetInteger(0, tradePriceName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, tradePriceName, OBJPROP_ZORDER, 100); // 确保文本在最上层
+         ObjectSetString(0, tradePriceName, OBJPROP_FONT, g_InfoPanelFont);
+         ObjectSetString(0, tradePriceName, OBJPROP_TEXT, StringFormat("交易参考价: %s", DoubleToString(g_tradeAnalyzer.GetTradeBasePrice(), _Digits)));
+         
          // 创建区间定义标题文本
          string positionTypeName = actualPanelName + "_PositionType";
          ObjectCreate(0, positionTypeName, OBJ_LABEL, 0, 0, 0);
          ObjectSetInteger(0, positionTypeName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, positionTypeName, OBJPROP_YDISTANCE, panelY + 70); // 调整位置
+         ObjectSetInteger(0, positionTypeName, OBJPROP_YDISTANCE, panelY + 90); // 调整位置
          ObjectSetInteger(0, positionTypeName, OBJPROP_COLOR, actualTextColor);
          ObjectSetInteger(0, positionTypeName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
          ObjectSetInteger(0, positionTypeName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
@@ -176,7 +188,7 @@ public:
          string positionDefName = actualPanelName + "_PositionDef";
          ObjectCreate(0, positionDefName, OBJ_LABEL, 0, 0, 0);
          ObjectSetInteger(0, positionDefName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, positionDefName, OBJPROP_YDISTANCE, panelY + 90); // 调整位置
+         ObjectSetInteger(0, positionDefName, OBJPROP_YDISTANCE, panelY + 110); // 调整位置
          ObjectSetInteger(0, positionDefName, OBJPROP_COLOR, actualTextColor);
          ObjectSetInteger(0, positionDefName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
          ObjectSetInteger(0, positionDefName, OBJPROP_CORNER, CORNER_LEFT_UPPER);

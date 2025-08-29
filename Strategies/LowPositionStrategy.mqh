@@ -114,8 +114,8 @@ bool CLowPositionStrategy::CheckEntryCondition(CZigzagExtremumPoint &points[], i
          // 上涨趋势中的深度回撤，考虑做多
          m_currentTradeType = TRADE_TYPE_BUY;
          
-         // 设置进场价格为回撤价格
-         m_entryPrice = g_tradeAnalyzer.GetRetracePrice();
+         // 设置进场价格为交易参考基准价格
+         m_entryPrice = g_tradeAnalyzer.GetTradeBasePrice();
          
          return true;
         }
@@ -124,8 +124,8 @@ bool CLowPositionStrategy::CheckEntryCondition(CZigzagExtremumPoint &points[], i
          // 下跌趋势中的深度反弹，考虑做空
          m_currentTradeType = TRADE_TYPE_SELL;
          
-         // 设置进场价格为反弹价格
-         m_entryPrice = g_tradeAnalyzer.GetRetracePrice();
+         // 设置进场价格为交易参考基准价格
+         m_entryPrice = g_tradeAnalyzer.GetTradeBasePrice();
          
          return true;
         }
