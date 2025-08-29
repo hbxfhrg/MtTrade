@@ -320,6 +320,7 @@ void ProcessTradeAnalysisAndInfoPanel()
    if(currentMainSegment != NULL)
      {
       // 获取1H子线段管理器
+      //这里因为强势行情1小时没有形成回撤的时候，H4小时点出现，后续没有1小时的回撤，导致5分钟也没法计算，所以这里直接取了所有
       CZigzagSegmentManager* segmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
       if(segmentManager != NULL)
         {
@@ -342,8 +343,8 @@ void ProcessTradeAnalysisAndInfoPanel()
          ::FilterSegmentsByTrend(h1Segments, downtrendSegments, SEGMENT_TREND_DOWN);
          
          // 按时间排序
-         ::SortSegmentsByTime(uptrendSegments, false, false);
-         ::SortSegmentsByTime(downtrendSegments, false, false);
+         //::SortSegmentsByTime(uptrendSegments, false, false);
+         //::SortSegmentsByTime(downtrendSegments, false, false);
          
          //在这里添加5分钟线段的获取
          //从segmentManager.GetMainSegment()取得1小时级别主线段，重复上面从4小时获取1小时的过程即可，移掉你从4小时取5分钟的处理
@@ -352,7 +353,8 @@ void ProcessTradeAnalysisAndInfoPanel()
          if(mainH1Segment != NULL)
            {
             // 从1小时主线段获取5分钟线段管理器
-            CZigzagSegmentManager* m5SegmentManager = mainH1Segment.GetSmallerTimeframeSegments(PERIOD_M5);
+            //这里赋值的参数是false，只关注最后一根小时线，用true的话，可能1小时还没形成，主要是强势行情，1小时顶点没那么快形成
+            CZigzagSegmentManager* m5SegmentManager = mainH1Segment.GetSmallerTimeframeSegments(PERIOD_M5,false);
             if(m5SegmentManager != NULL)
               {
                // 从5分钟线段管理器中获取线段数组
@@ -374,8 +376,8 @@ void ProcessTradeAnalysisAndInfoPanel()
                ::FilterSegmentsByTrend(m5Segments, m5DowntrendSegments, SEGMENT_TREND_DOWN);
                
                // 按时间排序
-               ::SortSegmentsByTime(m5UptrendSegments, false, false);
-               ::SortSegmentsByTime(m5DowntrendSegments, false, false);
+              // ::SortSegmentsByTime(m5UptrendSegments, false, false);
+              // ::SortSegmentsByTime(m5DowntrendSegments, false, false);
                
                // 在信息面板上添加5分钟线段信息
                CInfoPanelManager::AddSegmentInfo(infoPanel, m5UptrendSegments, m5DowntrendSegments, InpInfoPanelColor, "5分钟");

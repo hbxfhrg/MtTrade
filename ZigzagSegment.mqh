@@ -43,7 +43,7 @@ public:
    void                 Timeframe(ENUM_TIMEFRAMES value) { m_timeframe = value; }
    
    // 获取更小周期的线段
-   CZigzagSegmentManager* GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe);
+   CZigzagSegmentManager* GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe, bool fromStartorEnd = true);
    
    // 获取/设置属性
    CZigzagExtremumPoint StartPoint() const { return m_start_point; }
@@ -206,7 +206,7 @@ public:
 //+------------------------------------------------------------------+
 //| 获取更小周期的线段                                                |
 //+------------------------------------------------------------------+
-CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe)
+CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe,bool fromStartorEnd = true)
 {
    // 参数有效性检查
    if(smallerTimeframe >= m_timeframe)
@@ -264,6 +264,8 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
          
          // 检查线段是否在主线段时间范围内
          // 线段的开始时间必须在主线段区间内才是有效的
+         if (fromStartorEnd)
+         {
          if(segStartTime >= startTime)
          {
             allSegments[segmentCount++] = newSegment;
@@ -277,6 +279,24 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
                newSegment = NULL;
             }
          }
+      }
+      else
+      {
+         if(segStartTime >= endTime)
+         {
+            allSegments[segmentCount++] = newSegment;
+         }
+         else
+         {
+            // 释放不在时间范围内的线段
+            if(newSegment != NULL)
+            {
+               delete newSegment;
+               newSegment = NULL;
+            }
+         }
+      }
+
       }
    }
    
