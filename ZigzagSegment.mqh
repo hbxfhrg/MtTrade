@@ -233,6 +233,82 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
    else 
       barsCount = 500;
    
+   // 创建ZigZag计算器并计算极极值点
+   CZigzagCalculator zigzagCalc(12, 5, 3, barsCount, smallerTimeframe);
+   
+   if(!zigzagCalc.CalculateForSymbol(Symbol(), smallerTimeframe, barsCount))
+      return NULL;
+   
+   CZigzagExtremumPoint points[];
+   if(!zigzagCalc.GetExtremumPoints(points) || ArraySize(points) < 2)
+      return NULL;
+      
+   // 生成所有线段
+   int point_count = ArraySize(points);
+   CZigzagSegment* allSegments[];
+   ArrayResize(allSegments, point_count - 1);
+   
+   int segmentCount = 0;
+   for(int i = 0; i < point_count - 1; i++)
+   {
+      points[i].Timeframe(smaller极值点);
+      points[i+1].Timeframe(smallerTimeframe);
+      
+      // 创建新线段
+      CZigzagSegment* newSegment = new CZigzagSegment(points[i+1], points[i], smallerTimeframe);
+      
+      if(newSegment != NULL)
+      {
+         datetime segStartTime = newSegment.StartTime();
+         datetime segEndTime = newSegment.EndTime();
+         
+         // 检查线段是否在主线段时间范围内
+         // 线段的开始时间必须在主线段区间内才是有效的
+         if(segStartTime >= startTime)
+         {
+            allSegments[segmentCount++] = newSegment;
+         }
+         else
+         {
+            // 释放不在时间范围内的线段
+            if(newSegment != NULL)
+            {
+               delete newSegment;
+               newSegment = NULL;
+            }
+         }
+      }
+   }
+   
+   // 调整数组大小
+   ArrayResize(allSegments, segmentCount);
+   
+   // 创建并返回线段管理器
+   CZigzagSegmentManager* segmentManager = new CZigzagSegmentManager(allSegments, segmentCount);
+   return segmentManager;
+}
+
+//+------------------------------------------------------------------+
+//| 获取线段结束时间大于等于指定区间结束时间的线段                     |
+//+------------------------------------------------------------------+
+CZigzagSegmentManager* CZigzagSegment::GetSegmentsAfterTimeframe(ENUM_TIMEFRAMES smallerTimeframe)
+{
+   // 参数有效性检查
+   if(smallerTimeframe >= m_timeframe)
+      return NULL;
+   
+   // 获取主线段时间范围
+   datetime endTime = m_end_point.Time();
+   
+   // 根据K线搜索策略确定K线数量
+   int barsCount;
+   if(smallerTimeframe <= PERIOD_M5)
+      barsCount = 2000;
+   else if(smallerTimeframe <= PERIOD_H1) 
+      barsCount = 2000;
+   else 
+      barsCount = 500;
+   
    // 创建ZigZag计算器并计算极值点
    CZigzagCalculator zigzagCalc(12, 5, 3, barsCount, smallerTimeframe);
    
@@ -259,12 +335,10 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
       
       if(newSegment != NULL)
       {
-         datetime segStartTime = newSegment.StartTime();
          datetime segEndTime = newSegment.EndTime();
          
-         // 检查线段是否在主线段时间范围内
-         // 线段的开始时间必须在主线段区间内才是有效的
-         if(segStartTime >= startTime)
+         // 检查线段结束时间是否大于等于区间结束时间
+         if(segEndTime >= endTime)
          {
             allSegments[segmentCount++] = newSegment;
          }

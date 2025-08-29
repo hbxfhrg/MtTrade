@@ -1,100 +1,77 @@
-# MtTrade - MT5 ZigZag 交易分析工具
+# MtTrade - MT5 ZigZag 高级交易分析系统
 
 ## 项目概述
 
-MtTrade 是一个基于 MetaTrader 5 (MT5) 平台的交易分析工具集，主要功能是通过 ZigZag 指标识别市场的峰谷点，并提供交易区间分析、趋势方向判断等功能。该工具可以帮助交易者更好地理解市场结构，识别潜在的交易机会。
+MtTrade 是一个基于 MetaTrader 5 平台的智能交易分析系统，通过多周期 ZigZag 指标实现市场结构分析、交易区间识别和趋势判断。系统采用模块化架构，支持实时图形化显示和深度技术分析。
 
-## 主要功能
+## 核心功能
 
-- 多周期 ZigZag 计算（小周期、中周期、大周期）
-- 交易区间自动识别与分析
-- 趋势方向判断
-- 价格位置分析（在区间中的位置百分比）
-- 图形化显示（峰谷点标记、信息面板等）
+- **多周期 ZigZag 分析**：支持 5M、1H、4H 等多时间周期
+- **智能线段管理**：自动识别主线段和子线段结构
+- **支撑阻力分析**：动态识别关键价格水平
+- **交易区间识别**：自动检测有效的交易区间
+- **实时图形显示**：可视化标记峰谷点、线段和信息面板
+- **缓存优化**：高效计算减少资源消耗
 
-## 文件结构
+## 系统架构
 
-- **MyZigzag.mq5**: 主指标文件，实现了多周期 ZigZag 计算和显示功能
-- **ZigzagCalculator.mqh**: ZigZag 计算核心类，负责计算不同周期的 ZigZag 值
-- **ZigzagExtremumPoint.mqh**: 极点类定义，用于存储和处理 ZigZag 的峰谷点信息
-- **GraphicsUtils.mqh**: 图形工具类，用于绘制各种图形元素（标签、线条、面板等）
-- **TradeAnalyzer.mqh**: 交易分析类，用于分析交易区间、趋势方向等
-- **CommonUtils.mqh**: 通用工具类，提供各种辅助功能
-- **TradeInfoPanel.mqh**: 交易信息面板类（注：功能已移至 GraphicsUtils.mqh）
+### 核心计算模块
+- **ZigzagCalculator.mqh** - ZigZag 指标核心计算引擎
+- **ZigzagExtremumPoint.mqh** - 极值点数据模型
+- **ZigzagSegment.mqh** - 线段数据结构
+- **ZigzagSegmentManager.mqh** - 线段生命周期管理
 
-## 类设计
+### 交易分析模块  
+- **TradeAnalyzer.mqh** - 主交易分析逻辑
+- **SupportResistancePoint.mqh** - 支撑阻力点分析
+- **DynamicPricePoint.mqh** - 动态价格点管理
 
-### CZigzagCalculator 类
-负责计算 ZigZag 指标值，可以处理不同周期的数据。
+### 图形显示模块
+- **Graphics/InfoPanelManager.mqh** - 信息面板管理
+- **Graphics/LabelManager.mqh** - 文本标签管理  
+- **Graphics/LineManager.mqh** - 线条绘制管理
+- **Graphics/ShapeManager.mqh** - 图形形状管理
+- **Graphics/ExtremumPointDrawer.mqh** - 极值点绘制
+- **Graphics/SegmentDrawer.mqh** - 线段绘制
 
-### CZigzagExtremumPoint 类
-表示 ZigZag 的极点（峰值或谷值），存储极点的时间、价格、类型等信息。
+### 工具模块
+- **CommonUtils.mqh** - 通用工具函数
+- **ConfigManager.mqh** - 配置管理
+- **LogUtil.mqh** - 日志记录工具
+- **GlobalInstances.mqh** - 全局实例管理
+- **EnumDefinitions.mqh** - 枚举定义
 
-### CInfoPanelManager 类
-负责创建和管理信息面板，显示市场分析结果。主要功能包括：
-- 创建信息面板
-- 创建交易信息面板
-- 创建简单信息面板
+## 安装使用
 
-### CLabelManager 类
-负责创建和管理文本标签，用于在图表上标记重要价格点。
+1. 将所有文件复制到 `MQL5/Experts/MtTrade/` 目录
+2. 重启 MT5 或刷新导航器
+3. 将 `MyZigzag` 指标拖放到图表
+4. 根据需要调整输入参数
 
-### CLineManager 类
-负责创建和管理线条，用于在图表上绘制趋势线等。
+## 输入参数
 
-### CShapeManager 类
-负责创建和管理图形，如矩形、三角形等。
+- **InpShowLabels** - 显示极值点标签 (默认: true)
+- **InpLabelColor** - 1H子线段标签颜色 (默认: clrWhite)  
+- **InpLabel4HColor** - 4H主线段标签颜色 (默认: clrOrange)
+- **InpShowInfoPanel** - 显示信息面板 (默认: true)
+- **InpInfoPanelColor** - 面板文字颜色 (默认: clrWhite)
+- **InpInfoPanelBgColor** - 面板背景颜色 (默认: clrNavy)
+- **InpShowPenetratedPoints** - 显示已失效价格点 (默认: false)
 
-### CTradeAnalyzer 类
-负责分析交易区间、趋势方向等，提供交易决策支持。
+## 技术特性
 
-## 使用方法
+- **模块化设计**：各功能模块独立，便于维护和扩展
+- **对象导向**：采用面向对象编程，代码结构清晰
+- **性能优化**：缓存机制减少重复计算
+- **多周期协同**：支持不同时间周期的协同分析
+- **实时更新**：自动适应市场变化和新K线
 
-1. 将所有文件复制到 MT5 的 MQL5/Indicators 目录下
-2. 重启 MT5 或刷新指标列表
-3. 将 MyZigzag 指标添加到图表
-4. 通过指标参数设置调整显示效果和计算参数
+## 开发说明
 
-## 参数设置
+项目采用严格的代码规范，每个模块职责单一，便于团队协作和后续功能扩展。图形显示与业务逻辑完全分离，支持在不同类型的交易系统中复用核心分析功能。
 
-- **InpDepth**: ZigZag 深度参数
-- **InpDeviation**: ZigZag 偏差参数
-- **InpBackstep**: ZigZag 回溯步数
-- **InpShowLabels**: 是否显示峰谷值文本标签
-- **InpLabelColor**: 标签文本颜色
-- **InpShow5M**: 是否计算 5 分钟周期 ZigZag（小周期）
-- **InpShow4H**: 是否显示 4 小时周期 ZigZag（大周期）
-- **InpLabel4HColor**: 4 小时周期标签颜色
-- **InpCacheTimeout**: 缓存超时时间（秒）
-- **InpMaxBarsH1**: 1 小时周期最大计算 K 线数
-- **InpShowInfoPanel**: 是否显示信息面板
-- **InpInfoPanelColor**: 信息面板文字颜色
-- **InpInfoPanelBgColor**: 信息面板背景颜色
+## 支持文档
 
-## 代码结构优化
-
-项目采用模块化设计，将不同功能分离到不同的类和文件中，使得代码结构清晰，便于维护和扩展：
-
-1. **核心计算与数据处理**: ZigzagCalculator.mqh, ZigzagExtremumPoint.mqh
-2. **图形界面与显示**: GraphicsUtils.mqh
-3. **交易分析与决策**: TradeAnalyzer.mqh
-4. **通用工具与辅助功能**: CommonUtils.mqh
-
-这种设计使得各个组件可以独立开发和测试，同时也便于在不同项目中重用。例如，交易分析功能可以在不需要图形界面的 EA 中直接使用。
-
-## 版本历史
-
-### v1.0.0
-- 初始版本，实现基本的 ZigZag 计算和显示功能
-
-### v1.1.0
-- 添加多周期支持（5M、当前周期、4H）
-- 添加交易区间分析功能
-
-### v1.2.0
-- 添加信息面板显示
-- 优化代码结构，实现模块化设计
-
-### v1.3.0
-- 重构图形类，将创建面板的方法移至 GraphicsUtils.mqh
-- 优化性能，添加缓存机制减少计算量
+- `MyZigzag重构说明.md` - 系统重构详细说明
+- `4H_测试说明.md` - 4H周期测试指南  
+- `调试说明_主线段和子线段.md` - 线段调试指南
