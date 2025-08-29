@@ -414,13 +414,13 @@ void ProcessTradeAnalysisAndInfoPanel()
               // ::SortSegmentsByTime(m5DowntrendSegments, false, false);
                
                // 在信息面板上添加5分钟线段信息
-               CInfoPanelManager::AddSegmentInfo(infoPanel, m5UptrendSegments, m5DowntrendSegments, InpInfoPanelColor, "5分钟");
+               //CInfoPanelManager::AddSegmentInfo(infoPanel, m5UptrendSegments, m5DowntrendSegments, InpInfoPanelColor, "5分钟");
                         
               }
            }
 
          // 在信息面板上添加线段信息
-         CInfoPanelManager::AddSegmentInfo(infoPanel, uptrendSegments, downtrendSegments, InpInfoPanelColor);
+         //CInfoPanelManager::AddSegmentInfo(infoPanel, uptrendSegments, downtrendSegments, InpInfoPanelColor);
          
          
         }

@@ -13,6 +13,7 @@
 #include "LogUtil.mqh"
 #include "SupportResistancePoint.mqh"
 #include "DynamicPricePoint.mqh"
+#include "TradeBasePoint.mqh"
 #include "EnumDefinitions.mqh"
 #include "ConfigManager.mqh"
 
@@ -43,6 +44,11 @@ private:
    CDynamicPricePoint m_supportPoints;    // 支撑点集合
    CDynamicPricePoint m_resistancePoints; // 压力点集合
    
+   // 交易基准点
+public:
+   CTradeBasePoint m_tradeBasePoint;      // 交易基准点对象（公开属性）
+   
+private:
    // 品种名称
    string    m_symbol;          // 交易品种名称
 
@@ -464,7 +470,7 @@ public:
       return &m_resistancePoints;
      }
      
-   // 获取当前线段（直接访问，不需要数组检查）
+   // 获取当前线段指针
    CZigzagSegment* GetCurrentSegment()
      {
       return m_currentSegment;
@@ -620,26 +626,34 @@ public:
      
    // 计算交易参考基准价格
    void CalculateTradeBasePrice()
-     {
+   {
       if(m_currentSegment == NULL)
          return;
-         
+      
       datetime segmentStartTime = (*m_currentSegment).StartTime();
       
       // 根据趋势方向计算基准价
       if((*m_currentSegment).IsUptrend())
-        {
+      {
          // 上涨趋势，找到区间开始时间之后的最高点价格
          datetime highTime = 0;
-         m_tradeBasePrice = FindHighestPriceAfterLowPrice((*m_currentSegment).StartPrice(), highTime, PERIOD_CURRENT, PERIOD_M1, segmentStartTime);
-        }
+         m_tradeBasePrice = FindHighestPriceAfterLowPrice((*m_currentSegment).StartPrice(), highTime, PERIOD_CURRENT, PERIOD_H1, segmentStartTime);
+      }
       else
-        {
+      {
          // 下跌趋势，找到区间开始时间之后的最低点价格
          datetime lowTime = 0;
-         m_tradeBasePrice = FindLowestPriceAfterHighPrice((*m_currentSegment).StartPrice(), lowTime, PERIOD_CURRENT, PERIOD_M1, segmentStartTime);
-        }
-     }
+         m_tradeBasePrice = FindLowestPriceAfterHighPrice((*m_currentSegment).StartPrice(), lowTime, PERIOD_CURRENT, PERIOD_H1, segmentStartTime);
+      }
+      
+      // 初始化交易基准点对象
+      if(m_tradeBasePrice > 0.0)
+      {
+         m_tradeBasePoint.Initialize(m_tradeBasePrice);
+         // 将当前线段对象传递给交易基准点对象
+         m_tradeBasePoint.SetCurrentSegment(m_currentSegment);
+      }
+   }
      
    // 获取交易参考基准价格
    double GetTradeBasePrice()

@@ -6,11 +6,10 @@
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
 
-// 引入交易分析类和全局实例
 #include "../GlobalInstances.mqh"
 #include "../Strategies/StrategyManager.mqh"
 
-// 全局变量 - 信息面板管理器默认属性
+// 全局面板属性
 string  g_InfoPanelName = "InfoPanel";
 color   g_InfoPanelTextColor = clrWhite;
 color   g_InfoPanelBgColor = clrNavy;
@@ -21,496 +20,367 @@ string  g_InfoPanelFont = "Arial";
 //| 信息面板管理类                                                   |
 //+------------------------------------------------------------------+
 class CInfoPanelManager
-  {
+{
 public:
-   // 初始化全局变量
-   static void Init(string panelName = "InfoPanel", color textColor = clrWhite, color bgColor = clrNavy, int fontSize = 9)
-     {
-      g_InfoPanelName = panelName;
-      g_InfoPanelTextColor = textColor;
-      g_InfoPanelBgColor = bgColor;
-      g_InfoPanelFontSize = fontSize;
-      g_InfoPanelFont = "Arial";
-     }
-     
-   // 创建交易信息面板 - 统一的面板创建方法
-   static void CreateTradeInfoPanel(string panelName = "", color textColor = NULL, color bgColor = NULL)
-     {
-      // 使用默认值或传入的参数
-      string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
-      color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
-      color actualBgColor = (bgColor == NULL) ? g_InfoPanelBgColor : bgColor;
-      
-      // 删除旧的面板
-      ObjectDelete(0, actualPanelName);
-      
-      // 获取图表宽度和高度
-      int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
-      
-      // 面板位置和大小
-      int panelWidth = 250;
-      int panelHeight = 150; // 减小高度，因为移除了支撑/压力信息
-      int panelX = 10; // 左侧边缘留10像素间距
-      int panelY = 10; // 顶部边缘留10像素间距
-      
-      // 创建面板背景
-      ObjectCreate(0, actualPanelName, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_XDISTANCE, panelX);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_YDISTANCE, panelY);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_XSIZE, panelWidth);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_YSIZE, panelHeight);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_BGCOLOR, actualBgColor);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_BORDER_TYPE, BORDER_FLAT);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_COLOR, clrWhite);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_STYLE, STYLE_SOLID);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_WIDTH, 1);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_BACK, true); // 设置为背景，确保文本显示在上面
-      ObjectSetInteger(0, actualPanelName, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_SELECTED, false);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_HIDDEN, true);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_ZORDER, 0);
-      
-      // 如果交易分析器有有效数据，添加区间分析信息
-      if(g_tradeAnalyzer.IsValid())
+    // 初始化面板属性
+    static void Init(string panelName="InfoPanel", color textColor=clrWhite, color bgColor=clrNavy, int fontSize=9)
+    {
+        g_InfoPanelName = panelName;
+        g_InfoPanelTextColor = textColor;
+        g_InfoPanelBgColor = bgColor;
+        g_InfoPanelFontSize = fontSize;
+        g_InfoPanelFont = "Arial";
+    }
+
+    // 创建交易信息面板（主方法）
+    static void CreateTradeInfoPanel(string panelName="", color textColor=NULL, color bgColor=NULL)
+    {
+        string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
+        color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
+        color actualBgColor = (bgColor == NULL) ? g_InfoPanelBgColor : bgColor;
+
+        // 删除旧面板
+        ObjectDelete(0, actualPanelName);
+
+        // 面板基础设置
+        int panelWidth = 250;
+        int panelHeight = 320;  // 增加高度容纳所有线段信息
+        int panelX = 10;
+        int panelY = 10;
+
+        // 创建面板背景
+        CreatePanelBackground(actualPanelName, panelX, panelY, panelWidth, panelHeight, actualBgColor);
+
+        // 显示交易数据
+        if(g_tradeAnalyzer.IsValid())
         {
-         // 创建区间分析文本 - 调整位置到面板顶部
-         string rangeName = actualPanelName + "_Range";
-         ObjectCreate(0, rangeName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, rangeName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, rangeName, OBJPROP_YDISTANCE, panelY + 10); // 调整到面板顶部
-         ObjectSetInteger(0, rangeName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, rangeName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, rangeName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, rangeName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, rangeName, OBJPROP_FONT, g_InfoPanelFont);
-         
-         // 计算区间幅度值
-         double rangeHigh = g_tradeAnalyzer.GetRangeHigh();
-         double rangeLow = g_tradeAnalyzer.GetRangeLow();
-         double rangeDiff = MathAbs(rangeHigh - rangeLow);
-         
-         // 格式化幅度显示
-         string rangeDiffStr = "";
-         
-         // 根据品种特性选择合适的显示方式
-         if(_Digits <= 3) // 对于点差较大的品种（如指数、股票等）
-           {
-            // 直接显示价格差值
-            rangeDiffStr = DoubleToString(rangeDiff, _Digits);
-           }
-         else // 对于外汇等点差较小的品种
-           {
-            // 计算点数
-            int rangeDiffPoints = (int)(rangeDiff / _Point);
+            // 显示核心交易信息
+            DisplayCoreInfo(actualPanelName, panelX, panelY, actualTextColor);
             
-            // 如果点数较大，转换为更易读的形式
-            if(rangeDiffPoints >= 1000)
-               rangeDiffStr = DoubleToString(rangeDiffPoints/1000.0, 1) + "K点";
-            else
-               rangeDiffStr = IntegerToString(rangeDiffPoints) + "点";
-           }
-         
-         // 根据趋势方向调整区间显示顺序
-         if(g_tradeAnalyzer.IsUpTrend())
-           {
-            // 上涨趋势，显示从低到高
-            ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s (%s)", 
-                                                                   DoubleToString(g_tradeAnalyzer.GetRangeLow(), _Digits),
-                                                                   DoubleToString(g_tradeAnalyzer.GetRangeHigh(), _Digits),
-                                                                   rangeDiffStr));
-           }
-         else
-           {
-            // 下跌趋势，显示从高到低
-            ObjectSetString(0, rangeName, OBJPROP_TEXT, StringFormat("区间: %s - %s (%s)", 
-                                                                   DoubleToString(g_tradeAnalyzer.GetRangeHigh(), _Digits),
-                                                                   DoubleToString(g_tradeAnalyzer.GetRangeLow(), _Digits),
-                                                                   rangeDiffStr));
-           }
-         
-         // 创建趋势方向文本 - 调整位置紧跟在区间分析文本下方
-         string trendName = actualPanelName + "_Trend";
-         ObjectCreate(0, trendName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, trendName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, trendName, OBJPROP_YDISTANCE, panelY + 30); // 调整到区间分析文本下方
-         ObjectSetInteger(0, trendName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, trendName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, trendName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, trendName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, trendName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, trendName, OBJPROP_TEXT, StringFormat("趋势方向: %s", 
-                                                                g_tradeAnalyzer.GetTrendDirection()));
-         
-         // 计算回撤或反弹
-         g_tradeAnalyzer.CalculateRetracement();
-         
-         // 创建回撤或反弹文本 - 调整位置紧跟在趋势方向文本下方
-         string retraceName = actualPanelName + "_Retrace";
-         ObjectCreate(0, retraceName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, retraceName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, retraceName, OBJPROP_YDISTANCE, panelY + 50); // 调整到趋势方向文本下方
-         ObjectSetInteger(0, retraceName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, retraceName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, retraceName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, retraceName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, retraceName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, retraceName, OBJPROP_TEXT, g_tradeAnalyzer.GetRetraceDescription());
-         
-         // 计算多时间周期支撑和压力 - 虽然不显示，但仍然需要计算，因为可能在图表上绘制
-         g_tradeAnalyzer.CalculateSupportResistance();
-         
-         // 创建交易参考基准价格文本
-         string tradePriceName = actualPanelName + "_TradeBasePrice";
-         ObjectCreate(0, tradePriceName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, tradePriceName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, tradePriceName, OBJPROP_YDISTANCE, panelY + 70); // 调整到回撤信息下方
-         ObjectSetInteger(0, tradePriceName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, tradePriceName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, tradePriceName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, tradePriceName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, tradePriceName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, tradePriceName, OBJPROP_TEXT, StringFormat("交易参考价: %s", DoubleToString(g_tradeAnalyzer.GetTradeBasePrice(), _Digits)));
-         
-         // 创建区间定义标题文本
-         string positionTypeName = actualPanelName + "_PositionType";
-         ObjectCreate(0, positionTypeName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, positionTypeName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, positionTypeName, OBJPROP_YDISTANCE, panelY + 90); // 调整位置
-         ObjectSetInteger(0, positionTypeName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, positionTypeName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, positionTypeName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, positionTypeName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, positionTypeName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, positionTypeName, OBJPROP_TEXT, "区间定义:");
-         
-         // 创建区间定义文本
-         string positionDefName = actualPanelName + "_PositionDef";
-         ObjectCreate(0, positionDefName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, positionDefName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, positionDefName, OBJPROP_YDISTANCE, panelY + 110); // 调整位置
-         ObjectSetInteger(0, positionDefName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, positionDefName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, positionDefName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, positionDefName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, positionDefName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, positionDefName, OBJPROP_TEXT, "高位(0-33.3%) 中位(33.3-66.6%) 低位(66.6-100%)");
-         
-         // 获取当前回撤/反弹百分比
-         double retracePercent = g_tradeAnalyzer.GetRetracePercent();
-         
-         // 确定当前所处区间
-         string currentPosition = "";
-         string strategyName = "";
-         
-         if(retracePercent >= 0.0 && retracePercent < 33.3)
-         {
-            currentPosition = "高位区间";
-            strategyName = "高位策略";
-         }
-         else if(retracePercent >= 33.3 && retracePercent <= 66.6)
-         {
-            currentPosition = "中位区间";
-            strategyName = "中位策略";
-         }
-         else if(retracePercent > 66.6 && retracePercent <= 100.0)
-         {
-            currentPosition = "低位区间";
-            strategyName = "低位策略";
-         }
-         else
-         {
-            currentPosition = "未知区间";
-            strategyName = "无适用策略";
-         }
-         
-         // 创建当前区间位置文本
-         string currentPosName = actualPanelName + "_CurrentPos";
-         ObjectCreate(0, currentPosName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, currentPosName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, currentPosName, OBJPROP_YDISTANCE, panelY + 110); // 调整位置
-         ObjectSetInteger(0, currentPosName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, currentPosName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, currentPosName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, currentPosName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, currentPosName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, currentPosName, OBJPROP_TEXT, StringFormat("当前位置: %s (%.2f%%)", currentPosition, retracePercent));
-         
-         // 创建当前策略描述文本
-         string strategyDescName = actualPanelName + "_StrategyDesc";
-         ObjectCreate(0, strategyDescName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, strategyDescName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, strategyDescName, OBJPROP_YDISTANCE, panelY + 130); // 调整位置
-         ObjectSetInteger(0, strategyDescName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, strategyDescName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, strategyDescName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, strategyDescName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, strategyDescName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, strategyDescName, OBJPROP_TEXT, StringFormat("适用策略: %s (%s)", 
-                                                                      strategyName, 
-                                                                      g_tradeAnalyzer.IsUpTrend() ? "上涨趋势" : "下跌趋势"));
+            // 显示线段信息
+            DisplaySegmentInfo(actualPanelName, panelX, panelY, actualTextColor);
         }
-      else
+        else
         {
-         // 如果没有有效数据，显示提示信息
-         string noDataName = actualPanelName + "_NoData";
-         ObjectCreate(0, noDataName, OBJ_LABEL, 0, 0, 0);
-         ObjectSetInteger(0, noDataName, OBJPROP_XDISTANCE, panelX + 10);
-         ObjectSetInteger(0, noDataName, OBJPROP_YDISTANCE, panelY + 30);
-         ObjectSetInteger(0, noDataName, OBJPROP_COLOR, actualTextColor);
-         ObjectSetInteger(0, noDataName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-         ObjectSetInteger(0, noDataName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-         ObjectSetInteger(0, noDataName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-         ObjectSetString(0, noDataName, OBJPROP_FONT, g_InfoPanelFont);
-         ObjectSetString(0, noDataName, OBJPROP_TEXT, "暂无有效的交易区间数据");
+            DisplayNoDataMessage(actualPanelName, panelX, panelY, actualTextColor);
         }
-     }
-     
-   // 创建简单信息面板（无数据版本）
-   static void CreateSimpleInfoPanel(string panelName, string message, color textColor = NULL, color bgColor = NULL)
-     {
-      // 使用默认值或传入的参数
-      string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
-      color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
-      color actualBgColor = (bgColor == NULL) ? g_InfoPanelBgColor : bgColor;
-      
-      // 删除旧的面板
-      ObjectDelete(0, actualPanelName);
-      
-      // 获取图表宽度和高度
-      int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
-      
-      // 面板位置和大小
-      int panelWidth = 250;
-      int panelHeight = 60;
-      int panelX = chartWidth - panelWidth - 10; // 右侧边缘留10像素间距
-      int panelY = 10; // 顶部边缘留10像素间距
-      
-      // 创建面板背景
-      ObjectCreate(0, actualPanelName, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_XDISTANCE, panelX);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_YDISTANCE, panelY);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_XSIZE, panelWidth);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_YSIZE, panelHeight);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_BGCOLOR, actualBgColor);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_BORDER_TYPE, BORDER_FLAT);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, actualPanelName, OBJPROP_COLOR, clrWhite);
-      
-      // 创建提示文本
-      string noDataName = actualPanelName + "_Message";
-      ObjectCreate(0, noDataName, OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, noDataName, OBJPROP_XDISTANCE, panelX + 10);
-      ObjectSetInteger(0, noDataName, OBJPROP_YDISTANCE, panelY + 25);
-      ObjectSetInteger(0, noDataName, OBJPROP_COLOR, actualTextColor);
-      ObjectSetInteger(0, noDataName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-      ObjectSetInteger(0, noDataName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, noDataName, OBJPROP_ZORDER, 100); // 确保文本在最上层
-      ObjectSetString(0, noDataName, OBJPROP_FONT, g_InfoPanelFont);
-      ObjectSetString(0, noDataName, OBJPROP_TEXT, message);
-     }
-     
-   // 删除面板
-   static void DeletePanel(string panelName = "")
-     {
-      string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
-      ObjectsDeleteAll(0, actualPanelName);
-     }
-     
-   // 获取当前价格
-   static double GetCurrentPrice()
-     {
-      double price = 0.0;
-      
-      // 获取当前品种的最新价格
-      MqlTick last_tick;
-      if(SymbolInfoTick(Symbol(), last_tick))
+    }
+
+    // 创建简单信息面板（无数据版本）
+    static void CreateSimpleInfoPanel(string panelName, string message, color textColor=NULL, color bgColor=NULL)
+    {
+        string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
+        color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
+        color actualBgColor = (bgColor == NULL) ? g_InfoPanelBgColor : bgColor;
+
+        // 删除旧面板
+        ObjectDelete(0, actualPanelName);
+
+        // 创建面板背景
+        int panelWidth = 250;
+        int panelHeight = 60;
+        int panelX = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS) - panelWidth - 10;
+        int panelY = 10;
+
+        ObjectCreate(0, actualPanelName, OBJ_RECTANGLE_LABEL, 0, 0, 0);
+        ObjectSetInteger(0, actualPanelName, OBJPROP_XDISTANCE, panelX);
+        ObjectSetInteger(0, actualPanelName, OBJPROP_YDISTANCE, panelY);
+        ObjectSetInteger(0, actualPanelName, OBJPROP_XSIZE, panelWidth);
+        ObjectSetInteger(0, actualPanelName, OBJPROP_YSIZE, panelHeight);
+        ObjectSetInteger(0, actualPanelName, OBJPROP_BGCOLOR, actualBgColor);
+
+        // 显示消息
+        string labelName = actualPanelName + "_Message";
+        ObjectCreate(0, labelName, OBJ_LABEL, 0, 0, 0);
+        ObjectSetInteger(0, labelName, OBJPROP_XDISTANCE, panelX + 10);
+        ObjectSetInteger(0, labelName, OBJPROP_YDISTANCE, panelY + 20);
+        ObjectSetInteger(0, labelName, OBJPROP_COLOR, actualTextColor);
+        ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+        ObjectSetString(0, labelName, OBJPROP_FONT, g_InfoPanelFont);
+        ObjectSetString(0, labelName, OBJPROP_TEXT, message);
+    }
+
+    // 删除面板
+    static void DeletePanel(string panelName="")
+    {
+        string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
+        ObjectsDeleteAll(0, actualPanelName);
+    }
+
+    // 获取当前价格
+    static double GetCurrentPrice()
+    {
+        MqlTick last_tick;
+        if(SymbolInfoTick(Symbol(), last_tick))
         {
-         // 使用最后成交价作为当前价格
-         price = last_tick.last;
-         
-         // 如果最后成交价为0，则使用买卖价的中间价
-         if(price == 0)
-           {
-            price = (last_tick.bid + last_tick.ask) / 2.0;
-           }
+            return (last_tick.last != 0) ? last_tick.last : (last_tick.bid + last_tick.ask)/2;
         }
-      
-      return price;
-     }
-     
-   // 在现有面板上添加线段信息
-   static void AddSegmentInfo(string panelName, CZigzagSegment* &uptrendSegments[], CZigzagSegment* &downtrendSegments[], color textColor = NULL)
-     {
-      // 使用默认值或传入的参数
-      string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
-      color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
-      
-      // 获取面板位置和大小
-      int panelX = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_XDISTANCE);
-      int panelY = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_YDISTANCE);
-      int panelWidth = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_XSIZE);
-      int panelHeight = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_YSIZE);
-      
-      // 增加面板高度以容纳线段信息
-      ObjectSetInteger(0, actualPanelName, OBJPROP_YSIZE, panelHeight + 80);
-      
-      // 创建线段信息标题
-      string segmentTitleName = actualPanelName + "_SegmentTitle";
-      ObjectCreate(0, segmentTitleName, OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_XDISTANCE, panelX + 10);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_YDISTANCE, panelY + panelHeight + 10);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_COLOR, actualTextColor);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_ZORDER, 100);
-      ObjectSetString(0, segmentTitleName, OBJPROP_FONT, g_InfoPanelFont);
-      ObjectSetString(0, segmentTitleName, OBJPROP_TEXT, StringFormat("1小时线段: 上涨%d个, 下跌%d个", 
-                                                                    ArraySize(uptrendSegments), 
-                                                                    ArraySize(downtrendSegments)));
-      
-      // 创建上涨线段信息
-      string uptrendName = actualPanelName + "_UptrendSegments";
-      ObjectCreate(0, uptrendName, OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, uptrendName, OBJPROP_XDISTANCE, panelX + 10);
-      ObjectSetInteger(0, uptrendName, OBJPROP_YDISTANCE, panelY + panelHeight + 30);
-      ObjectSetInteger(0, uptrendName, OBJPROP_COLOR, actualTextColor);
-      ObjectSetInteger(0, uptrendName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-      ObjectSetInteger(0, uptrendName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, uptrendName, OBJPROP_ZORDER, 100);
-      ObjectSetString(0, uptrendName, OBJPROP_FONT, g_InfoPanelFont);
-      
-      // 构建上涨线段信息文本
-      string uptrendText = "上涨线段: ";
-      int maxUptrend = MathMin(3, ArraySize(uptrendSegments)); // 最多显示3个上涨线段
-      
-      for(int i = 0; i < maxUptrend; i++)
-      {
-         if(uptrendSegments[i] != NULL)
-         {
-            // 线段方向是从过去向未来，所以起点是过去，终点是未来
-            uptrendText += StringFormat("%s→%s ", 
-                           DoubleToString(uptrendSegments[i].StartPrice(), _Digits),
-                           DoubleToString(uptrendSegments[i].EndPrice(), _Digits));
-         }
-      }
-      
-      ObjectSetString(0, uptrendName, OBJPROP_TEXT, uptrendText);
-      
-      // 创建下跌线段信息
-      string downtrendName = actualPanelName + "_DowntrendSegments";
-      ObjectCreate(0, downtrendName, OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, downtrendName, OBJPROP_XDISTANCE, panelX + 10);
-      ObjectSetInteger(0, downtrendName, OBJPROP_YDISTANCE, panelY + panelHeight + 50);
-      ObjectSetInteger(0, downtrendName, OBJPROP_COLOR, actualTextColor);
-      ObjectSetInteger(0, downtrendName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-      ObjectSetInteger(0, downtrendName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, downtrendName, OBJPROP_ZORDER, 100);
-      ObjectSetString(0, downtrendName, OBJPROP_FONT, g_InfoPanelFont);
-      
-      // 构建下跌线段信息文本
-      string downtrendText = "下跌线段: ";
-      int maxDowntrend = MathMin(3, ArraySize(downtrendSegments)); // 最多显示3个下跌线段
-      
-      for(int i = 0; i < maxDowntrend; i++)
-      {
-         if(downtrendSegments[i] != NULL)
-         {
-            // 线段方向是从过去向未来，所以起点是过去，终点是未来
-            downtrendText += StringFormat("%s→%s ", 
-                            DoubleToString(downtrendSegments[i].StartPrice(), _Digits),
-                            DoubleToString(downtrendSegments[i].EndPrice(), _Digits));
-         }
-      }
-      
-      ObjectSetString(0, downtrendName, OBJPROP_TEXT, downtrendText);
-     }
-     
-   // 在现有面板上添加指定时间周期的线段信息
-   static void AddSegmentInfo(string panelName, CZigzagSegment* &uptrendSegments[], CZigzagSegment* &downtrendSegments[], color textColor, string timeFrame)
-     {
-      // 使用默认值或传入的参数
-      string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
-      color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
-      
-      // 获取面板位置和大小
-      int panelX = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_XDISTANCE);
-      int panelY = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_YDISTANCE);
-      int panelWidth = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_XSIZE);
-      int panelHeight = (int)ObjectGetInteger(0, actualPanelName, OBJPROP_YSIZE);
-      
-      // 增加面板高度以容纳线段信息
-      ObjectSetInteger(0, actualPanelName, OBJPROP_YSIZE, panelHeight + 80);
-      
-      // 创建线段信息标题
-      string segmentTitleName = actualPanelName + "_" + timeFrame + "_SegmentTitle";
-      ObjectCreate(0, segmentTitleName, OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_XDISTANCE, panelX + 10);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_YDISTANCE, panelY + panelHeight + 10);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_COLOR, actualTextColor);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, segmentTitleName, OBJPROP_ZORDER, 100);
-      ObjectSetString(0, segmentTitleName, OBJPROP_FONT, g_InfoPanelFont);
-      ObjectSetString(0, segmentTitleName, OBJPROP_TEXT, StringFormat("%s线段: 上涨%d个, 下跌%d个", 
-                                                                    timeFrame,
-                                                                    ArraySize(uptrendSegments), 
-                                                                    ArraySize(downtrendSegments)));
-      
-      // 创建上涨线段信息
-      string uptrendName = actualPanelName + "_" + timeFrame + "_UptrendSegments";
-      ObjectCreate(0, uptrendName, OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, uptrendName, OBJPROP_XDISTANCE, panelX + 10);
-      ObjectSetInteger(0, uptrendName, OBJPROP_YDISTANCE, panelY + panelHeight + 30);
-      ObjectSetInteger(0, uptrendName, OBJPROP_COLOR, actualTextColor);
-      ObjectSetInteger(0, uptrendName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-      ObjectSetInteger(0, uptrendName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, uptrendName, OBJPROP_ZORDER, 100);
-      ObjectSetString(0, uptrendName, OBJPROP_FONT, g_InfoPanelFont);
-      
-      // 构建上涨线段信息文本
-      string uptrendText = "上涨线段: ";
-      int maxUptrend = MathMin(3, ArraySize(uptrendSegments)); // 最多显示3个上涨线段
-      
-      for(int i = 0; i < maxUptrend; i++)
-      {
-         if(uptrendSegments[i] != NULL)
-         {
-            // 线段方向是从过去向未来，所以起点是过去，终点是未来
-            uptrendText += StringFormat("%s→%s ", 
-                           DoubleToString(uptrendSegments[i].StartPrice(), _Digits),
-                           DoubleToString(uptrendSegments[i].EndPrice(), _Digits));
-         }
-      }
-      
-      ObjectSetString(0, uptrendName, OBJPROP_TEXT, uptrendText);
-      
-      // 创建下跌线段信息
-      string downtrendName = actualPanelName + "_" + timeFrame + "_DowntrendSegments";
-      ObjectCreate(0, downtrendName, OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, downtrendName, OBJPROP_XDISTANCE, panelX + 10);
-      ObjectSetInteger(0, downtrendName, OBJPROP_YDISTANCE, panelY + panelHeight + 50);
-      ObjectSetInteger(0, downtrendName, OBJPROP_COLOR, actualTextColor);
-      ObjectSetInteger(0, downtrendName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-      ObjectSetInteger(0, downtrendName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, downtrendName, OBJPROP_ZORDER, 100);
-      ObjectSetString(0, downtrendName, OBJPROP_FONT, g_InfoPanelFont);
-      
-      // 构建下跌线段信息文本
-      string downtrendText = "下跌线段: ";
-      int maxDowntrend = MathMin(3, ArraySize(downtrendSegments)); // 最多显示3个下跌线段
-      
-      for(int i = 0; i < maxDowntrend; i++)
-      {
-         if(downtrendSegments[i] != NULL)
-         {
-            // 线段方向是从过去向未来，所以起点是过去，终点是未来
-            downtrendText += StringFormat("%s→%s ", 
-                            DoubleToString(downtrendSegments[i].StartPrice(), _Digits),
-                            DoubleToString(downtrendSegments[i].EndPrice(), _Digits));
-         }
-      }
-      
-      ObjectSetString(0, downtrendName, OBJPROP_TEXT, downtrendText);
-     }
-  };
+        return 0.0;
+    }
+
+private:
+    // 创建面板背景
+    static void CreatePanelBackground(string name, int x, int y, int width, int height, color bgColor)
+    {
+        ObjectCreate(0, name, OBJ_RECTANGLE_LABEL, 0, 0, 0);
+        ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
+        ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+        ObjectSetInteger(0, name, OBJPROP_XSIZE, width);
+        ObjectSetInteger(0, name, OBJPROP_YSIZE, height);
+        ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bgColor);
+        ObjectSetInteger(0, name, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+        ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, name, OBJPROP_COLOR, clrWhite);
+        ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_SOLID);
+        ObjectSetInteger(0, name, OBJPROP_WIDTH, 1);
+        ObjectSetInteger(0, name, OBJPROP_BACK, true);
+        ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
+    }
+
+    // 显示核心交易信息
+    static void DisplayCoreInfo(string panelName, int panelX, int panelY, color textColor)
+    {
+        // 区间信息
+        string rangeName = panelName + "_Range";
+        CreateInfoLabel(rangeName, panelX + 10, panelY + 10, textColor,
+                      StringFormat("区间: %s - %s",
+                                  DoubleToString(g_tradeAnalyzer.GetRangeLow(), _Digits),
+                                  DoubleToString(g_tradeAnalyzer.GetRangeHigh(), _Digits)));
+
+        // 趋势信息
+        string trendName = panelName + "_Trend";
+        CreateInfoLabel(trendName, panelX + 10, panelY + 30, textColor,
+                      "趋势方向: " + g_tradeAnalyzer.GetTrendDirection());
+
+        // 回撤信息
+        g_tradeAnalyzer.CalculateRetracement();
+        string retraceName = panelName + "_Retrace";
+        CreateInfoLabel(retraceName, panelX + 10, panelY + 50, textColor,
+                      g_tradeAnalyzer.GetRetraceDescription());
+
+        // 参考价格
+        string priceName = panelName + "_Price";
+        CreateInfoLabel(priceName, panelX + 10, panelY + 70, textColor,
+                      "参考价: " + DoubleToString(g_tradeAnalyzer.GetTradeBasePrice(), _Digits));
+    }
+
+    // 显示线段信息
+    static void DisplaySegmentInfo(string panelName, int panelX, int panelY, color textColor)
+    {
+        // 5分钟线段（左侧）
+        string m5LeftName = panelName + "_M5_Left";
+        CreateInfoLabel(m5LeftName, panelX + 10, panelY + 90, textColor, "5分钟线段(左): 加载中...");
+
+        // 5分钟线段（右侧）
+        string m5RightName = panelName + "_M5_Right";
+        CreateInfoLabel(m5RightName, panelX + 10, panelY + 110, textColor, "5分钟线段(右): 加载中...");
+
+        // 1小时线段（左侧）
+        string h1LeftName = panelName + "_H1_Left";
+        CreateInfoLabel(h1LeftName, panelX + 10, panelY + 130, textColor, "1小时线段(左): 加载中...");
+
+        // 1小时线段（右侧）
+        string h1RightName = panelName + "_H1_Right";
+        CreateInfoLabel(h1RightName, panelX + 10, panelY + 150, textColor, "1小时线段(右): 加载中...");
+
+        // 更新线段数据
+        UpdateSegmentData(panelName);
+    }
+
+    // 更新线段数据
+    static void UpdateSegmentData(string panelName)
+    {
+        // 获取当前4小时主交易线段
+        CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
+        if(currentMainSegment == NULL)
+            return;
+            
+        // 获取交易基准价格
+        double tradeBasePrice = g_tradeAnalyzer.GetTradeBasePrice();
+        if(tradeBasePrice <= 0.0)
+            return;
+            
+        // 获取4小时线段的开始时间，作为左线段时间限制
+        datetime rangeStartTime = currentMainSegment.StartTime();
+        
+        // 1. 从4小时主交易区间计算1小时线段
+        CZigzagSegmentManager* h1SegmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
+        if(h1SegmentManager != NULL)
+        {
+            CZigzagSegment* h1Segments[];
+            if(h1SegmentManager.GetSegments(h1Segments) && ArraySize(h1Segments) > 0)
+            {
+                // 筛选左侧1小时线段（结束时间早于交易基准价格时间且开始时间不早于4小时线段开始时间）
+                CZigzagSegment* leftH1Segments[];
+                int leftH1Count = 0;
+                
+                for(int i = 0; i < ArraySize(h1Segments); i++)
+                {
+                    if(h1Segments[i] != NULL && 
+                       h1Segments[i].EndTime() <= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime() && 
+                       h1Segments[i].StartTime() >= rangeStartTime)
+                    {
+                        ArrayResize(leftH1Segments, leftH1Count + 1);
+                        leftH1Segments[leftH1Count++] = h1Segments[i];
+                    }
+                }
+                
+                // 按时间排序（最近的在前）
+                ::SortSegmentsByTime(leftH1Segments, false, true);
+                
+                // 显示左侧1小时线段
+                if(leftH1Count > 0)
+                {
+                    string h1LeftText = "H1左: ";
+                    for(int i = 0; i < MathMin(3, leftH1Count); i++)
+                    {
+                        h1LeftText += StringFormat("%s→", DoubleToString(leftH1Segments[i].StartPrice(), _Digits));
+                    }
+                    ObjectSetString(0, panelName+"_H1_Left", OBJPROP_TEXT, h1LeftText);
+                }
+                
+                // 筛选右侧1小时线段（开始时间晚于交易基准价格时间）
+                CZigzagSegment* rightH1Segments[];
+                int rightH1Count = 0;
+                
+                for(int i = 0; i < ArraySize(h1Segments); i++)
+                {
+                    if(h1Segments[i] != NULL && 
+                       h1Segments[i].StartTime() >= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime())
+                    {
+                        ArrayResize(rightH1Segments, rightH1Count + 1);
+                        rightH1Segments[rightH1Count++] = h1Segments[i];
+                    }
+                }
+                
+                // 按时间排序（最近的在前）
+                ::SortSegmentsByTime(rightH1Segments, false, true);
+                
+                // 显示右侧1小时线段
+                if(rightH1Count > 0)
+                {
+                    string h1RightText = "H1右: ";
+                    for(int i = 0; i < MathMin(3, rightH1Count); i++)
+                    {
+                        h1RightText += StringFormat("%s→", DoubleToString(rightH1Segments[i].StartPrice(), _Digits));
+                    }
+                    ObjectSetString(0, panelName+"_H1_Right", OBJPROP_TEXT, h1RightText);
+                }
+                
+                // 2. 从1小时线段计算5分钟线段（使用第一个1小时线段）
+                if(ArraySize(h1Segments) > 0)
+                {
+                    CZigzagSegmentManager* m5SegmentManager = h1Segments[0].GetSmallerTimeframeSegments(PERIOD_M5);
+                    if(m5SegmentManager != NULL)
+                    {
+                        CZigzagSegment* m5Segments[];
+                        if(m5SegmentManager.GetSegments(m5Segments) && ArraySize(m5Segments) > 0)
+                        {
+                            // 筛选左侧5分钟线段（结束时间早于交易基准价格时间且开始时间不早于4小时线段开始时间）
+                            CZigzagSegment* leftM5Segments[];
+                            int leftM5Count = 0;
+                            
+                            for(int i = 0; i < ArraySize(m5Segments); i++)
+                            {
+                                if(m5Segments[i] != NULL && 
+                                   m5Segments[i].EndTime() <= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime() && 
+                                   m5Segments[i].StartTime() >= rangeStartTime)
+                                {
+                                    ArrayResize(leftM5Segments, leftM5Count + 1);
+                                    leftM5Segments[leftM5Count++] = m5Segments[i];
+                                }
+                            }
+                            
+                            // 按时间排序（最近的在前）
+                            ::SortSegmentsByTime(leftM5Segments, false, true);
+                            
+                            // 显示左侧5分钟线段
+                            if(leftM5Count > 0)
+                            {
+                                string m5LeftText = "M5左: ";
+                                for(int i = 0; i < MathMin(3, leftM5Count); i++)
+                                {
+                                    m5LeftText += StringFormat("%s→", DoubleToString(leftM5Segments[i].StartPrice(), _Digits));
+                                }
+                                ObjectSetString(0, panelName+"_M5_Left", OBJPROP_TEXT, m5LeftText);
+                            }
+                            
+                            // 筛选右侧5分钟线段（开始时间晚于交易基准价格时间）
+                            CZigzagSegment* rightM5Segments[];
+                            int rightM5Count = 0;
+                            
+                            for(int i = 0; i < ArraySize(m5Segments); i++)
+                            {
+                                if(m5Segments[i] != NULL && 
+                                   m5Segments[i].StartTime() >= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime())
+                                {
+                                    ArrayResize(rightM5Segments, rightM5Count + 1);
+                                    rightM5Segments[rightM5Count++] = m5Segments[i];
+                                }
+                            }
+                            
+                            // 按时间排序（最近的在前）
+                            ::SortSegmentsByTime(rightM5Segments, false, true);
+                            
+                            // 显示右侧5分钟线段
+                            if(rightM5Count > 0)
+                            {
+                                string m5RightText = "M5右: ";
+                                for(int i = 0; i < MathMin(3, rightM5Count); i++)
+                                {
+                                    m5RightText += StringFormat("%s→", DoubleToString(rightM5Segments[i].StartPrice(), _Digits));
+                                }
+                                ObjectSetString(0, panelName+"_M5_Right", OBJPROP_TEXT, m5RightText);
+                            }
+                            
+                            // 释放5分钟线段数组中的对象
+                            for(int i = 0; i < ArraySize(m5Segments); i++)
+                            {
+                                if(m5Segments[i] != NULL)
+                                {
+                                    delete m5Segments[i];
+                                    m5Segments[i] = NULL;
+                                }
+                            }
+                        }
+                        // 释放5分钟线段管理器
+                        delete m5SegmentManager;
+                    }
+                }
+                
+                // 释放1小时线段数组中的对象
+                for(int i = 0; i < ArraySize(h1Segments); i++)
+                {
+                    if(h1Segments[i] != NULL)
+                    {
+                        delete h1Segments[i];
+                        h1Segments[i] = NULL;
+                    }
+                }
+            }
+            // 释放1小时线段管理器
+            delete h1SegmentManager;
+        }
+    }
+
+    // 创建信息标签（辅助方法）
+    static void CreateInfoLabel(string name, int x, int y, color clr, string text)
+    {
+        ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
+        ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
+        ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+        ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+        ObjectSetInteger(0, name, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+        ObjectSetString(0, name, OBJPROP_FONT, g_InfoPanelFont);
+        ObjectSetString(0, name, OBJPROP_TEXT, text);
+        ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, name, OBJPROP_ZORDER, 100);
+    }
+
+    // 无数据提示
+    static void DisplayNoDataMessage(string panelName, int panelX, int panelY, color textColor)
+    {
+        CreateInfoLabel(panelName + "_NoData", panelX + 10, panelY + 30, textColor, "暂无有效数据");
+    }
+};
