@@ -13,7 +13,7 @@
 // 全局面板属性
 string  g_InfoPanelName = "InfoPanel";
 color   g_InfoPanelTextColor = clrWhite;
-color   g_InfoPanelBgColor = clrNavy;
+color   g_InfoPanelBgColor = clrNavy;  // 添加回背景颜色变量
 int     g_InfoPanelFontSize = 9;
 string  g_InfoPanelFont = "Arial";
 int g_InfoPanelX = 10;  // 面板X坐标
@@ -28,6 +28,8 @@ class CInfoPanelManager
 private:
     // 静态变量记录上次计算时间
     static datetime s_lastCalcTime;
+    // 静态变量记录上次更新时间（用于节流）
+    static datetime s_lastUpdateTime;
     
     // 构建面板内容
     static string BuildPanelContent()
@@ -66,7 +68,8 @@ private:
             content = "暂无有效数据";
         }
         
-        Print("面板内容构建完成:\n", content);
+        // 减少日志输出
+        // Print("面板内容构建完成:\n", content);
         return content;
     }
 
@@ -172,104 +175,12 @@ private:
         return lineText;
     }
 
-   // 修改CreateMultiLinePanel方法中的标签创建逻辑
-static void CreateMultiLinePanel(string panelName, string content, int panelX, int panelY, 
-                               int panelWidth, int panelHeight, color textColor, color bgColor)
-{
-    Print("开始创建面板:", panelName);
-    Print("面板位置: X=", panelX, " Y=", panelY);
-    Print("面板尺寸: 宽=", panelWidth, " 高=", panelHeight);
-    
-    // 创建面板背景
-    if(!CreatePanelBackground(panelName, panelX, panelY, panelWidth, panelHeight, bgColor))
-    {
-        Print("创建面板背景失败");
-        return;
-    }
-    
-    // 按换行符拆分内容
-    string lines[];
-    int lineCount = StringSplit(content, '\n', lines);
-    int lineHeight = 20;
-    
-    Print("面板内容行数:", lineCount);
-    
-    // 创建每行标签
-    for(int i = 0; i < lineCount; i++)
-    {
-        string labelName = panelName + "_Line" + IntegerToString(i);
-        
-        // 直接创建标签，不检查返回值
-        CLabelManager::CreateTextLabel(
-            labelName, 
-            lines[i], 
-            0, 0, 
-            false, 
-            false,  // 确保不是隐藏状态
-            textColor, 
-            g_InfoPanelFont, 
-            g_InfoPanelFontSize,
-            panelX + 10,
-            false
-        );
-        
-        // 检查标签是否创建成功
-        if(ObjectFind(0, labelName) >= 0)
-        {
-            if(ObjectSetInteger(0, labelName, OBJPROP_YDISTANCE, panelY + 10 + (i * lineHeight)))
-            {
-                Print("成功创建标签:", labelName, " 内容:", lines[i]);
-            }
-            else
-            {
-                Print("设置标签位置失败:", labelName);
-            }
-        }
-        else
-        {
-            Print("创建标签失败:", labelName);
-        }
-    }
-}
-
-    // 创建面板背景
-    static bool CreatePanelBackground(string name, int x, int y, int width, int height, color bgColor)
-    {
-        if(!ObjectCreate(0, name, OBJ_RECTANGLE_LABEL, 0, 0, 0))
-        {
-            Print("创建背景对象失败:", name, " 错误:", GetLastError());
-            return false;
-        }
-        
-        if(!ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x) ||
-           !ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y) ||
-           !ObjectSetInteger(0, name, OBJPROP_XSIZE, width) ||
-           !ObjectSetInteger(0, name, OBJPROP_YSIZE, height))
-        {
-            Print("设置背景对象属性失败:", name);
-            return false;
-        }
-        
-        ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bgColor);
-        ObjectSetInteger(0, name, OBJPROP_BORDER_TYPE, BORDER_FLAT);
-        ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-        ObjectSetInteger(0, name, OBJPROP_COLOR, clrWhite);
-        ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_SOLID);
-        ObjectSetInteger(0, name, OBJPROP_WIDTH, 1);
-        ObjectSetInteger(0, name, OBJPROP_BACK, true);
-        ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
-        // 确保面板可见
-        ObjectSetInteger(0, name, OBJPROP_HIDDEN, false);
-        
-        Print("面板背景创建成功:", name);
-        return true;
-    }
-
 public:
     // 初始化静态变量
     static void InitStaticVars()
     {
         s_lastCalcTime = 0;
+        s_lastUpdateTime = 0;
     }
     
     // 初始化面板属性
@@ -283,7 +194,7 @@ public:
         g_InfoPanelVisible = true;
         InitStaticVars();
         
-        // 清除可能存在的旧面板
+        // 清除可能存在的旧标签
         DeletePanel();
     }
     
@@ -294,158 +205,204 @@ public:
         
         if(!visible)
         {
-            // 如果设置为不可见，删除面板
+            // 如果设置为不可见，删除标签
             DeletePanel();
         }
         else
         {
-            // 如果设置为可见，创建面板
+            // 如果设置为可见，创建标签
             CreateTradeInfoPanel();
         }
     }
 
-    // 创建交易信息面板 - 直接在图表上显示
-static void CreateTradeInfoPanel(string panelName="", color textColor=NULL, color bgColor=NULL)
-{
-    if(!g_InfoPanelVisible) return; // 如果面板不可见，直接返回
-    
-    string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
-    color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
-    color actualBgColor = (bgColor == NULL) ? g_InfoPanelBgColor : bgColor;
-
-    Print("创建交易信息面板:", actualPanelName);
-    
-    // 清除所有相关对象
-    ObjectsDeleteAll(0, actualPanelName + "_");
-    
-    // 构建面板内容
-    string panelContent = BuildPanelContent();
-    
-    // 按换行符拆分内容
-    string lines[];
-    int lineCount = StringSplit(panelContent, '\n', lines);
-    
-    Print("信息行数:", lineCount);
-    
-    // 计算面板尺寸
-    int panelWidth = 250;
-    int panelHeight = 30 + lineCount * 20;
-    
-    // 创建面板背景
-    if(!CreatePanelBackground(actualPanelName, g_InfoPanelX, g_InfoPanelY, panelWidth, panelHeight, actualBgColor))
+    // 创建交易信息标签 - 直接在图表上显示
+    static void CreateTradeInfoPanel(string panelName="", color textColor=NULL)
     {
-        Print("面板背景创建失败");
-        return;
-    }
-    
-    // 创建每行文本标签
-    for(int i = 0; i < lineCount; i++)
-    {
-        string labelName = actualPanelName + "_Line" + IntegerToString(i);
+        if(!g_InfoPanelVisible) return; // 如果不可见，直接返回
         
-        // 创建文本标签
-        if(!ObjectCreate(0, labelName, OBJ_LABEL, 0, 0, 0))
-        {
-            Print("创建标签失败:", labelName, " 错误:", GetLastError());
-            continue;
-        }
-        
-        // 设置标签属性
-        ObjectSetString(0, labelName, OBJPROP_TEXT, lines[i]);
-        ObjectSetInteger(0, labelName, OBJPROP_XDISTANCE, g_InfoPanelX + 10);
-        ObjectSetInteger(0, labelName, OBJPROP_YDISTANCE, g_InfoPanelY + 15 + i * 20);
-        ObjectSetInteger(0, labelName, OBJPROP_COLOR, actualTextColor);
-        ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-        ObjectSetString(0, labelName, OBJPROP_FONT, g_InfoPanelFont);
-        ObjectSetInteger(0, labelName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-        ObjectSetInteger(0, labelName, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
-        ObjectSetInteger(0, labelName, OBJPROP_HIDDEN, false);
-        ObjectSetInteger(0, labelName, OBJPROP_SELECTABLE, false);
-        ObjectSetInteger(0, labelName, OBJPROP_BACK, false);
-        
-        Print("创建标签:", labelName, " 内容:", lines[i]);
-    }
-    
-    // 强制刷新图表
-    ChartRedraw(0);
-    Print("信息面板创建完成");
-}
-
-    // 创建简单信息面板
-    static void CreateSimpleInfoPanel(string panelName, string message, color textColor=NULL, color bgColor=NULL)
-    {
         string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
         color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
-        color actualBgColor = (bgColor == NULL) ? g_InfoPanelBgColor : bgColor;
 
-        // 删除旧面板
-        DeletePanel(actualPanelName);
-
-        // 创建面板背景
-        int panelWidth = 250;
-        int panelHeight = 60;
-        int panelX = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS) - panelWidth - 10;
-        int panelY = 10;
-
-        // 创建单行面板
-        CreateMultiLinePanel(actualPanelName, message, panelX, panelY, 
-                           panelWidth, panelHeight, actualTextColor, actualBgColor);
+        Print("创建交易信息标签:", actualPanelName);
+        
+        // 清除所有相关对象
+        ObjectsDeleteAll(0, actualPanelName + "_");
+        
+        // 构建内容
+        string content = BuildPanelContent();
+        
+        // 按换行符拆分内容
+        string lines[];
+        int lineCount = StringSplit(content, '\n', lines);
+        
+        // 减少日志输出
+        // Print("信息行数:", lineCount);
+        
+        // 创建每行文本标签
+        for(int i = 0; i < lineCount; i++)
+        {
+            string labelName = actualPanelName + "_Line" + IntegerToString(i);
+            
+            // 创建文本标签
+            if(!ObjectCreate(0, labelName, OBJ_LABEL, 0, 0, 0))
+            {
+                Print("创建标签失败:", labelName, " 错误:", GetLastError());
+                continue;
+            }
+            
+            // 设置标签属性
+            ObjectSetString(0, labelName, OBJPROP_TEXT, lines[i]);
+            ObjectSetInteger(0, labelName, OBJPROP_XDISTANCE, g_InfoPanelX);
+            ObjectSetInteger(0, labelName, OBJPROP_YDISTANCE, g_InfoPanelY + i * 20);
+            ObjectSetInteger(0, labelName, OBJPROP_COLOR, actualTextColor);
+            ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+            ObjectSetString(0, labelName, OBJPROP_FONT, g_InfoPanelFont);
+            ObjectSetInteger(0, labelName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+            ObjectSetInteger(0, labelName, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+            ObjectSetInteger(0, labelName, OBJPROP_HIDDEN, false);
+            ObjectSetInteger(0, labelName, OBJPROP_SELECTABLE, false);
+            
+            // 减少日志输出
+            // Print("创建标签:", labelName, " 内容:", lines[i]);
+        }
+        
+        // 强制刷新图表
+        ChartRedraw(0);
+        // 减少日志输出
+        Print("信息标签创建完成");
     }
 
     // 删除面板
     static void DeletePanel(string panelName="")
     {
         string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
-        // 删除面板背景
-        ObjectDelete(0, actualPanelName);
         // 删除所有相关标签
         ObjectsDeleteAll(0, actualPanelName + "_");
         
         // 强制刷新图表
         ChartRedraw(0);
-        Print("面板已删除:", actualPanelName);
+        Print("标签已删除:", actualPanelName);
     }
 
-   // 更新面板内容 - 简化版本，直接重新创建面板
-static void UpdatePanelContent()
-{
-    if(!g_InfoPanelVisible) return; // 如果面板不可见，直接返回
-    
-    // 只在1分钟收线时重新计算交易区间
-    datetime currentTime = iTime(NULL, PERIOD_M1, 0);
-    if(CInfoPanelManager::s_lastCalcTime != currentTime)
+    // 更新面板内容
+    static void UpdatePanelContent()
     {
-        CInfoPanelManager::s_lastCalcTime = currentTime;
-        Print("1分钟收线，重新计算交易区间");
+        if(!g_InfoPanelVisible) return; // 如果不可见，直接返回
         
-        // 直接重新创建面板
-        CreateTradeInfoPanel();
-    }
-    else
-    {
-        // 非收线时间，只更新标签内容，不重新计算
-        string panelName = g_InfoPanelName;
-        string panelContent = BuildPanelContent();
-        
-        // 按换行符拆分内容
-        string lines[];
-        int lineCount = StringSplit(panelContent, '\n', lines);
-        
-        // 更新每行文本标签
-        for(int i = 0; i < lineCount; i++)
+        // 添加节流机制，避免频繁更新
+        datetime currentTickTime = TimeCurrent();
+        if(currentTickTime - CInfoPanelManager::s_lastUpdateTime < 1) // 至少间隔1秒
         {
-            string labelName = panelName + "_Line" + IntegerToString(i);
+            return;
+        }
+        CInfoPanelManager::s_lastUpdateTime = currentTickTime;
+        
+        // 只在1分钟收线时重新计算交易区间
+        datetime currentTime = iTime(NULL, PERIOD_M1, 0);
+        if(CInfoPanelManager::s_lastCalcTime != currentTime)
+        {
+            CInfoPanelManager::s_lastCalcTime = currentTime;
+            Print("1分钟收线，重新计算交易区间");
             
-            if(ObjectFind(0, labelName) >= 0)
+            // 获取新内容
+            string content = BuildPanelContent();
+            string panelName = g_InfoPanelName;
+            
+            // 按换行符拆分内容
+            string lines[];
+            int lineCount = StringSplit(content, '\n', lines);
+            
+            // 检查标签是否存在，不存在则创建
+            bool needsCreation = false;
+            for(int i = 0; i < lineCount; i++)
             {
-                ObjectSetString(0, labelName, OBJPROP_TEXT, lines[i]);
+                string labelName = panelName + "_Line" + IntegerToString(i);
+                if(ObjectFind(0, labelName) < 0)
+                {
+                    needsCreation = true;
+                    break;
+                }
+            }
+            
+            if(needsCreation)
+            {
+                // 如果有标签不存在，创建所有标签
+                Print("部分标签不存在，创建所有标签");
+                CreateTradeInfoPanel();
+            }
+            else
+            {
+                // 所有标签都存在，只更新内容
+                Print("更新标签内容");
+                for(int i = 0; i < lineCount; i++)
+                {
+                    string labelName = panelName + "_Line" + IntegerToString(i);
+                    string currentText = ObjectGetString(0, labelName, OBJPROP_TEXT);
+                    
+                    // 只有当文本内容变化时才更新
+                    if(currentText != lines[i])
+                    {
+                        ObjectSetString(0, labelName, OBJPROP_TEXT, lines[i]);
+                        // 减少日志输出
+                        // Print("更新标签:", labelName, " 新内容:", lines[i]);
+                    }
+                }
+                
+                // 删除多余的标签
+                int i = lineCount;
+                while(true)
+                {
+                    string labelName = panelName + "_Line" + IntegerToString(i);
+                    if(ObjectFind(0, labelName) >= 0)
+                    {
+                        ObjectDelete(0, labelName);
+                        // 减少日志输出
+                        // Print("删除多余标签:", labelName);
+                        i++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                
+                // 强制刷新图表
+                ChartRedraw(0);
             }
         }
-        
-        // 强制刷新图表
-        ChartRedraw(0);
+        else
+        {
+            // 非收线时间，只更新标签内容，不重新计算
+            string panelName = g_InfoPanelName;
+            string content = BuildPanelContent();
+            
+            // 按换行符拆分内容
+            string lines[];
+            int lineCount = StringSplit(content, '\n', lines);
+            
+            // 更新每行文本标签
+            for(int i = 0; i < lineCount; i++)
+            {
+                string labelName = panelName + "_Line" + IntegerToString(i);
+                
+                if(ObjectFind(0, labelName) >= 0)
+                {
+                    string currentText = ObjectGetString(0, labelName, OBJPROP_TEXT);
+                    
+                    // 只有当文本内容变化时才更新
+                    if(currentText != lines[i])
+                    {
+                        ObjectSetString(0, labelName, OBJPROP_TEXT, lines[i]);
+                        // 减少日志输出
+                        // Print("更新标签:", labelName, " 新内容:", lines[i]);
+                    }
+                }
+            }
+            
+            // 强制刷新图表
+            ChartRedraw(0);
+        }
     }
-}
 
     // 获取当前价格
     static double GetCurrentPrice()
@@ -461,3 +418,4 @@ static void UpdatePanelContent()
 
 // 定义静态变量
 datetime CInfoPanelManager::s_lastCalcTime = 0;
+datetime CInfoPanelManager::s_lastUpdateTime = 0;
