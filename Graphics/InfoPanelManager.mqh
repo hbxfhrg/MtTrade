@@ -8,6 +8,7 @@
 
 #include "../GlobalInstances.mqh"
 #include "../Strategies/StrategyManager.mqh"
+#include "LabelManager.mqh"
 
 // 全局面板属性
 string  g_InfoPanelName = "InfoPanel";
@@ -15,13 +16,262 @@ color   g_InfoPanelTextColor = clrWhite;
 color   g_InfoPanelBgColor = clrNavy;
 int     g_InfoPanelFontSize = 9;
 string  g_InfoPanelFont = "Arial";
+int g_InfoPanelX = 10;  // 面板X坐标
+int g_InfoPanelY = 10;  // 面板Y坐标
+bool g_InfoPanelVisible = true; // 面板可见性控制
 
 //+------------------------------------------------------------------+
 //| 信息面板管理类                                                   |
 //+------------------------------------------------------------------+
 class CInfoPanelManager
 {
+private:
+    // 静态变量记录上次计算时间
+    static datetime s_lastCalcTime;
+    
+    // 构建面板内容
+    static string BuildPanelContent()
+    {
+        string content = "";
+        
+        if(g_tradeAnalyzer.IsValid())
+        {
+            // 核心交易信息
+            content += "区间: " + DoubleToString(g_tradeAnalyzer.GetRangeLow(), _Digits) + 
+                      " - " + DoubleToString(g_tradeAnalyzer.GetRangeHigh(), _Digits) + "\n";
+            
+            content += "趋势方向: " + g_tradeAnalyzer.GetTrendDirection() + "\n";
+            
+            g_tradeAnalyzer.CalculateRetracement();
+            content += g_tradeAnalyzer.GetRetraceDescription() + "\n";
+            
+            content += "参考价: " + DoubleToString(g_tradeAnalyzer.GetTradeBasePrice(), _Digits) + "\n";
+            
+            // 线段信息
+            string segmentInfo = BuildSegmentInfo();
+            if(segmentInfo != "")
+            {
+                content += segmentInfo;
+            }
+            else
+            {
+                content += "5分钟线段(左): 加载中...\n";
+                content += "5分钟线段(右): 加载中...\n"; 
+                content += "1小时线段(左): 加载中...\n";
+                content += "1小时线段(右): 加载中...";
+            }
+        }
+        else
+        {
+            content = "暂无有效数据";
+        }
+        
+        Print("面板内容构建完成:\n", content);
+        return content;
+    }
+
+    // 构建线段信息
+    static string BuildSegmentInfo()
+    {
+        string segmentInfo = "";
+        CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
+        
+        if(currentMainSegment != NULL)
+        {
+            double tradeBasePrice = g_tradeAnalyzer.GetTradeBasePrice();
+            if(tradeBasePrice > 0.0)
+            {
+                datetime rangeStartTime = currentMainSegment.StartTime();
+                
+                // 1小时线段信息
+                CZigzagSegmentManager* h1Manager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
+                if(h1Manager != NULL)
+                {
+                    CZigzagSegment* h1Segments[];
+                    if(h1Manager.GetSegments(h1Segments) && ArraySize(h1Segments) > 0)
+                    {
+                        segmentInfo += BuildSegmentLines("H1左", h1Segments, true, rangeStartTime) + "\n";
+                        segmentInfo += BuildSegmentLines("H1右", h1Segments, false, rangeStartTime) + "\n";
+                        
+                        // 5分钟线段信息
+                        CZigzagSegmentManager* m5Manager = h1Segments[0].GetSmallerTimeframeSegments(PERIOD_M5);
+                        if(m5Manager != NULL)
+                        {
+                            CZigzagSegment* m5Segments[];
+                            if(m5Manager.GetSegments(m5Segments) && ArraySize(m5Segments) > 0)
+                            {
+                                segmentInfo += BuildSegmentLines("M5左", m5Segments, true, rangeStartTime) + "\n";
+                                segmentInfo += BuildSegmentLines("M5右", m5Segments, false, rangeStartTime);
+                            }
+                            
+                            // 释放资源
+                            for(int i = 0; i < ArraySize(m5Segments); i++)
+                            {
+                                if(m5Segments[i] != NULL)
+                                {
+                                    delete m5Segments[i];
+                                }
+                            }
+                            delete m5Manager;
+                        }
+                    }
+                    
+                    // 释放资源
+                    for(int i = 0; i < ArraySize(h1Segments); i++)
+                    {
+                        if(h1Segments[i] != NULL)
+                        {
+                            delete h1Segments[i];
+                        }
+                    }
+                    delete h1Manager;
+                }
+            }
+        }
+        
+        return segmentInfo;
+    }
+
+    // 构建线段文本
+    static string BuildSegmentLines(string prefix, CZigzagSegment* &segments[], bool isLeft, datetime rangeStartTime)
+    {
+        string lineText = prefix + ": ";
+        CZigzagSegment* filteredSegments[];
+        int count = 0;
+        
+        for(int i = 0; i < ArraySize(segments); i++)
+        {
+            if(segments[i] != NULL)
+            {
+                bool condition = isLeft ? 
+                    (segments[i].EndTime() <= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime() && 
+                     segments[i].StartTime() >= rangeStartTime) :
+                    (segments[i].StartTime() >= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime());
+                
+                if(condition)
+                {
+                    ArrayResize(filteredSegments, count + 1);
+                    filteredSegments[count++] = segments[i];
+                }
+            }
+        }
+        
+        if(count > 0)
+        {
+            SortSegmentsByTime(filteredSegments, false, true);
+            for(int i = 0; i < MathMin(3, count); i++)
+            {
+                lineText += DoubleToString(filteredSegments[i].StartPrice(), _Digits) + "→";
+            }
+        }
+        else
+        {
+            lineText += "无数据";
+        }
+        
+        return lineText;
+    }
+
+   // 修改CreateMultiLinePanel方法中的标签创建逻辑
+static void CreateMultiLinePanel(string panelName, string content, int panelX, int panelY, 
+                               int panelWidth, int panelHeight, color textColor, color bgColor)
+{
+    Print("开始创建面板:", panelName);
+    Print("面板位置: X=", panelX, " Y=", panelY);
+    Print("面板尺寸: 宽=", panelWidth, " 高=", panelHeight);
+    
+    // 创建面板背景
+    if(!CreatePanelBackground(panelName, panelX, panelY, panelWidth, panelHeight, bgColor))
+    {
+        Print("创建面板背景失败");
+        return;
+    }
+    
+    // 按换行符拆分内容
+    string lines[];
+    int lineCount = StringSplit(content, '\n', lines);
+    int lineHeight = 20;
+    
+    Print("面板内容行数:", lineCount);
+    
+    // 创建每行标签
+    for(int i = 0; i < lineCount; i++)
+    {
+        string labelName = panelName + "_Line" + IntegerToString(i);
+        
+        // 直接创建标签，不检查返回值
+        CLabelManager::CreateTextLabel(
+            labelName, 
+            lines[i], 
+            0, 0, 
+            false, 
+            false,  // 确保不是隐藏状态
+            textColor, 
+            g_InfoPanelFont, 
+            g_InfoPanelFontSize,
+            panelX + 10,
+            false
+        );
+        
+        // 检查标签是否创建成功
+        if(ObjectFind(0, labelName) >= 0)
+        {
+            if(ObjectSetInteger(0, labelName, OBJPROP_YDISTANCE, panelY + 10 + (i * lineHeight)))
+            {
+                Print("成功创建标签:", labelName, " 内容:", lines[i]);
+            }
+            else
+            {
+                Print("设置标签位置失败:", labelName);
+            }
+        }
+        else
+        {
+            Print("创建标签失败:", labelName);
+        }
+    }
+}
+
+    // 创建面板背景
+    static bool CreatePanelBackground(string name, int x, int y, int width, int height, color bgColor)
+    {
+        if(!ObjectCreate(0, name, OBJ_RECTANGLE_LABEL, 0, 0, 0))
+        {
+            Print("创建背景对象失败:", name, " 错误:", GetLastError());
+            return false;
+        }
+        
+        if(!ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x) ||
+           !ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y) ||
+           !ObjectSetInteger(0, name, OBJPROP_XSIZE, width) ||
+           !ObjectSetInteger(0, name, OBJPROP_YSIZE, height))
+        {
+            Print("设置背景对象属性失败:", name);
+            return false;
+        }
+        
+        ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bgColor);
+        ObjectSetInteger(0, name, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+        ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, name, OBJPROP_COLOR, clrWhite);
+        ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_SOLID);
+        ObjectSetInteger(0, name, OBJPROP_WIDTH, 1);
+        ObjectSetInteger(0, name, OBJPROP_BACK, true);
+        ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+        // 确保面板可见
+        ObjectSetInteger(0, name, OBJPROP_HIDDEN, false);
+        
+        Print("面板背景创建成功:", name);
+        return true;
+    }
+
 public:
+    // 初始化静态变量
+    static void InitStaticVars()
+    {
+        s_lastCalcTime = 0;
+    }
+    
     // 初始化面板属性
     static void Init(string panelName="InfoPanel", color textColor=clrWhite, color bgColor=clrNavy, int fontSize=9)
     {
@@ -30,43 +280,98 @@ public:
         g_InfoPanelBgColor = bgColor;
         g_InfoPanelFontSize = fontSize;
         g_InfoPanelFont = "Arial";
+        g_InfoPanelVisible = true;
+        InitStaticVars();
+        
+        // 清除可能存在的旧面板
+        DeletePanel();
     }
-
-    // 创建交易信息面板（主方法）
-    static void CreateTradeInfoPanel(string panelName="", color textColor=NULL, color bgColor=NULL)
+    
+    // 设置面板可见性
+    static void SetVisible(bool visible)
     {
-        string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
-        color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
-        color actualBgColor = (bgColor == NULL) ? g_InfoPanelBgColor : bgColor;
-
-        // 删除旧面板
-        ObjectDelete(0, actualPanelName);
-
-        // 面板基础设置
-        int panelWidth = 250;
-        int panelHeight = 320;  // 增加高度容纳所有线段信息
-        int panelX = 10;
-        int panelY = 10;
-
-        // 创建面板背景
-        CreatePanelBackground(actualPanelName, panelX, panelY, panelWidth, panelHeight, actualBgColor);
-
-        // 显示交易数据
-        if(g_tradeAnalyzer.IsValid())
+        g_InfoPanelVisible = visible;
+        
+        if(!visible)
         {
-            // 显示核心交易信息
-            DisplayCoreInfo(actualPanelName, panelX, panelY, actualTextColor);
-            
-            // 显示线段信息
-            DisplaySegmentInfo(actualPanelName, panelX, panelY, actualTextColor);
+            // 如果设置为不可见，删除面板
+            DeletePanel();
         }
         else
         {
-            DisplayNoDataMessage(actualPanelName, panelX, panelY, actualTextColor);
+            // 如果设置为可见，创建面板
+            CreateTradeInfoPanel();
         }
     }
 
-    // 创建简单信息面板（无数据版本）
+    // 创建交易信息面板 - 直接在图表上显示
+static void CreateTradeInfoPanel(string panelName="", color textColor=NULL, color bgColor=NULL)
+{
+    if(!g_InfoPanelVisible) return; // 如果面板不可见，直接返回
+    
+    string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
+    color actualTextColor = (textColor == NULL) ? g_InfoPanelTextColor : textColor;
+    color actualBgColor = (bgColor == NULL) ? g_InfoPanelBgColor : bgColor;
+
+    Print("创建交易信息面板:", actualPanelName);
+    
+    // 清除所有相关对象
+    ObjectsDeleteAll(0, actualPanelName + "_");
+    
+    // 构建面板内容
+    string panelContent = BuildPanelContent();
+    
+    // 按换行符拆分内容
+    string lines[];
+    int lineCount = StringSplit(panelContent, '\n', lines);
+    
+    Print("信息行数:", lineCount);
+    
+    // 计算面板尺寸
+    int panelWidth = 250;
+    int panelHeight = 30 + lineCount * 20;
+    
+    // 创建面板背景
+    if(!CreatePanelBackground(actualPanelName, g_InfoPanelX, g_InfoPanelY, panelWidth, panelHeight, actualBgColor))
+    {
+        Print("面板背景创建失败");
+        return;
+    }
+    
+    // 创建每行文本标签
+    for(int i = 0; i < lineCount; i++)
+    {
+        string labelName = actualPanelName + "_Line" + IntegerToString(i);
+        
+        // 创建文本标签
+        if(!ObjectCreate(0, labelName, OBJ_LABEL, 0, 0, 0))
+        {
+            Print("创建标签失败:", labelName, " 错误:", GetLastError());
+            continue;
+        }
+        
+        // 设置标签属性
+        ObjectSetString(0, labelName, OBJPROP_TEXT, lines[i]);
+        ObjectSetInteger(0, labelName, OBJPROP_XDISTANCE, g_InfoPanelX + 10);
+        ObjectSetInteger(0, labelName, OBJPROP_YDISTANCE, g_InfoPanelY + 15 + i * 20);
+        ObjectSetInteger(0, labelName, OBJPROP_COLOR, actualTextColor);
+        ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
+        ObjectSetString(0, labelName, OBJPROP_FONT, g_InfoPanelFont);
+        ObjectSetInteger(0, labelName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, labelName, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+        ObjectSetInteger(0, labelName, OBJPROP_HIDDEN, false);
+        ObjectSetInteger(0, labelName, OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, labelName, OBJPROP_BACK, false);
+        
+        Print("创建标签:", labelName, " 内容:", lines[i]);
+    }
+    
+    // 强制刷新图表
+    ChartRedraw(0);
+    Print("信息面板创建完成");
+}
+
+    // 创建简单信息面板
     static void CreateSimpleInfoPanel(string panelName, string message, color textColor=NULL, color bgColor=NULL)
     {
         string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
@@ -74,7 +379,7 @@ public:
         color actualBgColor = (bgColor == NULL) ? g_InfoPanelBgColor : bgColor;
 
         // 删除旧面板
-        ObjectDelete(0, actualPanelName);
+        DeletePanel(actualPanelName);
 
         // 创建面板背景
         int panelWidth = 250;
@@ -82,30 +387,65 @@ public:
         int panelX = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS) - panelWidth - 10;
         int panelY = 10;
 
-        ObjectCreate(0, actualPanelName, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-        ObjectSetInteger(0, actualPanelName, OBJPROP_XDISTANCE, panelX);
-        ObjectSetInteger(0, actualPanelName, OBJPROP_YDISTANCE, panelY);
-        ObjectSetInteger(0, actualPanelName, OBJPROP_XSIZE, panelWidth);
-        ObjectSetInteger(0, actualPanelName, OBJPROP_YSIZE, panelHeight);
-        ObjectSetInteger(0, actualPanelName, OBJPROP_BGCOLOR, actualBgColor);
-
-        // 显示消息
-        string labelName = actualPanelName + "_Message";
-        ObjectCreate(0, labelName, OBJ_LABEL, 0, 0, 0);
-        ObjectSetInteger(0, labelName, OBJPROP_XDISTANCE, panelX + 10);
-        ObjectSetInteger(0, labelName, OBJPROP_YDISTANCE, panelY + 20);
-        ObjectSetInteger(0, labelName, OBJPROP_COLOR, actualTextColor);
-        ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-        ObjectSetString(0, labelName, OBJPROP_FONT, g_InfoPanelFont);
-        ObjectSetString(0, labelName, OBJPROP_TEXT, message);
+        // 创建单行面板
+        CreateMultiLinePanel(actualPanelName, message, panelX, panelY, 
+                           panelWidth, panelHeight, actualTextColor, actualBgColor);
     }
 
     // 删除面板
     static void DeletePanel(string panelName="")
     {
         string actualPanelName = (panelName == "") ? g_InfoPanelName : panelName;
-        ObjectsDeleteAll(0, actualPanelName);
+        // 删除面板背景
+        ObjectDelete(0, actualPanelName);
+        // 删除所有相关标签
+        ObjectsDeleteAll(0, actualPanelName + "_");
+        
+        // 强制刷新图表
+        ChartRedraw(0);
+        Print("面板已删除:", actualPanelName);
     }
+
+   // 更新面板内容 - 简化版本，直接重新创建面板
+static void UpdatePanelContent()
+{
+    if(!g_InfoPanelVisible) return; // 如果面板不可见，直接返回
+    
+    // 只在1分钟收线时重新计算交易区间
+    datetime currentTime = iTime(NULL, PERIOD_M1, 0);
+    if(CInfoPanelManager::s_lastCalcTime != currentTime)
+    {
+        CInfoPanelManager::s_lastCalcTime = currentTime;
+        Print("1分钟收线，重新计算交易区间");
+        
+        // 直接重新创建面板
+        CreateTradeInfoPanel();
+    }
+    else
+    {
+        // 非收线时间，只更新标签内容，不重新计算
+        string panelName = g_InfoPanelName;
+        string panelContent = BuildPanelContent();
+        
+        // 按换行符拆分内容
+        string lines[];
+        int lineCount = StringSplit(panelContent, '\n', lines);
+        
+        // 更新每行文本标签
+        for(int i = 0; i < lineCount; i++)
+        {
+            string labelName = panelName + "_Line" + IntegerToString(i);
+            
+            if(ObjectFind(0, labelName) >= 0)
+            {
+                ObjectSetString(0, labelName, OBJPROP_TEXT, lines[i]);
+            }
+        }
+        
+        // 强制刷新图表
+        ChartRedraw(0);
+    }
+}
 
     // 获取当前价格
     static double GetCurrentPrice()
@@ -117,270 +457,7 @@ public:
         }
         return 0.0;
     }
-
-private:
-    // 创建面板背景
-    static void CreatePanelBackground(string name, int x, int y, int width, int height, color bgColor)
-    {
-        ObjectCreate(0, name, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-        ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
-        ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
-        ObjectSetInteger(0, name, OBJPROP_XSIZE, width);
-        ObjectSetInteger(0, name, OBJPROP_YSIZE, height);
-        ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bgColor);
-        ObjectSetInteger(0, name, OBJPROP_BORDER_TYPE, BORDER_FLAT);
-        ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-        ObjectSetInteger(0, name, OBJPROP_COLOR, clrWhite);
-        ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_SOLID);
-        ObjectSetInteger(0, name, OBJPROP_WIDTH, 1);
-        ObjectSetInteger(0, name, OBJPROP_BACK, true);
-        ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
-        ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
-    }
-
-    // 显示核心交易信息
-    static void DisplayCoreInfo(string panelName, int panelX, int panelY, color textColor)
-    {
-        // 区间信息
-        string rangeName = panelName + "_Range";
-        CreateInfoLabel(rangeName, panelX + 10, panelY + 10, textColor,
-                      StringFormat("区间: %s - %s",
-                                  DoubleToString(g_tradeAnalyzer.GetRangeLow(), _Digits),
-                                  DoubleToString(g_tradeAnalyzer.GetRangeHigh(), _Digits)));
-
-        // 趋势信息
-        string trendName = panelName + "_Trend";
-        CreateInfoLabel(trendName, panelX + 10, panelY + 30, textColor,
-                      "趋势方向: " + g_tradeAnalyzer.GetTrendDirection());
-
-        // 回撤信息
-        g_tradeAnalyzer.CalculateRetracement();
-        string retraceName = panelName + "_Retrace";
-        CreateInfoLabel(retraceName, panelX + 10, panelY + 50, textColor,
-                      g_tradeAnalyzer.GetRetraceDescription());
-
-        // 参考价格
-        string priceName = panelName + "_Price";
-        CreateInfoLabel(priceName, panelX + 10, panelY + 70, textColor,
-                      "参考价: " + DoubleToString(g_tradeAnalyzer.GetTradeBasePrice(), _Digits));
-    }
-
-    // 显示线段信息
-    static void DisplaySegmentInfo(string panelName, int panelX, int panelY, color textColor)
-    {
-        // 5分钟线段（左侧）
-        string m5LeftName = panelName + "_M5_Left";
-        CreateInfoLabel(m5LeftName, panelX + 10, panelY + 90, textColor, "5分钟线段(左): 加载中...");
-
-        // 5分钟线段（右侧）
-        string m5RightName = panelName + "_M5_Right";
-        CreateInfoLabel(m5RightName, panelX + 10, panelY + 110, textColor, "5分钟线段(右): 加载中...");
-
-        // 1小时线段（左侧）
-        string h1LeftName = panelName + "_H1_Left";
-        CreateInfoLabel(h1LeftName, panelX + 10, panelY + 130, textColor, "1小时线段(左): 加载中...");
-
-        // 1小时线段（右侧）
-        string h1RightName = panelName + "_H1_Right";
-        CreateInfoLabel(h1RightName, panelX + 10, panelY + 150, textColor, "1小时线段(右): 加载中...");
-
-        // 更新线段数据
-        UpdateSegmentData(panelName);
-    }
-
-    // 更新线段数据
-    static void UpdateSegmentData(string panelName)
-    {
-        // 获取当前4小时主交易线段
-        CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
-        if(currentMainSegment == NULL)
-            return;
-            
-        // 获取交易基准价格
-        double tradeBasePrice = g_tradeAnalyzer.GetTradeBasePrice();
-        if(tradeBasePrice <= 0.0)
-            return;
-            
-        // 获取4小时线段的开始时间，作为左线段时间限制
-        datetime rangeStartTime = currentMainSegment.StartTime();
-        
-        // 1. 从4小时主交易区间计算1小时线段
-        CZigzagSegmentManager* h1SegmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
-        if(h1SegmentManager != NULL)
-        {
-            CZigzagSegment* h1Segments[];
-            if(h1SegmentManager.GetSegments(h1Segments) && ArraySize(h1Segments) > 0)
-            {
-                // 筛选左侧1小时线段（结束时间早于交易基准价格时间且开始时间不早于4小时线段开始时间）
-                CZigzagSegment* leftH1Segments[];
-                int leftH1Count = 0;
-                
-                for(int i = 0; i < ArraySize(h1Segments); i++)
-                {
-                    if(h1Segments[i] != NULL && 
-                       h1Segments[i].EndTime() <= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime() && 
-                       h1Segments[i].StartTime() >= rangeStartTime)
-                    {
-                        ArrayResize(leftH1Segments, leftH1Count + 1);
-                        leftH1Segments[leftH1Count++] = h1Segments[i];
-                    }
-                }
-                
-                // 按时间排序（最近的在前）
-                ::SortSegmentsByTime(leftH1Segments, false, true);
-                
-                // 显示左侧1小时线段
-                if(leftH1Count > 0)
-                {
-                    string h1LeftText = "H1左: ";
-                    for(int i = 0; i < MathMin(3, leftH1Count); i++)
-                    {
-                        h1LeftText += StringFormat("%s→", DoubleToString(leftH1Segments[i].StartPrice(), _Digits));
-                    }
-                    ObjectSetString(0, panelName+"_H1_Left", OBJPROP_TEXT, h1LeftText);
-                }
-                
-                // 筛选右侧1小时线段（开始时间晚于交易基准价格时间）
-                CZigzagSegment* rightH1Segments[];
-                int rightH1Count = 0;
-                
-                for(int i = 0; i < ArraySize(h1Segments); i++)
-                {
-                    if(h1Segments[i] != NULL && 
-                       h1Segments[i].StartTime() >= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime())
-                    {
-                        ArrayResize(rightH1Segments, rightH1Count + 1);
-                        rightH1Segments[rightH1Count++] = h1Segments[i];
-                    }
-                }
-                
-                // 按时间排序（最近的在前）
-                ::SortSegmentsByTime(rightH1Segments, false, true);
-                
-                // 显示右侧1小时线段
-                if(rightH1Count > 0)
-                {
-                    string h1RightText = "H1右: ";
-                    for(int i = 0; i < MathMin(3, rightH1Count); i++)
-                    {
-                        h1RightText += StringFormat("%s→", DoubleToString(rightH1Segments[i].StartPrice(), _Digits));
-                    }
-                    ObjectSetString(0, panelName+"_H1_Right", OBJPROP_TEXT, h1RightText);
-                }
-                
-                // 2. 从1小时线段计算5分钟线段（使用第一个1小时线段）
-                if(ArraySize(h1Segments) > 0)
-                {
-                    CZigzagSegmentManager* m5SegmentManager = h1Segments[0].GetSmallerTimeframeSegments(PERIOD_M5);
-                    if(m5SegmentManager != NULL)
-                    {
-                        CZigzagSegment* m5Segments[];
-                        if(m5SegmentManager.GetSegments(m5Segments) && ArraySize(m5Segments) > 0)
-                        {
-                            // 筛选左侧5分钟线段（结束时间早于交易基准价格时间且开始时间不早于4小时线段开始时间）
-                            CZigzagSegment* leftM5Segments[];
-                            int leftM5Count = 0;
-                            
-                            for(int i = 0; i < ArraySize(m5Segments); i++)
-                            {
-                                if(m5Segments[i] != NULL && 
-                                   m5Segments[i].EndTime() <= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime() && 
-                                   m5Segments[i].StartTime() >= rangeStartTime)
-                                {
-                                    ArrayResize(leftM5Segments, leftM5Count + 1);
-                                    leftM5Segments[leftM5Count++] = m5Segments[i];
-                                }
-                            }
-                            
-                            // 按时间排序（最近的在前）
-                            ::SortSegmentsByTime(leftM5Segments, false, true);
-                            
-                            // 显示左侧5分钟线段
-                            if(leftM5Count > 0)
-                            {
-                                string m5LeftText = "M5左: ";
-                                for(int i = 0; i < MathMin(3, leftM5Count); i++)
-                                {
-                                    m5LeftText += StringFormat("%s→", DoubleToString(leftM5Segments[i].StartPrice(), _Digits));
-                                }
-                                ObjectSetString(0, panelName+"_M5_Left", OBJPROP_TEXT, m5LeftText);
-                            }
-                            
-                            // 筛选右侧5分钟线段（开始时间晚于交易基准价格时间）
-                            CZigzagSegment* rightM5Segments[];
-                            int rightM5Count = 0;
-                            
-                            for(int i = 0; i < ArraySize(m5Segments); i++)
-                            {
-                                if(m5Segments[i] != NULL && 
-                                   m5Segments[i].StartTime() >= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime())
-                                {
-                                    ArrayResize(rightM5Segments, rightM5Count + 1);
-                                    rightM5Segments[rightM5Count++] = m5Segments[i];
-                                }
-                            }
-                            
-                            // 按时间排序（最近的在前）
-                            ::SortSegmentsByTime(rightM5Segments, false, true);
-                            
-                            // 显示右侧5分钟线段
-                            if(rightM5Count > 0)
-                            {
-                                string m5RightText = "M5右: ";
-                                for(int i = 0; i < MathMin(3, rightM5Count); i++)
-                                {
-                                    m5RightText += StringFormat("%s→", DoubleToString(rightM5Segments[i].StartPrice(), _Digits));
-                                }
-                                ObjectSetString(0, panelName+"_M5_Right", OBJPROP_TEXT, m5RightText);
-                            }
-                            
-                            // 释放5分钟线段数组中的对象
-                            for(int i = 0; i < ArraySize(m5Segments); i++)
-                            {
-                                if(m5Segments[i] != NULL)
-                                {
-                                    delete m5Segments[i];
-                                    m5Segments[i] = NULL;
-                                }
-                            }
-                        }
-                        // 释放5分钟线段管理器
-                        delete m5SegmentManager;
-                    }
-                }
-                
-                // 释放1小时线段数组中的对象
-                for(int i = 0; i < ArraySize(h1Segments); i++)
-                {
-                    if(h1Segments[i] != NULL)
-                    {
-                        delete h1Segments[i];
-                        h1Segments[i] = NULL;
-                    }
-                }
-            }
-            // 释放1小时线段管理器
-            delete h1SegmentManager;
-        }
-    }
-
-    // 创建信息标签（辅助方法）
-    static void CreateInfoLabel(string name, int x, int y, color clr, string text)
-    {
-        ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
-        ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
-        ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
-        ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
-        ObjectSetInteger(0, name, OBJPROP_FONTSIZE, g_InfoPanelFontSize);
-        ObjectSetString(0, name, OBJPROP_FONT, g_InfoPanelFont);
-        ObjectSetString(0, name, OBJPROP_TEXT, text);
-        ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-        ObjectSetInteger(0, name, OBJPROP_ZORDER, 100);
-    }
-
-    // 无数据提示
-    static void DisplayNoDataMessage(string panelName, int panelX, int panelY, color textColor)
-    {
-        CreateInfoLabel(panelName + "_NoData", panelX + 10, panelY + 30, textColor, "暂无有效数据");
-    }
 };
+
+// 定义静态变量
+datetime CInfoPanelManager::s_lastCalcTime = 0;
