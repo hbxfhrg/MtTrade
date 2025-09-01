@@ -118,13 +118,13 @@ double PriceDifferenceInPercent(double price1, double price2)
 //+------------------------------------------------------------------+
 //| 检查价格点是否在另一个价格点数组中出现                              |
 //+------------------------------------------------------------------+
-bool IsPriceInArray(double price, const CZigzagExtremumPoint &points[], double tolerance = 0.0001)
+bool IsPriceInArray(double price, const CZigzagExtremumPoint &points[])
   {
    // 遍历所有极值点
    for(int i = 0; i < ArraySize(points); i++)
      {
-      // 如果价格在容差范围内匹配，则认为是同一个价格点
-      if(MathAbs(price - points[i].Value()) < tolerance)
+      // 严格相等比较
+      if(price == points[i].Value())
         {
          return true;
         }
@@ -136,35 +136,12 @@ bool IsPriceInArray(double price, const CZigzagExtremumPoint &points[], double t
 //+------------------------------------------------------------------+
 //| 通过价格查找K线序号（使用ENUM_SERIESMODE）                        |
 //+------------------------------------------------------------------+
-int FindBarIndexByPrice(double targetPrice, ENUM_SERIESMODE seriesMode, ENUM_TIMEFRAMES timeframe = PERIOD_CURRENT, int maxBarsToCheck = 1000)
+int FindBarIndexByPrice(double targetPrice, ENUM_SERIESMODE seriesMode, ENUM_TIMEFRAMES timeframe = PERIOD_CURRENT)
   {
-   // 根据时间周期调整检查的K线数量，小周期不限制数量
-   int barsToCheck;
-   if(timeframe == PERIOD_M1)  // 1分钟周期，搜索范围最大
-     {
-      barsToCheck = MathMin(maxBarsToCheck, 5000);  // 1分钟周期最大5000根K线
-     }
-   else if(timeframe <= PERIOD_M5)  // 5分钟及以下的小周期，使用更大的搜索范围
-     {
-      barsToCheck = MathMin(maxBarsToCheck, 3000);  // 5分钟周期最大3000根K线
-     }
-   else if(timeframe <= PERIOD_M15)  // 15分钟周期
-     {
-      barsToCheck = MathMin(maxBarsToCheck, 1500);  // 15分钟周期最大1500根K线
-     }
-   else if(timeframe <= PERIOD_H1)  // 1小时及以下的中等周期
-     {
-      barsToCheck = MathMin(maxBarsToCheck, 800);   // 1小时周期最大800根K线
-     }
-   else  // 大周期
-     {
-      barsToCheck = MathMin(maxBarsToCheck, 300);   // 大周期最大300根K线
-     }
+   // 获取当前图表的总K线数量
+   int totalBars = Bars(Symbol(), timeframe);
    
-   // 设置固定容差（使用点值的0.1倍作为容差）
-   double tolerance = _Point * 0.1;
-   
-   for(int i = 0; i < barsToCheck; i++)
+   for(int i = 0; i < totalBars; i++)
      {
       double price;
       
@@ -187,14 +164,12 @@ int FindBarIndexByPrice(double targetPrice, ENUM_SERIESMODE seriesMode, ENUM_TIM
             return -1;
         }
       
-      // 使用固定容差判断价格是否匹配
-      if(MathAbs(price - targetPrice) <= tolerance)
+      // 严格相等比较
+      if(price == targetPrice)
         {
          return i;
         }
      }
-   
-
    
    return -1;
   }
