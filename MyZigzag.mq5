@@ -36,7 +36,8 @@ input bool   InpShowPenetratedPoints = false; // 显示已失效的价格点
 
 //--- 信息面板对象名称
 string infoPanel = "ZigzagInfoPanel";
-
+CZigzagExtremumPoint points4H[];
+CZigzagSegment* h1Segments[];
 //--- 缓存变量
 datetime          lastCalculationTime = 0;  // 上次计算的时间
 int               lastCalculatedBars = 0;   // 上次计算的K线数量
@@ -89,7 +90,9 @@ void OnInit()
    
 //--- 初始化交易分析器（核心数据源）
    g_tradeAnalyzer.Init();
+    // 初始化交易分析器并获取4H数据（仅在需要时）
    
+  InitializeTradeAnalyzer(points4H);
 //--- 设置精度和标签
    IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
    string short_name = "MyZigzag-TradeAnalyzer";
@@ -154,11 +157,10 @@ int OnCalculate(const int rates_total,
    // 检查是否需要重新计算交易分析器（1分钟K线收线时）
    CheckTradeAnalyzerRecalculation();
    
-   // 初始化交易分析器并获取4H数据（仅在需要时）
-   CZigzagExtremumPoint points4H[];
+  
    if(needRecalculateTradeAnalyzer)
      {
-      InitializeTradeAnalyzer(points4H);
+    
       needRecalculateTradeAnalyzer = false;  // 重置标志
      }
    
@@ -229,6 +231,80 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &points4H[])
            {
             // 使用4H周期极值点初始化主交易线段数组
             g_tradeAnalyzer.InitializeMainSegmentsFromPoints(points4H);
+            CZigzagSegment* h1leftsegments[];
+            g_tradeAnalyzer.m_tradeBasePoint.GetLeftH1Segments(h1leftsegments);
+            CZigzagSegment* h1rightsegments[];
+            g_tradeAnalyzer.m_tradeBasePoint.GetRightH1Segments(h1rightsegments);
+            CZigzagSegment* m5leftsegments[];
+             CZigzagSegment* m5rightsegments[];
+            g_tradeAnalyzer.m_tradeBasePoint.GetM5Segments(m5leftsegments,m5rightsegments);
+           
+            // 调试日志输出
+            Print("H1左线段数量: ", ArraySize(h1leftsegments));
+            for(int i=0; i<ArraySize(h1leftsegments); i++) {
+               if(h1leftsegments[i] != NULL) {
+                  PrintFormat("H1左线段%d: 起点时间=%s 起点价格=%.5f 终点时间=%s 终点价格=%.5f",
+                     i, TimeToString(h1leftsegments[i].StartTime()), h1leftsegments[i].StartPrice(),
+                     TimeToString(h1leftsegments[i].EndTime()), h1leftsegments[i].EndPrice());
+               }
+            }
+            
+            Print("H1右线段数量: ", ArraySize(h1rightsegments));
+            for(int i=0; i<ArraySize(h1rightsegments); i++) {
+               if(h1rightsegments[i] != NULL) {
+                  PrintFormat("H1右线段%d: 起点时间=%s 起点价格=%.5f 终点时间=%s 终点价格=%.5f",
+                     i, TimeToString(h1rightsegments[i].StartTime()), h1rightsegments[i].StartPrice(),
+                     TimeToString(h1rightsegments[i].EndTime()), h1rightsegments[i].EndPrice());
+               }
+            }
+            
+Print("M5左线段数量: ", ArraySize(m5leftsegments));
+for(int i=0; i<ArraySize(m5leftsegments); i++) {
+   if(m5leftsegments[i] != NULL) {
+      PrintFormat("M5左线段%d: 起点时间=%s 起点价格=%.5f 终点时间=%s 终点价格=%.5f",
+         i, TimeToString(m5leftsegments[i].StartTime()), m5leftsegments[i].StartPrice(),
+         TimeToString(m5leftsegments[i].EndTime()), m5leftsegments[i].EndPrice());
+   }
+}
+
+Print("M5右线段数量: ", ArraySize(m5rightsegments));
+for(int i=0; i<ArraySize(m5rightsegments); i++) {
+   if(m5rightsegments[i] != NULL) {
+      PrintFormat("M5右线段%d: 起点时间=%s 起点价格=%.5f 终点时间=%s 终点价格=%.5f",
+         i, TimeToString(m5rightsegments[i].StartTime()), m5rightsegments[i].StartPrice(),
+         TimeToString(m5rightsegments[i].EndTime()), m5rightsegments[i].EndPrice());
+   }
+}
+
+
+
+
+
+
+              // 获取当前主线段
+   CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
+   if(currentMainSegment == NULL)
+     {
+      Print("警告: 无法获取当前主线段");
+      return;
+     }
+     
+   // 获取1H子线段管理器（仅限当前主交易区间内）
+   CZigzagSegmentManager* segmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
+   if(segmentManager == NULL)
+     {
+      Print("警告: 无法获取1H子线段管理器");
+      return;
+     }   
+
+   if(!segmentManager.GetSegments(h1Segments))
+     {
+      Print("警告: 无法从1小时线段管理器获取线段数组");
+      delete segmentManager;
+      return;
+     }
+   
+
            }
         }
       else
@@ -268,52 +344,21 @@ void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &points4H[])
    CLineManager::DeleteAllLines("ZigzagLine_");
    CLineManager::DeleteAllLines("ZigzagLine4H_");
    
-   // 打印调试信息，查看传递给绘制函数的4H极值点数量
-   Print(StringFormat("准备绘制4H极值点标签，数量：%d个", ArraySize(points4H)));
-   
    // 绘制4H极值点标签
    CExtremumPointDrawer::DrawExtremumPointLabels(points4H, "4H", true);
    
    // 绘制1H子线段，传递4H标签点用于重叠检测
-   Draw1HSubSegments(points4H);
+   Draw1HSubSegments();
    
-   // 注释掉原来的5分钟线段绘制调用，现在通过1小时主线段获取5分钟线段
-   // Draw5MSubSegments(points4H);
+   
   }
 
 //+------------------------------------------------------------------+
 //| 绘制1小时子线段                                                  |
 //+------------------------------------------------------------------+
-void Draw1HSubSegments(CZigzagExtremumPoint &points4H[])
+void Draw1HSubSegments()
   {
-   // 获取当前主线段
-   CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
-   if(currentMainSegment == NULL)
-     {
-      Print("警告: 无法获取当前主线段");
-      return;
-     }
-     
-   // 获取1H子线段管理器（仅限当前主交易区间内）
-   CZigzagSegmentManager* segmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
-   if(segmentManager == NULL)
-     {
-      Print("警告: 无法获取1H子线段管理器");
-      return;
-     }   
-   // 从管理器中获取线段数组
-   CZigzagSegment* h1Segments[];
-   if(!segmentManager.GetSegments(h1Segments))
-     {
-      Print("警告: 无法从1小时线段管理器获取线段数组");
-      delete segmentManager;
-      return;
-     }   
-   
-   
-   // 首先按时间排序线段，确保按时间先后顺序排列
-   ::SortSegmentsByTime(h1Segments, true, true);  // 升序排列，早的在前 
-   
+ 
    
    int validCount = ArraySize(h1Segments);
    
@@ -331,105 +376,9 @@ void ProcessTradeAnalysisAndInfoPanel()
   {
    if(!InpShowInfoPanel || !g_tradeAnalyzer.IsValid())
       return;
-      
-   // 静态变量用于跟踪上次更新时间和价格
-   static datetime lastInfoPanelUpdateTime = 0;
-   static double lastInfoPanelPrice = 0;
-   
-   // 获取当前时间和价格
-   datetime currentTime = TimeCurrent();
-   double currentPrice = CInfoPanelManager::GetCurrentPrice();
-   
-   // 控制更新频率
-   if(lastInfoPanelUpdateTime != 0 && 
-      currentTime - lastInfoPanelUpdateTime <= 10 && 
-      MathAbs(currentPrice - lastInfoPanelPrice) <= Point() * 10)
-      return;
-      
-   // 创建交易信息面板
-   CInfoPanelManager::CreateTradeInfoPanel(infoPanel);
-   
-   // 获取当前主交易区间的1H子线段用于面板显示
-   CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
-   if(currentMainSegment != NULL)
-     {
-      // 获取1H子线段管理器
-      //这里因为强势行情1小时没有形成回撤的时候，H4小时点出现，后续没有1小时的回撤，导致5分钟也没法计算，所以这里直接取了所有
-      CZigzagSegmentManager* segmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
-      if(segmentManager != NULL)
-        {
-         // 从管理器中获取线段数组
-         CZigzagSegment* h1Segments[];
-
-         if(!segmentManager.GetSegments(h1Segments))
-           {
-            Print("警告: 无法从1小时线段管理器获取线段数组");
-            delete segmentManager;
-            return;
-           }
-         
-         int totalSegments = ArraySize(h1Segments);
-         
-         // 筛选上涨和下跌线段
-         CZigzagSegment* uptrendSegments[];
-         CZigzagSegment* downtrendSegments[];
-         ::FilterSegmentsByTrend(h1Segments, uptrendSegments, SEGMENT_TREND_UP);
-         ::FilterSegmentsByTrend(h1Segments, downtrendSegments, SEGMENT_TREND_DOWN);
-         
-         // 按时间排序
-         //::SortSegmentsByTime(uptrendSegments, false, false);
-         //::SortSegmentsByTime(downtrendSegments, false, false);
-         
-         //在这里添加5分钟线段的获取
-         //从segmentManager.GetMainSegment()取得1小时级别主线段，重复上面从4小时获取1小时的过程即可，移掉你从4小时取5分钟的处理
-         // 获取1小时主线段
-         CZigzagSegment* mainH1Segment = segmentManager.GetMainSegment();
-         if(mainH1Segment != NULL)
-           {
-            // 从1小时主线段获取5分钟线段管理器
-            //这里赋值的参数是false，只关注最后一根小时线，用true的话，可能1小时还没形成，主要是强势行情，1小时顶点没那么快形成
-            CZigzagSegmentManager* m5SegmentManager = mainH1Segment.GetSmallerTimeframeSegments(PERIOD_M5,true);
-            if(m5SegmentManager != NULL)
-              {
-               // 从5分钟线段管理器中获取线段数组
-               CZigzagSegment* m5Segments[];
-               if(!m5SegmentManager.GetSegments(m5Segments))
-                 {
-                  Print("警告: 无法从5分钟线段管理器获取线段数组");
-                  delete m5SegmentManager;                  
-                 }
-               
-               int m5TotalSegments = ArraySize(m5Segments);
-               Print(StringFormat("获取到5分钟线段数量：%d个", m5TotalSegments));
-               
-               // 筛选5分钟线段的上涨和下跌线段
-               CZigzagSegment* m5UptrendSegments[];
-               CZigzagSegment* m5DowntrendSegments[];
-                         
-               ::FilterSegmentsByTrend(m5Segments, m5UptrendSegments, SEGMENT_TREND_UP);
-               ::FilterSegmentsByTrend(m5Segments, m5DowntrendSegments, SEGMENT_TREND_DOWN);
-               
-               // 按时间排序
-              // ::SortSegmentsByTime(m5UptrendSegments, false, false);
-              // ::SortSegmentsByTime(m5DowntrendSegments, false, false);
-               
-               // 在信息面板上添加5分钟线段信息
-               //CInfoPanelManager::AddSegmentInfo(infoPanel, m5UptrendSegments, m5DowntrendSegments, InpInfoPanelColor, "5分钟");
-                        
-              }
-           }
-
-         // 在信息面板上添加线段信息
-         //CInfoPanelManager::AddSegmentInfo(infoPanel, uptrendSegments, downtrendSegments, InpInfoPanelColor);
-         
-         
-        }
-     }
    
    // 绘制支撑或压力线
    CShapeManager::DrawSupportResistanceLines();
    
-   // 更新时间和价格
-   lastInfoPanelUpdateTime = currentTime;
-   lastInfoPanelPrice = currentPrice;
+   
   }

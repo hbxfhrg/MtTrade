@@ -22,9 +22,43 @@ class CSegmentDrawer
 public:
    // 绘制1小时子线段
    static void Draw1HSubSegments(CZigzagSegment* &validSegments[], int validCount, CZigzagExtremumPoint &points4H[]);
+   
+   // 绘制交易基准点线段
+   static void DrawTradeBaseSegments(CZigzagSegment* &leftSegments[], CZigzagSegment* &rightSegments[], int count, string prefix);
 };
 
 
+
+//+------------------------------------------------------------------+
+//| 绘制交易基准点线段                                                |
+//+------------------------------------------------------------------+
+void CSegmentDrawer::DrawTradeBaseSegments(CZigzagSegment* &leftSegments[], CZigzagSegment* &rightSegments[], int count, string prefix)
+{
+   for(int i = 0; i < count; i++)
+   {
+      if(leftSegments[i] != NULL)
+      {
+         string lineName = StringFormat("%s_Left_%d", prefix, i);
+         ObjectDelete(0, lineName);
+         ObjectCreate(0, lineName, OBJ_TREND, 0, 
+                     leftSegments[i].StartTime(), leftSegments[i].StartPrice(),
+                     leftSegments[i].EndTime(), leftSegments[i].EndPrice());
+         ObjectSetInteger(0, lineName, OBJPROP_COLOR, clrGreen);
+         ObjectSetInteger(0, lineName, OBJPROP_WIDTH, 2);
+      }
+      
+      if(rightSegments[i] != NULL)
+      {
+         string lineName = StringFormat("%s_Right_%d", prefix, i);
+         ObjectDelete(0, lineName);
+         ObjectCreate(0, lineName, OBJ_TREND, 0, 
+                     rightSegments[i].StartTime(), rightSegments[i].StartPrice(),
+                     rightSegments[i].EndTime(), rightSegments[i].EndPrice());
+         ObjectSetInteger(0, lineName, OBJPROP_COLOR, clrYellow);
+         ObjectSetInteger(0, lineName, OBJPROP_WIDTH, 2);
+      }
+   }
+}
 
 //+------------------------------------------------------------------+
 //| 绘制1小时子线段                                                   |
@@ -57,14 +91,6 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             drawnDowntrendCount++;
          }
          
-         // 输出调试信息
-         Print(StringFormat("准备绘制1H线段 %d: %s - %s, 价格: %.5f - %.5f, 趋势: %s", 
-                          i,
-                          TimeToString(validSegments[i].StartTime(), TIME_DATE|TIME_MINUTES),
-                          TimeToString(validSegments[i].EndTime(), TIME_DATE|TIME_MINUTES),
-                          validSegments[i].StartPrice(),
-                          validSegments[i].EndPrice(),
-                          validSegments[i].IsUptrend() ? "上涨" : "下跌"));
          
          // 创建连接线 - 绕过防闪烁机制，强制更新
          // 先删除可能存在的同名对象
@@ -92,7 +118,7 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             ObjectSetInteger(0, lineName, OBJPROP_ZORDER, 1); // 设置Z顺序
             
             drawnCount++;
-            Print(StringFormat("线段%d创建成功", i));
+           
          }
          
          // 只在线段起点和终点绘制标签
@@ -140,9 +166,8 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
                ObjectSetInteger(0, startLabelName, OBJPROP_ANCHOR, ANCHOR_UPPER);
             
             // 设置X轴偏移量
-            ObjectSetInteger(0, startLabelName, OBJPROP_XOFFSET, 0);
-            
-            Print(StringFormat("线段%d起点标签创建成功", i));
+            ObjectSetInteger(0, startLabelName, OBJPROP_XOFFSET, 0);            
+           
          }
          else
          {
@@ -189,7 +214,7 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             // 设置X轴偏移量
             ObjectSetInteger(0, endLabelName, OBJPROP_XOFFSET, 0);
             
-            Print(StringFormat("线段%d终点标签创建成功", i));
+            
          }
          else
          {

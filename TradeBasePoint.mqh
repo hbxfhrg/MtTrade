@@ -54,11 +54,10 @@ public:
    bool IsValid() const { return m_isValid; }
    
    // 获取基于基准价格的线段
+   bool GetM5Segments(CZigzagSegment* &leftSegments[], CZigzagSegment* &rightSegments[]); // 同时获取左右M5线段
    bool GetLeftH1Segments(CZigzagSegment* &segments[]);   // 获取基准价格左侧的H1线段
    bool GetRightH1Segments(CZigzagSegment* &segments[]);  // 获取基准价格右侧的H1线段
-   bool GetLeftM5Segments(CZigzagSegment* &segments[]);   // 获取基准价格左侧的M5线段
-   bool GetRightM5Segments(CZigzagSegment* &segments[]);  // 获取基准价格右侧的M5线段
-   
+ 
    // 计算基准价格在不同周期上的位置
    void CalculatePositionInTimeframes();
    
@@ -447,193 +446,73 @@ bool CTradeBasePoint::GetRightH1Segments(CZigzagSegment* &segments[])
    return rightCount > 0;
 }
 
-//+------------------------------------------------------------------+
-//| 获取基准价格左侧的M5线段                                           |
-//+------------------------------------------------------------------+
-bool CTradeBasePoint::GetLeftM5Segments(CZigzagSegment* &segments[])
-{
-   if(!m_isValid || m_currentSegment == NULL)
-      return false;
-      
-   // 直接使用当前线段对象获取M5周期的线段管理器
-   CZigzagSegmentManager* m5SegmentManager = m_currentSegment.GetSmallerTimeframeSegments(PERIOD_M5, true);
-   if(m5SegmentManager == NULL)
-      return false;
-      
-   // 获取所有M5线段
-   CZigzagSegment* allM5Segments[];
-   if(!m5SegmentManager.GetSegments(allM5Segments))
-   {
-      delete m5SegmentManager;
-      return false;
-   }
-      
-   int totalSegments = ArraySize(allM5Segments);
-   if(totalSegments == 0)
-   {
-      // 释放资源
-      for(int i = 0; i < ArraySize(allM5Segments); i++)
-      {
-         if(allM5Segments[i] != NULL)
-         {
-            delete allM5Segments[i];
-            allM5Segments[i] = NULL;
-         }
-      }
-      ArrayResize(allM5Segments, 0);
-      delete m5SegmentManager;
-      return false;
-   }
-      
-   // 筛选出基准价格左侧的线段（结束时间早于基准价格时间）
-   CZigzagSegment* leftSegments[];
-   int leftCount = 0;
-   
-   for(int i = 0; i < totalSegments; i++)
-   {
-      if(allM5Segments[i] != NULL && allM5Segments[i].EndTime() <= m_baseTime)
-      {
-         ArrayResize(leftSegments, leftCount + 1);
-         leftSegments[leftCount++] = allM5Segments[i];
-      }
-      else if(allM5Segments[i] != NULL)
-      {
-         // 释放不在筛选范围内的线段
-         delete allM5Segments[i];
-         allM5Segments[i] = NULL;
-      }
-   }
-   
-   // 按时间排序（最近的在前）
-   ::SortSegmentsByTime(leftSegments, false, true);
-   
-   // 复制结果
-   ArrayResize(segments, leftCount);
-   for(int i = 0; i < leftCount; i++)
-   {
-      segments[i] = new CZigzagSegment(*leftSegments[i]);
-   }
-   
-   // 释放临时数组
-   for(int i = 0; i < ArraySize(allM5Segments); i++)
-   {
-      if(allM5Segments[i] != NULL)
-      {
-         delete allM5Segments[i];
-         allM5Segments[i] = NULL;
-      }
-   }
-   ArrayResize(allM5Segments, 0);
-   
-   for(int i = 0; i < leftCount; i++)
-   {
-      if(leftSegments[i] != NULL)
-      {
-         delete leftSegments[i];
-         leftSegments[i] = NULL;
-      }
-   }
-   ArrayResize(leftSegments, 0);
-   
-   // 释放线段管理器
-   delete m5SegmentManager;
-   
-   return leftCount > 0;
-}
 
 //+------------------------------------------------------------------+
-//| 获取基准价格右侧的M5线段                                           |
+//| 获取基准点左右的M5线段                                             |
 //+------------------------------------------------------------------+
-bool CTradeBasePoint::GetRightM5Segments(CZigzagSegment* &segments[])
+bool CTradeBasePoint::GetM5Segments(CZigzagSegment* &leftSegments[], CZigzagSegment* &rightSegments[])
 {
    if(!m_isValid || m_currentSegment == NULL)
       return false;
       
-   // 直接使用当前线段对象获取M5周期的线段管理器
    CZigzagSegmentManager* m5SegmentManager = m_currentSegment.GetSmallerTimeframeSegments(PERIOD_M5, true);
    if(m5SegmentManager == NULL)
       return false;
       
-   // 获取所有M5线段
-   CZigzagSegment* allM5Segments[];
-   if(!m5SegmentManager.GetSegments(allM5Segments))
+   CZigzagSegment* totalSegments[];
+   if(!m5SegmentManager.GetSegments(totalSegments))
    {
       delete m5SegmentManager;
       return false;
-   }
-      
-   int totalSegments = ArraySize(allM5Segments);
-   if(totalSegments == 0)
+   }    
+   
+
+   // 查找关键分隔线段（比较价格）
+   int pivotIndex = -1;
+   int segmentCount = ArraySize(totalSegments);
+   for(int i = 0; i < segmentCount; i++)
    {
-      // 释放资源
-      for(int i = 0; i < ArraySize(allM5Segments); i++)
+      if(totalSegments[i] != NULL)
       {
-         if(allM5Segments[i] != NULL)
+         // 匹配开始点或结束点
+         if(totalSegments[i].StartPrice() == m_basePrice)
          {
-            delete allM5Segments[i];
-            allM5Segments[i] = NULL;
+            pivotIndex = i;
+            break;
          }
       }
-      ArrayResize(allM5Segments, 0);
-      delete m5SegmentManager;
-      return false;
    }
-      
-   // 筛选出基准价格右侧的线段（开始时间晚于基准价格时间）
-   CZigzagSegment* rightSegments[];
+
+   // 处理左侧线段（关键线段之前的所有线段）
+   int leftCount = 0;
+   if(pivotIndex >= 0)
+   {
+      leftCount = pivotIndex + 1; // 包括关键线段本身
+      ArrayResize(leftSegments, leftCount);
+      for(int i = 0; i <= pivotIndex; i++)
+      {
+         leftSegments[i] = new CZigzagSegment(*totalSegments[i]);
+      }
+   } 
+
+   // 处理右侧线段（关键线段之后的所有线段）
    int rightCount = 0;
-   
-   for(int i = 0; i < totalSegments; i++)
+   if(pivotIndex >= 0)
    {
-      if(allM5Segments[i] != NULL && allM5Segments[i].StartTime() >= m_baseTime)
+      rightCount = segmentCount - pivotIndex - 1; // 不包括关键线段
+      ArrayResize(rightSegments, rightCount);
+      for(int i = pivotIndex + 1; i < segmentCount; i++)
       {
-         ArrayResize(rightSegments, rightCount + 1);
-         rightSegments[rightCount++] = allM5Segments[i];
-      }
-      else if(allM5Segments[i] != NULL)
-      {
-         // 释放不在筛选范围内的线段
-         delete allM5Segments[i];
-         allM5Segments[i] = NULL;
+         rightSegments[i - pivotIndex - 1] = new CZigzagSegment(*totalSegments[i]);
       }
    }
-   
-   // 按时间排序（最近的在前）
-   ::SortSegmentsByTime(rightSegments, false, true);
-   
-   // 复制结果
-   ArrayResize(segments, rightCount);
-   for(int i = 0; i < rightCount; i++)
-   {
-      segments[i] = new CZigzagSegment(*rightSegments[i]);
-   }
-   
-   // 释放临时数组
-   for(int i = 0; i < ArraySize(allM5Segments); i++)
-   {
-      if(allM5Segments[i] != NULL)
-      {
-         delete allM5Segments[i];
-         allM5Segments[i] = NULL;
-      }
-   }
-   ArrayResize(allM5Segments, 0);
-   
-   for(int i = 0; i < rightCount; i++)
-   {
-      if(rightSegments[i] != NULL)
-      {
-         delete rightSegments[i];
-         rightSegments[i] = NULL;
-      }
-   }
-   ArrayResize(rightSegments, 0);
-   
-   // 释放线段管理器
+  
+
    delete m5SegmentManager;
    
-   return rightCount > 0;
+   return (leftCount > 0 || rightCount > 0);
 }
+
 
 //+------------------------------------------------------------------+
 //| 获取基准价格描述                                                  |
