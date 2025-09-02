@@ -652,6 +652,16 @@ public:
          m_tradeBasePoint.Initialize(m_tradeBasePrice);
          // 将当前线段对象传递给交易基准点对象
          m_tradeBasePoint.SetCurrentSegment(m_currentSegment);
+         
+         // 设置参考点类型
+         if((*m_currentSegment).IsUptrend())
+         {
+            m_tradeBasePoint.SetReferencePointType(REFERENCE_POINT_HIGH);
+         }
+         else
+         {
+            m_tradeBasePoint.SetReferencePointType(REFERENCE_POINT_LOW);
+         }
       }
    }
      

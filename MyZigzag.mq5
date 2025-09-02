@@ -232,12 +232,12 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &points4H[])
             // 使用4H周期极值点初始化主交易线段数组
             g_tradeAnalyzer.InitializeMainSegmentsFromPoints(points4H);
             CZigzagSegment* h1leftsegments[];
-            g_tradeAnalyzer.m_tradeBasePoint.GetLeftH1Segments(h1leftsegments);
             CZigzagSegment* h1rightsegments[];
-            g_tradeAnalyzer.m_tradeBasePoint.GetRightH1Segments(h1rightsegments);
+            g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_H1, h1leftsegments, h1rightsegments);
+            
             CZigzagSegment* m5leftsegments[];
-             CZigzagSegment* m5rightsegments[];
-            g_tradeAnalyzer.m_tradeBasePoint.GetM5Segments(m5leftsegments,m5rightsegments);
+            CZigzagSegment* m5rightsegments[];
+            g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_M5, m5leftsegments, m5rightsegments);
            
             // 调试日志输出
             Print("H1左线段数量: ", ArraySize(h1leftsegments));

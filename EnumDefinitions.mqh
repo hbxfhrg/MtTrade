@@ -95,3 +95,12 @@ enum ENUM_SEGMENT_TREND
    SEGMENT_TREND_DOWN     // 下跌趋势
   };
 
+//+------------------------------------------------------------------+
+//| 参考点类型枚举                                                    |
+//+------------------------------------------------------------------+
+enum ENUM_REFERENCE_POINT_TYPE
+{
+   REFERENCE_POINT_HIGH,  // 高点参考点
+   REFERENCE_POINT_LOW    // 低点参考点
+};
+
