@@ -1,3 +1,4 @@
+
 //+------------------------------------------------------------------+
 //|                                                   CommonUtils.mqh |
 //|                             Copyright 2000-2025, MetaQuotes Ltd. |
@@ -174,103 +175,17 @@ int FindBarIndexByPrice(double targetPrice, ENUM_SERIESMODE seriesMode, ENUM_TIM
    return -1;
   }
 
-//+------------------------------------------------------------------+
-//| 在指定周期定位低点价格，然后向未来方向搜索最高价格                   |
-//+------------------------------------------------------------------+
-double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_TIMEFRAMES timeframe = PERIOD_H1, ENUM_TIMEFRAMES smallerTimeframe = PERIOD_M1, datetime startTime = 0)
-  {
-   // 如果没有指定起始时间，使用当前时间
-   if(startTime == 0)
-      startTime = TimeCurrent();
-      
-   // 在指定周期上查找与指定价格最接近的K线
-   int barIndex = -1;
-   double closestPrice = DBL_MAX;
-   int barsToCheck = (timeframe <= PERIOD_H1) ? 100 : 500; // 根据周期调整检查的K线数量
-   
-   for(int i = 0; i < barsToCheck; i++)
-     {
-      double low = iLow(Symbol(), timeframe, i);
-      
-      // 如果找到与指定价格更接近的低点
-      if(MathAbs(low - lowPrice) < MathAbs(closestPrice - lowPrice))
-        {
-         closestPrice = low;
-         barIndex = i;
-        }
-        
-      // 如果K线时间早于起始时间，则停止查找
-      if(iTime(Symbol(), timeframe, i) < startTime)
-         break;
-     }
-   
-   // 如果找不到匹配的K线
-   if(barIndex < 0)
-     {
-      highTime = 0;
-      return 0.0;
-     }
-   
-   // 如果是当前K线（索引为0），则切换到更小的周期
-   if(barIndex == 0 && smallerTimeframe != timeframe)
-     {
-      // 递归调用，使用更小的周期
-      return FindHighestPriceAfterLowPrice(lowPrice, highTime, smallerTimeframe, smallerTimeframe, startTime);
-     }
-   
-   // 获取指定周期上的K线时间
-   datetime barTime = iTime(Symbol(), timeframe, barIndex);
-   
-   // 从该K线开始向未来方向查找最高价
-   double highestPrice = closestPrice;
-   int highestPriceIndex = barIndex;
-   int futureBarsToCheck = (timeframe <= PERIOD_H1) ? 200 : 50; // 根据周期调整检查的未来K线数量
-   
-   for(int i = barIndex - 1; i >= 0 && i >= barIndex - futureBarsToCheck; i--)
-     {
-      double high = iHigh(Symbol(), timeframe, i);
-      if(high > highestPrice)
-        {
-         highestPrice = high;
-         highestPriceIndex = i;
-        }
-     }
-   
-   // 记录最高点的时间
-   highTime = iTime(Symbol(), timeframe, highestPriceIndex);
-   
-   return highestPrice;
-  }
 
 //+------------------------------------------------------------------+
 //| 在指定周期定位高点价格，然后向未来方向搜索最低价格                   |
 //+------------------------------------------------------------------+
 double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_TIMEFRAMES timeframe = PERIOD_H1, ENUM_TIMEFRAMES smallerTimeframe = PERIOD_M1, datetime startTime = 0)
   {
-   // 如果没有指定起始时间，使用当前时间
-   if(startTime == 0)
-      startTime = TimeCurrent();
-      
-   // 在指定周期上查找与指定价格最接近的K线
-   int barIndex = -1;
-   double closestPrice = DBL_MIN;
-   int barsToCheck = (timeframe <= PERIOD_H1) ? 100 : 500; // 根据周期调整检查的K线数量
+   // 如果传入周期大于1小时，自动使用1小时周期
+   ENUM_TIMEFRAMES searchTimeframe = (timeframe > PERIOD_H1) ? PERIOD_H1 : timeframe;
    
-   for(int i = 0; i < barsToCheck; i++)
-     {
-      double high = iHigh(Symbol(), timeframe, i);
-      
-      // 如果找到与指定价格更接近的高点
-      if(MathAbs(high - highPrice) < MathAbs(closestPrice - highPrice))
-        {
-         closestPrice = high;
-         barIndex = i;
-        }
-        
-      // 如果K线时间早于起始时间，则停止查找
-      if(iTime(Symbol(), timeframe, i) < startTime)
-         break;
-     }
+   // 在指定周期上查找高点价格的位置
+   int barIndex = FindBarIndexByPrice(highPrice, MODE_HIGH, searchTimeframe);
    
    // 如果找不到匹配的K线
    if(barIndex < 0)
@@ -279,35 +194,67 @@ double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_T
       return 0.0;
      }
    
-   // 如果是当前K线（索引为0），则切换到更小的周期
-   if(barIndex == 0 && smallerTimeframe != timeframe)
+   // 如果是当前K线（索引为0），则切换到1分钟周期查找
+   if(barIndex == 0)
      {
-      // 递归调用，使用更小的周期
-      return FindLowestPriceAfterHighPrice(highPrice, lowTime, smallerTimeframe, smallerTimeframe, startTime);
+      return FindLowestPriceAfterHighPrice(highPrice, lowTime, PERIOD_M1);
      }
    
-   // 获取指定周期上的K线时间
-   datetime barTime = iTime(Symbol(), timeframe, barIndex);
-   
    // 从该K线开始向未来方向查找最低价
-   double lowestPrice = closestPrice;
+   double lowestPrice = highPrice;
    int lowestPriceIndex = barIndex;
-   int futureBarsToCheck = (timeframe <= PERIOD_H1) ? 200 : 50; // 根据周期调整检查的未来K线数量
    
-   for(int i = barIndex - 1; i >= 0 && i >= barIndex - futureBarsToCheck; i--)
+   // 使用iLowest函数查找最低价
+   int lowestBarIndex = iLowest(Symbol(), searchTimeframe, MODE_LOW, barIndex, 0);
+   if(lowestBarIndex != -1)
      {
-      double low = iLow(Symbol(), timeframe, i);
-      if(low < lowestPrice)
-        {
-         lowestPrice = low;
-         lowestPriceIndex = i;
-        }
+      lowestPrice = iLow(Symbol(), searchTimeframe, lowestBarIndex);
+      lowestPriceIndex = lowestBarIndex;
      }
    
    // 记录最低点的时间
-   lowTime = iTime(Symbol(), timeframe, lowestPriceIndex);
+   lowTime = iTime(Symbol(), searchTimeframe, lowestPriceIndex);
    
    return lowestPrice;
+  }
+//+------------------------------------------------------------------+
+double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_TIMEFRAMES timeframe = PERIOD_H1, ENUM_TIMEFRAMES smallerTimeframe = PERIOD_M1, datetime startTime = 0)
+  {
+   // 如果传入周期大于1小时，自动使用1小时周期
+   ENUM_TIMEFRAMES searchTimeframe = (timeframe > PERIOD_H1) ? PERIOD_H1 : timeframe;
+   
+   // 在指定周期上查找低点价格的位置
+   int barIndex = FindBarIndexByPrice(lowPrice, MODE_LOW, searchTimeframe);
+   
+   // 如果找不到匹配的K线
+   if(barIndex < 0)
+     {
+      highTime = 0;
+      return 0.0;
+     }
+   
+   // 如果是当前K线（索引为0），则切换到1分钟周期查找
+   if(barIndex == 0)
+     {
+      return FindHighestPriceAfterLowPrice(lowPrice, highTime, PERIOD_M1);
+     }
+   
+   // 从该K线开始向未来方向查找最高价
+   double highestPrice = lowPrice;
+   int highestPriceIndex = barIndex;
+   
+   // 使用iHighest函数查找最高价
+   int highestBarIndex = iHighest(Symbol(), searchTimeframe, MODE_HIGH, barIndex, 0);
+   if(highestBarIndex != -1)
+     {
+      highestPrice = iHigh(Symbol(), searchTimeframe, highestBarIndex);
+      highestPriceIndex = highestBarIndex;
+     }
+   
+   // 记录最高点的时间
+   highTime = iTime(Symbol(), searchTimeframe, highestPriceIndex);
+   
+   return highestPrice;
   }
 
 //+------------------------------------------------------------------+
