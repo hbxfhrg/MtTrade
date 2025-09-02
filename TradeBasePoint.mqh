@@ -64,10 +64,7 @@ public:
    
    // 通用方法：获取指定时间周期的左右线段
    bool GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSegment* &leftSegments[], CZigzagSegment* &rightSegments[]);
- 
-   // 计算基准价格在不同周期上的位置
-   void CalculatePositionInTimeframes();
-   
+    
    // 获取基准价格描述
    string GetDescription() const;
 };
@@ -140,9 +137,7 @@ bool CTradeBasePoint::Initialize(double basePrice)
    // 获取基准价格对应的时间
    m_baseTime = iTime(Symbol(), PERIOD_CURRENT, m_barIndex);
    
-   // 计算基准价格在不同周期上的位置
-   CalculatePositionInTimeframes();
-   
+      
    m_isValid = true;
    return true;
 }
@@ -172,97 +167,6 @@ int CTradeBasePoint::FindMatchingCandleIndex(double basePrice, ENUM_TIMEFRAMES t
       return -1;
    }
 }
-
-//+------------------------------------------------------------------+
-//| 计算基准价格在不同周期上的位置                                     |
-//+------------------------------------------------------------------+
-void CTradeBasePoint::CalculatePositionInTimeframes()
-{
-   if(m_basePrice <= 0.0 || m_baseTime == 0)
-      return;
-   
-   // 如果有当前线段对象，则使用GetSmallerTimeframeSegments方法获取更小周期的线段
-   if(m_currentSegment != NULL)
-   {
-      // 我们不再需要保存线段管理器，直接使用GetSmallerTimeframeSegments方法获取线段
-      // 这样可以避免不必要的内存占用
-   }
-   else
-   {
-      // 如果没有当前线段对象，则使用原有的计算方法
-      // 创建H1周期的ZigZag计算器
-      int h1BarsCount = 500;
-      CZigzagCalculator h1ZigzagCalc(12, 5, 3, h1BarsCount, PERIOD_H1);
-      
-      if(h1ZigzagCalc.CalculateForSymbol(Symbol(), PERIOD_H1, h1BarsCount))
-      {
-         CZigzagExtremumPoint h1Points[];
-         if(h1ZigzagCalc.GetExtremumPoints(h1Points) && ArraySize(h1Points) >= 2)
-         {
-            // 生成H1线段
-            int h1PointCount = ArraySize(h1Points);
-            CZigzagSegment* h1Segments[];
-            ArrayResize(h1Segments, h1PointCount - 1);
-            
-            for(int i = 0; i < h1PointCount - 1; i++)
-            {
-               h1Points[i].Timeframe(PERIOD_H1);
-               h1Points[i+1].Timeframe(PERIOD_H1);
-               
-               h1Segments[i] = new CZigzagSegment(h1Points[i+1], h1Points[i], PERIOD_H1);
-            }
-            
-            // 释放H1线段数组中的对象
-            for(int i = 0; i < ArraySize(h1Segments); i++)
-            {
-               if(h1Segments[i] != NULL)
-               {
-                  delete h1Segments[i];
-                  h1Segments[i] = NULL;
-               }
-            }
-            ArrayResize(h1Segments, 0);
-         }
-      }
-      
-      // 创建M5周期的ZigZag计算器
-      int m5BarsCount = 2000;
-      CZigzagCalculator m5ZigzagCalc(12, 5, 3, m5BarsCount, PERIOD_M5);
-      
-      if(m5ZigzagCalc.CalculateForSymbol(Symbol(), PERIOD_M5, m5BarsCount))
-      {
-         CZigzagExtremumPoint m5Points[];
-         if(m5ZigzagCalc.GetExtremumPoints(m5Points) && ArraySize(m5Points) >= 2)
-         {
-            // 生成M5线段
-            int m5PointCount = ArraySize(m5Points);
-            CZigzagSegment* m5Segments[];
-            ArrayResize(m5Segments, m5PointCount - 1);
-            
-            for(int i = 0; i < m5PointCount - 1; i++)
-            {
-               m5Points[i].Timeframe(PERIOD_M5);
-               m5Points[i+1].Timeframe(PERIOD_M5);
-               
-               m5Segments[i] = new CZigzagSegment(m5Points[i+1], m5Points[i], PERIOD_M5);
-            }
-            
-            // 释放M5线段数组中的对象
-            for(int i = 0; i < ArraySize(m5Segments); i++)
-            {
-               if(m5Segments[i] != NULL)
-               {
-                  delete m5Segments[i];
-                  m5Segments[i] = NULL;
-               }
-            }
-            ArrayResize(m5Segments, 0);
-         }
-      }
-   }
-}
-
-
 
 
 //+------------------------------------------------------------------+
