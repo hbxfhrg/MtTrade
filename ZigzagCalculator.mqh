@@ -46,10 +46,6 @@ public:
    double            GetZigzagBottomValue(int index)   { return ZigzagBottomBuffer[index]; }
    double            GetColorValue(int index)          { return ColorBuffer[index]; }
    
-   // 注意：不再需要以下方法，因为缓冲区现在是公开的
-   // void              GetZigzagPeakBuffer(double &buffer[]);
-   // void              GetZigzagBottomBuffer(double &buffer[]);
-   // void              GetColorBuffer(double &buffer[]);
    
    // 设置缓冲区元素
    void              SetZigzagPeakValue(int index, double value)     { ZigzagPeakBuffer[index] = value; }
@@ -107,32 +103,7 @@ public:
    ENUM_TIMEFRAMES   GetTimeframe() const { return m_timeframe; }
   };
 
-//+------------------------------------------------------------------+
-//| 以下方法已弃用，因为缓冲区现在是公开的                              |
-//+------------------------------------------------------------------+
-// void CZigzagCalculator::GetZigzagPeakBuffer(double &buffer[])
-//   {
-//    int size = ArraySize(ZigzagPeakBuffer);
-//    ArrayResize(buffer, size);
-//    for(int i = 0; i < size; i++)
-//       buffer[i] = ZigzagPeakBuffer[i];
-//   }
-// 
-// void CZigzagCalculator::GetZigzagBottomBuffer(double &buffer[])
-//   {
-//    int size = ArraySize(ZigzagBottomBuffer);
-//    ArrayResize(buffer, size);
-//    for(int i = 0; i < size; i++)
-//       buffer[i] = ZigzagBottomBuffer[i];
-//   }
-// 
-// void CZigzagCalculator::GetColorBuffer(double &buffer[])
-//   {
-//    int size = ArraySize(ColorBuffer);
-//    ArrayResize(buffer, size);
-//    for(int i = 0; i < size; i++)
-//       buffer[i] = ColorBuffer[i];
-//   }
+
 
 //+------------------------------------------------------------------+
 //| 构造函数                                                          |
@@ -420,43 +391,7 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
    return true;
   }
 
-//+------------------------------------------------------------------+
-//| 获取ZigZag值 - 已弃用，现在直接使用公开缓冲区                       |
-//+------------------------------------------------------------------+
-bool CZigzagCalculator::GetZigzagValues(int bars_count, double &peaks[], double &bottoms[], double &colors[])
-  {
-   // 检查参数
-   if(bars_count <= 0)
-      return false;
-      
-   // 检查缓冲区是否已初始化
-   int size = ArraySize(ZigzagPeakBuffer);
-   if(size == 0)
-      return false;
-      
-   // 调整输出数组大小
-   ArrayResize(peaks, bars_count);
-   ArrayResize(bottoms, bars_count);
-   ArrayResize(colors, bars_count);
-   
-   // 初始化数组
-   ArrayInitialize(peaks, 0.0);
-   ArrayInitialize(bottoms, 0.0);
-   ArrayInitialize(colors, 0.0);
-   
-   // 确定要复制的数据量和起始位置
-   int copy_size = MathMin(bars_count, size);
-   
-   // 复制数据
-   for(int i = 0; i < copy_size; i++)
-     {
-      peaks[i] = ZigzagPeakBuffer[i];
-      bottoms[i] = ZigzagBottomBuffer[i];
-      colors[i] = ColorBuffer[i];
-     }
-     
-   return true;
-  }
+
 
 //+------------------------------------------------------------------+
 //| 从指定时间周期获取ZigZag值                                         |

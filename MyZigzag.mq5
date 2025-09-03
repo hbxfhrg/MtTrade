@@ -238,49 +238,18 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputPoints4H[])
             CZigzagSegment* m5leftsegments[];
             CZigzagSegment* m5rightsegments[];
             g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_M5, m5leftsegments, m5rightsegments);
+            
+            // 增加15分钟周期线段计算
+            CZigzagSegment* m15leftsegments[];
+            CZigzagSegment* m15rightsegments[];
+            g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_M15, m15leftsegments, m15rightsegments);
+            
+            // 增加30分钟周期线段计算
+            CZigzagSegment* m30leftsegments[];
+            CZigzagSegment* m30rightsegments[];
+            g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_M30, m30leftsegments, m30rightsegments);
            
-            // 调试日志输出
-            Print("H1左线段数量: ", ArraySize(h1leftsegments));
-            for(int i=0; i<ArraySize(h1leftsegments); i++) {
-               if(h1leftsegments[i] != NULL) {
-                  PrintFormat("H1左线段%d: 起点时间=%s 起点价格=%.5f 终点时间=%s 终点价格=%.5f",
-                     i, TimeToString(h1leftsegments[i].StartTime()), h1leftsegments[i].StartPrice(),
-                     TimeToString(h1leftsegments[i].EndTime()), h1leftsegments[i].EndPrice());
-               }
-            }
-            
-            Print("H1右线段数量: ", ArraySize(h1rightsegments));
-            for(int i=0; i<ArraySize(h1rightsegments); i++) {
-               if(h1rightsegments[i] != NULL) {
-                  PrintFormat("H1右线段%d: 起点时间=%s 起点价格=%.5f 终点时间=%s 终点价格=%.5f",
-                     i, TimeToString(h1rightsegments[i].StartTime()), h1rightsegments[i].StartPrice(),
-                     TimeToString(h1rightsegments[i].EndTime()), h1rightsegments[i].EndPrice());
-               }
-            }
-            
-Print("M5左线段数量: ", ArraySize(m5leftsegments));
-for(int i=0; i<ArraySize(m5leftsegments); i++) {
-   if(m5leftsegments[i] != NULL) {
-      PrintFormat("M5左线段%d: 起点时间=%s 起点价格=%.5f 终点时间=%s 终点价格=%.5f",
-         i, TimeToString(m5leftsegments[i].StartTime()), m5leftsegments[i].StartPrice(),
-         TimeToString(m5leftsegments[i].EndTime()), m5leftsegments[i].EndPrice());
-   }
-}
-
-Print("M5右线段数量: ", ArraySize(m5rightsegments));
-for(int i=0; i<ArraySize(m5rightsegments); i++) {
-   if(m5rightsegments[i] != NULL) {
-      PrintFormat("M5右线段%d: 起点时间=%s 起点价格=%.5f 终点时间=%s 终点价格=%.5f",
-         i, TimeToString(m5rightsegments[i].StartTime()), m5rightsegments[i].StartPrice(),
-         TimeToString(m5rightsegments[i].EndTime()), m5rightsegments[i].EndPrice());
-   }
-}
-
-
-
-
-
-
+       
               // 获取当前主线段
    CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
    if(currentMainSegment == NULL)
@@ -300,7 +269,6 @@ for(int i=0; i<ArraySize(m5rightsegments); i++) {
    if(!segmentManager.GetSegments(h1Segments))
      {
       Print("警告: 无法从1小时线段管理器获取线段数组");
-      delete segmentManager;
       return;
      }
    
@@ -336,14 +304,7 @@ void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &inputPoints4H[])
       
    lastLabelUpdateTime = currentLabelTime;
    
-   // 清除旧标签
-   CLabelManager::DeleteAllLabels("ZigzagLabel_");
-   CLabelManager::DeleteAllLabels("ZigzagLabel4H_");
-   
-   // 清除旧线段
-   CLineManager::DeleteAllLines("ZigzagLine_");
-   CLineManager::DeleteAllLines("ZigzagLine4H_");
-   
+
    // 绘制4H极值点标签
    CExtremumPointDrawer::DrawExtremumPointLabels(inputPoints4H, "4H", true);
    
@@ -378,7 +339,7 @@ void ProcessTradeAnalysisAndInfoPanel()
       return;
    
    // 绘制支撑或压力线
-   CShapeManager::DrawSupportResistanceLines();
+   //CShapeManager::DrawSupportResistanceLines();
    
    
   }

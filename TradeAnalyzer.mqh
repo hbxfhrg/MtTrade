@@ -12,7 +12,7 @@
 #include "CommonUtils.mqh"
 #include "LogUtil.mqh"
 
-#include "DynamicPricePoint.mqh"
+
 #include "TradeBasePoint.mqh"
 #include "EnumDefinitions.mqh"
 #include "ConfigManager.mqh"

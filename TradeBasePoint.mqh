@@ -32,11 +32,20 @@ private:
    // 当前线段对象引用
    CZigzagSegment*   m_currentSegment;   // 当前线段对象引用
    
+   // 缓存各时间周期的左向第一个线段
+   CZigzagSegment*   m_cachedLeftSegments[5]; // 缓存1M,5M,15M,30M,1H周期的左向第一个线段
+   
+   // 线程安全保护（简单的计数器用于模拟临界区）
+   int               m_threadSafetyCounter;
+   
    // 查找与基准价格匹配的K线序号
    int FindMatchingCandleIndex(double basePrice, ENUM_TIMEFRAMES timeframe);
    
    // 释放资源
    void ReleaseResources();
+   
+   // 查找并缓存左向第一个线段
+   bool CacheLeftSegmentForTimeframe(ENUM_TIMEFRAMES timeframe);
 
 public:
    // 构造函数和析构函数
@@ -64,6 +73,12 @@ public:
    
    // 通用方法：获取指定时间周期的左右线段
    bool GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSegment* &leftSegments[], CZigzagSegment* &rightSegments[]);
+   
+   // 获取指定时间周期的左向第一个线段（带缓存）
+   CZigzagSegment* GetLeftFirstSegment(ENUM_TIMEFRAMES timeframe);
+   
+   // 缓存所有时间周期的左向第一个线段
+   bool CacheAllLeftFirstSegments();
     
    // 获取基准价格描述
    string GetDescription() const;
@@ -80,6 +95,15 @@ CTradeBasePoint::CTradeBasePoint(double basePrice)
    m_isValid = false;
    m_referencePointType = REFERENCE_POINT_HIGH; // 默认设置为高点
    m_currentSegment = NULL;  // 初始化当前线段对象
+   
+   // 初始化缓存数组（手动初始化固定大小数组）
+   for(int i = 0; i < 5; i++)
+   {
+      m_cachedLeftSegments[i] = NULL;
+   }
+   
+   // 初始化线程安全计数器
+   m_threadSafetyCounter = 0;
    
    if(basePrice > 0.0)
       Initialize(basePrice);
@@ -106,6 +130,15 @@ CTradeBasePoint::CTradeBasePoint(const CTradeBasePoint &other)
 //+------------------------------------------------------------------+
 void CTradeBasePoint::ReleaseResources()
 {
+   // 释放缓存的线段对象（注释掉手动删除，由系统自动管理）
+   for(int i = 0; i < 5; i++)
+   {
+      if(m_cachedLeftSegments[i] != NULL)
+      {
+         // delete m_cachedLeftSegments[i];  // 不再手动删除对象
+         m_cachedLeftSegments[i] = NULL;
+      }
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -139,6 +172,14 @@ bool CTradeBasePoint::Initialize(double basePrice)
    
       
    m_isValid = true;
+   
+   // 初始化成功后缓存所有时间周期的左向第一个线段
+   // 注释掉自动缓存计算，由外部控制
+   // if(m_isValid && m_currentSegment != NULL)
+   // {
+   //    CacheAllLeftFirstSegments();
+   // }
+   
    return true;
 }
 
@@ -201,31 +242,54 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
    if(!m_isValid || m_currentSegment == NULL)
       return false;
       
+   // 调试日志：记录当前处理的时间周期
+   string timeframeName = EnumToString(timeframe);
+   Print("GetTimeframeSegments: 开始处理周期 ", timeframeName);
+      
    // 获取指定时间周期的线段管理器
    CZigzagSegmentManager* segmentManager = m_currentSegment.GetSmallerTimeframeSegments(timeframe, true);
    if(segmentManager == NULL)
+   {
+      Print("GetTimeframeSegments: 周期 ", timeframeName, " - 获取线段管理器失败");
       return false;
+   }
       
    CZigzagSegment* totalSegments[];
    if(!segmentManager.GetSegments(totalSegments))
    {
-      delete segmentManager;
+      Print("GetTimeframeSegments: 周期 ", timeframeName, " - 获取线段数组失败");
+      
       return false;
    }    
    
+   // 调试日志：记录获取到的线段数量
+   int segmentCount = ArraySize(totalSegments);
+   Print("GetTimeframeSegments: 周期 ", timeframeName, " - 获取到 ", segmentCount, " 条线段");
+   
    // 查找关键分隔线段（比较价格）
    int pivotIndex = -1;
-   int segmentCount = ArraySize(totalSegments);
    for(int i = 0; i < segmentCount; i++)
    {
       if(totalSegments[i] != NULL)
       {
+         // 调试日志：检查每个线段的指针有效性
+         if(!CheckPointer(totalSegments[i]))
+         {
+            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 第 ", i, " 条线段指针无效");
+            continue;
+         }
+         
          // 匹配开始点
          if(totalSegments[i].StartPrice() == m_basePrice)
          {
             pivotIndex = i;
+            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 找到匹配的关键线段，索引: ", pivotIndex);
             break;
          }
+      }
+      else
+      {
+         Print("GetTimeframeSegments: 周期 ", timeframeName, " - 第 ", i, " 条线段为NULL");
       }
    }
 
@@ -234,10 +298,22 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
    if(pivotIndex >= 0)
    {
       leftCount = segmentCount - pivotIndex - 1; // 不包括关键线段
+      Print("GetTimeframeSegments: 周期 ", timeframeName, " - 左侧线段数量: ", leftCount, ", pivotIndex: ", pivotIndex);
       ArrayResize(leftSegments, leftCount);
       for(int i = pivotIndex + 1; i < segmentCount; i++)
       {
-         leftSegments[i - pivotIndex - 1] = new CZigzagSegment(*totalSegments[i]);
+         // 调试日志：记录每个左侧线段的处理
+         int targetIndex = i - pivotIndex - 1;
+         if(totalSegments[i] != NULL && CheckPointer(totalSegments[i]))
+         {
+            leftSegments[targetIndex] = new CZigzagSegment(*totalSegments[i]);
+            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 创建左侧线段 ", targetIndex, ", 源索引: ", i);
+         }
+         else
+         {
+            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 左侧线段源索引 ", i, " 指针无效");
+            leftSegments[targetIndex] = NULL;
+         }
       }
    } 
 
@@ -246,14 +322,27 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
    if(pivotIndex >= 0)
    {
       rightCount = pivotIndex + 1; // 包括关键线段本身
+      Print("GetTimeframeSegments: 周期 ", timeframeName, " - 右侧线段数量: ", rightCount, ", pivotIndex: ", pivotIndex);
       ArrayResize(rightSegments, rightCount);
       for(int i = 0; i <= pivotIndex; i++)
       {
-         rightSegments[i] = new CZigzagSegment(*totalSegments[i]);
+         if(totalSegments[i] != NULL && CheckPointer(totalSegments[i]))
+         {
+            rightSegments[i] = new CZigzagSegment(*totalSegments[i]);
+            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 创建右侧线段 ", i);
+         }
+         else
+         {
+            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 右侧线段源索引 ", i, " 指针无效");
+            rightSegments[i] = NULL;
+         }
       }
    }
   
-   delete segmentManager;
+   // 注意：totalSegments数组由segmentManager.GetSegments()创建
+   // segmentManager会在函数结束时自动释放，totalSegments数组也会随之自动释放
+   // 不需要手动删除数组元素
+   
    
    // 对左右线段按时间顺序排序
    if(leftCount > 0)
@@ -267,4 +356,138 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
    }
    
    return (leftCount > 0 || rightCount > 0);
+}
+
+//+------------------------------------------------------------------+
+//| 查找并缓存指定时间周期的左向第一个线段                            |
+//+------------------------------------------------------------------+
+bool CTradeBasePoint::CacheLeftSegmentForTimeframe(ENUM_TIMEFRAMES timeframe)
+{
+   if(!m_isValid || m_currentSegment == NULL)
+      return false;
+      
+   // 线程安全保护：如果其他线程正在操作缓存，等待
+   while(m_threadSafetyCounter > 0)
+   {
+      Sleep(1); // 短暂等待
+   }
+   
+   m_threadSafetyCounter++;
+   
+   // 获取指定时间周期的所有线段
+   CZigzagSegment* leftSegments[];
+   CZigzagSegment* rightSegments[];
+   
+   if(!GetTimeframeSegments(timeframe, leftSegments, rightSegments))
+   {
+      m_threadSafetyCounter--;
+      return false;
+   }
+      
+   // 获取左向第一个线段（时间上最接近基准点的左侧线段）
+   if(ArraySize(leftSegments) > 0)
+   {
+      int timeframeIndex = -1;
+      switch(timeframe)
+      {
+         case PERIOD_M5:  timeframeIndex = 0; break;
+         case PERIOD_M15: timeframeIndex = 1; break;
+         case PERIOD_M30: timeframeIndex = 2; break;
+         case PERIOD_H1:  timeframeIndex = 3; break;
+         default: 
+            m_threadSafetyCounter--;
+            return false;
+      }
+      
+      // 释放旧的缓存线段（注释掉手动删除，由系统自动管理）
+      if(m_cachedLeftSegments[timeframeIndex] != NULL)
+      {
+         // delete m_cachedLeftSegments[timeframeIndex];  // 不再手动删除对象
+         m_cachedLeftSegments[timeframeIndex] = NULL;
+      }
+      
+      // 缓存左向第一个线段（深拷贝），添加指针有效性检查
+      if(leftSegments[0] != NULL && CheckPointer(leftSegments[0]))
+      {
+         m_cachedLeftSegments[timeframeIndex] = new CZigzagSegment(*leftSegments[0]);
+      }
+      else
+      {
+         m_cachedLeftSegments[timeframeIndex] = NULL;
+         Print("CacheLeftSegmentForTimeframe: 左向第一个线段指针无效，timeframe=", EnumToString(timeframe));
+      }
+      
+      // 注意：leftSegments和rightSegments数组由GetTimeframeSegments方法创建
+      // MQL5会自动在函数结束时释放这些临时数组，不需要手动删除
+      
+      m_threadSafetyCounter--;
+      return true;
+   }
+   
+   m_threadSafetyCounter--;
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| 缓存所有时间周期的左向第一个线段                                  |
+//+------------------------------------------------------------------+
+bool CTradeBasePoint::CacheAllLeftFirstSegments()
+{
+   if(!m_isValid || m_currentSegment == NULL)
+      return false;
+      
+   // 移除1分钟周期，避免极点计算死掉
+   ENUM_TIMEFRAMES timeframes[] = {PERIOD_M5, PERIOD_M15, PERIOD_M30, PERIOD_H1};
+   bool success = true;
+   
+   for(int i = 0; i < ArraySize(timeframes); i++)
+   {
+      if(!CacheLeftSegmentForTimeframe(timeframes[i]))
+      {
+         success = false;
+      }
+   }
+   
+   return success;
+}
+
+//+------------------------------------------------------------------+
+//| 获取指定时间周期的左向第一个线段（带缓存）                        |
+//+------------------------------------------------------------------+
+CZigzagSegment* CTradeBasePoint::GetLeftFirstSegment(ENUM_TIMEFRAMES timeframe)
+{
+   if(!m_isValid)
+      return NULL;
+      
+   int timeframeIndex = -1;
+   switch(timeframe)
+   {
+      case PERIOD_M1:  timeframeIndex = 0; break;
+      case PERIOD_M5:  timeframeIndex = 1; break;
+      case PERIOD_M15: timeframeIndex = 2; break;
+      case PERIOD_M30: timeframeIndex = 3; break;
+      case PERIOD_H1:  timeframeIndex = 4; break;
+      default: return NULL;
+   }
+   
+   // 简单的线程安全保护
+   m_threadSafetyCounter++;
+   
+   // 如果缓存中存在，直接返回
+   if(timeframeIndex >= 0 && timeframeIndex < 5 && 
+      m_cachedLeftSegments[timeframeIndex] != NULL)
+   {
+      m_threadSafetyCounter--;
+      return m_cachedLeftSegments[timeframeIndex];
+   }
+   
+   // 如果缓存中不存在，尝试查找并缓存
+   if(CacheLeftSegmentForTimeframe(timeframe))
+   {
+      m_threadSafetyCounter--;
+      return m_cachedLeftSegments[timeframeIndex];
+   }
+   
+   m_threadSafetyCounter--;
+   return NULL;
 }

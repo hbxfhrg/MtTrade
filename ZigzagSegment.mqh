@@ -223,15 +223,32 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
       endTime = temp;
    }
    
-   // 根据K线搜索策略确定K线数量
-   int barsCount;
-   if(smallerTimeframe <= PERIOD_M5)
-      barsCount = 2000;
-   else if(smallerTimeframe <= PERIOD_H1) 
-      barsCount = 2000;
-   else 
-      barsCount = 500;
+   // 根据区间开始时间确定K线数量
+   // 找到区间开始时间在指定周期上的K线序号，然后加上30作为barsCount
+   int startBarIndex = iBarShift(Symbol(), smallerTimeframe, startTime);
    
+   // 调试日志：输出startBarIndex的值和时间信息
+   string timeframeName = EnumToString(smallerTimeframe);
+   Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - startBarIndex = ", startBarIndex, ", startTime = ", TimeToString(startTime));
+   
+   // 如果iBarShift返回-1，尝试使用iTime验证时间有效性
+   if(startBarIndex < 0)
+   {
+      // 检查startTime是否在图表时间范围内
+      datetime firstBarTime = iTime(Symbol(), smallerTimeframe, 0);
+      datetime lastBarTime = iTime(Symbol(), smallerTimeframe, Bars(Symbol(), smallerTimeframe) - 1);
+      
+      Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 时间范围: ", TimeToString(firstBarTime), " 到 ", TimeToString(lastBarTime));
+      Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 请求时间 ", TimeToString(startTime), " 不在图表时间范围内");
+      return NULL; // 无法找到区间开始时间对应的K线，返回NULL
+   }
+   
+   int barsCount = startBarIndex + 30;
+   
+   // 确保barsCount在合理范围内（30-2000）
+   if(barsCount < 30)
+      barsCount = 30;
+  
    // 创建ZigZag计算器并计算极值点
    CZigzagCalculator zigzagCalc(12, 5, 3, barsCount, smallerTimeframe);
    
@@ -269,15 +286,7 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
          {
             allSegments[segmentCount++] = newSegment;
          }
-         else
-         {
-            // 释放不在时间范围内的线段
-            if(newSegment != NULL)
-            {
-               delete newSegment;
-               newSegment = NULL;
-            }
-         }
+       
       }
       else
       {
@@ -285,15 +294,7 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
          {
             allSegments[segmentCount++] = newSegment;
          }
-         else
-         {
-            // 释放不在时间范围内的线段
-            if(newSegment != NULL)
-            {
-               delete newSegment;
-               newSegment = NULL;
-            }
-         }
+        
       }
 
       }
