@@ -97,8 +97,8 @@ public:
       // 矩形高度（价格单位）
       double rectHeight = 800 * _Point; // 矩形高度为20个点，可以根据需要调整
       
-      // 绘制回撤点或反弹点
-      DrawRetraceReboundPoint();
+      // 绘制回撤点或反弹点（支撑压力功能已移除）
+      // DrawRetraceReboundPoint();
      }
      
    // 绘制动态价格点（支撑/压力/回撤/反弹/区间高低点）
@@ -321,68 +321,10 @@ public:
       return (color)((r << 16) | (g << 8) | b);
      }
      
-   // 绘制回撤点、反弹点和区间高低点
+   // 绘制回撤点、反弹点和区间高低点（支撑压力功能已移除）
    static void DrawRetraceReboundPoint()
      {
-      if(!g_tradeAnalyzer.IsValid())
-         return;
-         
-      // 获取回撤或反弹价格和时间
-      double retracePrice = g_tradeAnalyzer.GetRetracePrice();
-      datetime retraceTime = g_tradeAnalyzer.GetRetraceTime();
-      double retracePercent = g_tradeAnalyzer.GetRetracePercent();
-      
-      if(retracePrice <= 0 || retraceTime == 0)
-         return;
-      
-      // 矩形高度（价格单位）
-      double rectHeight = 600 * _Point; // 矩形高度为15个点，比支撑压力区域小一些
-      
-      // 根据趋势方向确定是回撤点还是反弹点
-      if(g_tradeAnalyzer.IsUpTrend())
-        {
-         // 上涨趋势，绘制回撤点压力
-         
-         // 获取支撑位价格
-         double support1H = g_tradeAnalyzer.GetSupportPrice(PERIOD_H1);
-         
-         // 创建回撤点动态价格点对象
-         CDynamicPricePoint retracePoints(retracePrice, SR_RESISTANCE_RETRACE);
-         
-         // 绘制回撤点压力 - 红色系
-         DrawDynamicPricePoint(retracePoints, retracePrice, support1H, 
-                             retracePrice < support1H, "Retrace", clrCrimson, 
-                             retracePercent);
-                             
-         // 绘制区间高点支撑 - 蓝色系
-         double rangeHigh = g_tradeAnalyzer.GetRangeHigh();
-         CDynamicPricePoint rangeHighPoints(rangeHigh, SR_SUPPORT_RANGE_HIGH);
-         
-         DrawDynamicPricePoint(rangeHighPoints, rangeHigh, 0, true, 
-                             "RangeHigh", clrDodgerBlue);
-        }
-      else
-        {
-         // 下跌趋势，绘制反弹点支撑
-         
-         // 获取压力位价格
-         double resistance1H = g_tradeAnalyzer.GetResistancePrice(PERIOD_H1);
-         
-         // 创建反弹点动态价格点对象
-         CDynamicPricePoint reboundPoints(retracePrice, SR_SUPPORT_REBOUND);
-         
-         // 绘制反弹点支撑 - 蓝色系
-         DrawDynamicPricePoint(reboundPoints, retracePrice, resistance1H, 
-                             retracePrice > resistance1H, "Rebound", clrDodgerBlue, 
-                             retracePercent);
-                             
-         // 绘制区间低点压力 - 红色系
-         double rangeLow = g_tradeAnalyzer.GetRangeLow();
-         CDynamicPricePoint rangeLowPoints(rangeLow, SR_RESISTANCE_RANGE_LOW);
-         
-         DrawDynamicPricePoint(rangeLowPoints, rangeLow, 0, true, 
-                             "RangeLow", clrCrimson);
-        }
+      // 支撑压力功能已移除，此方法不再使用
      }
      
    // 交易参考基准价格只在信息面板上显示，不在图表上绘制线条

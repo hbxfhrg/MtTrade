@@ -11,7 +11,7 @@
 #include "ZigzagSegment.mqh"
 #include "CommonUtils.mqh"
 #include "LogUtil.mqh"
-#include "SupportResistancePoint.mqh"
+
 #include "DynamicPricePoint.mqh"
 #include "TradeBasePoint.mqh"
 #include "EnumDefinitions.mqh"
@@ -40,9 +40,6 @@ private:
    double    m_retraceDiff;     // 回撤或反弹的绝对值差距
    double    m_tradeBasePrice;  //交易参考的基准价
    //交易参考的基准价格处理逻辑，区间上涨趋势，找到区间开始时间之后的最高点的价格即可，下降同理区间开始时间最低价格即可。
-   // 动态价格点
-   CDynamicPricePoint m_supportPoints;    // 支撑点集合
-   CDynamicPricePoint m_resistancePoints; // 压力点集合
    
    // 交易基准点
 public:
@@ -70,9 +67,6 @@ public:
       m_retracePercent = 0.0;
       m_retraceDiff = 0.0;
       
-      // 初始化动态价格点
-      m_supportPoints = CDynamicPricePoint(0.0, SR_SUPPORT);
-      m_resistancePoints = CDynamicPricePoint(0.0, SR_RESISTANCE);
       
       // 初始化ZigZag参数
       m_zigzagDepth = 12;
@@ -109,9 +103,6 @@ public:
       m_retracePercent = 0.0;
       m_retraceDiff = 0.0;
       
-      // 初始化动态价格点
-      m_supportPoints = CDynamicPricePoint(0.0, SR_SUPPORT);
-      m_resistancePoints = CDynamicPricePoint(0.0, SR_RESISTANCE);
       
       // 重置计算时间
       m_lastCalcTime = 0;
@@ -185,8 +176,6 @@ public:
       // 计算交易参考基准价格
       CalculateTradeBasePrice();
       
-      // 计算多时间周期支撑和压力
-      CalculateSupportResistance();
       
       // 计算交易参考基准价格
       CalculateTradeBasePrice();
@@ -249,42 +238,7 @@ public:
          if(rangeDiff > 0)
             m_retracePercent = m_retraceDiff / rangeDiff * 100.0;
             
-         // 检查回撤点是否穿越了支撑点
-         if(m_retracePrice > 0)
-           {
-            // 检查各个时间周期的支撑点是否被穿越
-            // 对于支撑点，如果回撤价格低于支撑价格，则支撑点被穿越
-            double supportH1 = m_supportPoints.GetPrice(PERIOD_H1);
-            double supportH4 = m_supportPoints.GetPrice(PERIOD_H4);
-            double supportD1 = m_supportPoints.GetPrice(PERIOD_D1);
-            
-            if(supportH1 > 0 && m_retracePrice < supportH1)
-              {
-               CSupportResistancePoint* pointH1 = m_supportPoints.GetPoint(PERIOD_H1);
-               if(pointH1 != NULL) 
-                 {
-                  pointH1.SetPenetrated(true);
-                 }
-              }
-              
-            if(supportH4 > 0 && m_retracePrice < supportH4)
-              {
-               CSupportResistancePoint* pointH4 = m_supportPoints.GetPoint(PERIOD_H4);
-               if(pointH4 != NULL) 
-                 {
-                  pointH4.SetPenetrated(true);
-                 }
-              }
-              
-            if(supportD1 > 0 && m_retracePrice < supportD1)
-              {
-               CSupportResistancePoint* pointD1 = m_supportPoints.GetPoint(PERIOD_D1);
-               if(pointD1 != NULL) 
-                 {
-                  pointD1.SetPenetrated(true);
-                 }
-              }
-           }
+
         }
       else
         {
@@ -304,171 +258,11 @@ public:
          if(rangeDiff > 0)
             m_retracePercent = m_retraceDiff / rangeDiff * 100.0;
             
-         // 检查反弹点是否穿越了压力点
-         if(m_retracePrice > 0)
-           {
-            // 检查各个时间周期的压力点是否被穿越
-            // 对于压力点，如果反弹价格高于压力价格，则压力点被穿越
-            double resistanceH1 = m_resistancePoints.GetPrice(PERIOD_H1);
-            double resistanceH4 = m_resistancePoints.GetPrice(PERIOD_H4);
-            double resistanceD1 = m_resistancePoints.GetPrice(PERIOD_D1);
-            
-            if(resistanceH1 > 0 && m_retracePrice > resistanceH1)
-              {
-               CSupportResistancePoint* pointH1 = m_resistancePoints.GetPoint(PERIOD_H1);
-               if(pointH1 != NULL) pointH1.SetPenetrated(true);
-              }
-              
-            if(resistanceH4 > 0 && m_retracePrice > resistanceH4)
-              {
-               CSupportResistancePoint* pointH4 = m_resistancePoints.GetPoint(PERIOD_H4);
-               if(pointH4 != NULL) pointH4.SetPenetrated(true);
-              }
-              
-            if(resistanceD1 > 0 && m_retracePrice > resistanceD1)
-              {
-               CSupportResistancePoint* pointD1 = m_resistancePoints.GetPoint(PERIOD_D1);
-               if(pointD1 != NULL) pointD1.SetPenetrated(true);
-              }
-           }
+
         }
      }
      
-   // 计算多时间周期的支撑和压力
-   void CalculateSupportResistance()
-     {
-      if(!m_isValid || m_currentSegment == NULL)
-         return;
-         
-      // 使用当前线段
-      CZigzagSegment* latestSegment = m_currentSegment;
-      
-      // 根据线段方向计算支撑或压力
-      if((*latestSegment).IsUptrend())
-        {
-         // 上涨趋势
-         // 1. 计算区间高点的支撑
-         m_supportPoints.Recalculate(GetRangeHigh(), SR_SUPPORT_RANGE_HIGH);
-         
-         // 2. 如果有回撤点，计算回撤点的压力
-         if(m_retracePrice > 0.0)
-           {
-            m_resistancePoints.Recalculate(m_retracePrice, SR_RESISTANCE_RETRACE);
-            
-            // 检查各个时间周期的支撑点是否被穿越
-            double supportH1 = m_supportPoints.GetPrice(PERIOD_H1);
-            double supportH4 = m_supportPoints.GetPrice(PERIOD_H4);
-            double supportD1 = m_supportPoints.GetPrice(PERIOD_D1);
-            
-            if(supportH1 > 0 && m_retracePrice < supportH1)
-              {
-               CSupportResistancePoint* pointH1 = m_supportPoints.GetPoint(PERIOD_H1);
-               if(pointH1 != NULL) 
-                 {
-                  pointH1.SetPenetrated(true);
-                 }
-              }
-              
-            if(supportH4 > 0 && m_retracePrice < supportH4)
-              {
-               CSupportResistancePoint* pointH4 = m_supportPoints.GetPoint(PERIOD_H4);
-               if(pointH4 != NULL) 
-                 {
-                  pointH4.SetPenetrated(true);
-                 }
-              }
-              
-            if(supportD1 > 0 && m_retracePrice < supportD1)
-              {
-               CSupportResistancePoint* pointD1 = m_supportPoints.GetPoint(PERIOD_D1);
-               if(pointD1 != NULL) 
-                 {
-                  pointD1.SetPenetrated(true);
-                 }
-              }
-           }
-        }
-      else
-        {
-         // 下跌趋势
-         // 1. 计算区间低点的压力
-         m_resistancePoints.Recalculate(GetRangeLow(), SR_RESISTANCE_RANGE_LOW);
-         
-         // 2. 如果有反弹点，计算反弹点的支撑
-         if(m_retracePrice > 0.0)
-           {
-            m_supportPoints.Recalculate(m_retracePrice, SR_SUPPORT_REBOUND);
-            
-            // 检查各个时间周期的压力点是否被穿越
-            double resistanceH1 = m_resistancePoints.GetPrice(PERIOD_H1);
-            double resistanceH4 = m_resistancePoints.GetPrice(PERIOD_H4);
-            double resistanceD1 = m_resistancePoints.GetPrice(PERIOD_D1);
-            
-            if(resistanceH1 > 0 && m_retracePrice > resistanceH1)
-              {
-               CSupportResistancePoint* pointH1 = m_resistancePoints.GetPoint(PERIOD_H1);
-               if(pointH1 != NULL) 
-                 {
-                  pointH1.SetPenetrated(true);
-                 }
-              }
-              
-            if(resistanceH4 > 0 && m_retracePrice > resistanceH4)
-              {
-               CSupportResistancePoint* pointH4 = m_resistancePoints.GetPoint(PERIOD_H4);
-               if(pointH4 != NULL) 
-                 {
-                  pointH4.SetPenetrated(true);
-                 }
-              }
-              
-            if(resistanceD1 > 0 && m_retracePrice > resistanceD1)
-              {
-               CSupportResistancePoint* pointD1 = m_resistancePoints.GetPoint(PERIOD_D1);
-               if(pointD1 != NULL) 
-                 {
-                  pointD1.SetPenetrated(true);
-                 }
-              }
-           }
-        }
-     }
-     
-   // 获取指定时间周期的支撑
-   double GetSupportPrice(ENUM_TIMEFRAMES timeframe)
-     {
-      return m_supportPoints.GetPrice(timeframe);
-     }
-     
-   // 获取指定时间周期的压力
-   double GetResistancePrice(ENUM_TIMEFRAMES timeframe)
-     {
-      return m_resistancePoints.GetPrice(timeframe);
-     }
-     
-   // 获取指定时间周期的支撑时间
-   datetime GetSupportTime(ENUM_TIMEFRAMES timeframe)
-     {
-      return m_supportPoints.GetTime(timeframe);
-     }
-     
-   // 获取指定时间周期的压力时间
-   datetime GetResistanceTime(ENUM_TIMEFRAMES timeframe)
-     {
-      return m_resistancePoints.GetTime(timeframe);
-     }
-     
-   // 获取支撑点对象
-   CDynamicPricePoint* GetSupportPointsObject()
-     {
-      return &m_supportPoints;
-     }
-     
-   // 获取压力点对象
-   CDynamicPricePoint* GetResistancePointsObject()
-     {
-      return &m_resistancePoints;
-     }
+
      
    // 获取当前线段指针
    CZigzagSegment* GetCurrentSegment()
@@ -565,58 +359,7 @@ public:
       return true;
      }
      
-   // 获取指定时间周期的支撑/压力描述
-   string GetSupportResistanceDescription(ENUM_TIMEFRAMES timeframe = PERIOD_H1, string prefix = "")
-     {
-      if(!m_isValid || m_currentSegment == NULL)
-         return "";
-         
-      if((*m_currentSegment).IsUptrend())
-        {
-         // 上涨趋势，显示支撑位
-         string supportText = DoubleToString(m_supportPoints.GetPrice(timeframe), _Digits);
-         if(timeframe == PERIOD_H1 && prefix == "")
-           {
-            string referenceText = DoubleToString(GetRangeHigh(), _Digits);
-            return "支撑：参考点" + referenceText;
-           }
-         else
-           {
-            string tfName = (timeframe == PERIOD_H1) ? "H1" : 
-                           (timeframe == PERIOD_H4) ? "4H" : 
-                           (timeframe == PERIOD_D1) ? "D1" : "未知";
-            return prefix + tfName + "=" + supportText;
-           }
-        }
-      else
-        {
-         // 下跌趋势，显示压力位
-         string resistanceText = DoubleToString(m_resistancePoints.GetPrice(timeframe), _Digits);
-         if(timeframe == PERIOD_H1 && prefix == "")
-           {
-            string referenceText = DoubleToString(GetRangeLow(), _Digits);
-            return "压力：参考点" + referenceText;
-           }
-         else
-           {
-            string tfName = (timeframe == PERIOD_H1) ? "H1" : 
-                           (timeframe == PERIOD_H4) ? "4H" : 
-                           (timeframe == PERIOD_D1) ? "D1" : "未知";
-            return prefix + tfName + "=" + resistanceText;
-           }
-        }
-     }
-     
-   // 以下方法保留以兼容现有代码
-   string GetSupportResistance4HDescription()
-     {
-      return GetSupportResistanceDescription(PERIOD_H4);
-     }
-     
-   string GetSupportResistanceD1Description()
-     {
-      return GetSupportResistanceDescription(PERIOD_D1);
-     }
+
      
    // 获取回撤或反弹价格
    double GetRetracePrice()
