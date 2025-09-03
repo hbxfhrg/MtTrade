@@ -204,7 +204,7 @@ void CheckTradeAnalyzerRecalculation()
 //+------------------------------------------------------------------+
 //| 初始化交易分析器                                                 |
 //+------------------------------------------------------------------+
-void InitializeTradeAnalyzer(CZigzagExtremumPoint &points4H[])
+void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputPoints4H[])
   {
    // 获取4H周期价格数据
    double h4_high[];
@@ -224,13 +224,13 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &points4H[])
       tempCalc4H.Calculate(h4_high, h4_low, h4_copied_high, 0);
       
       // 获取4H周期极值点
-      if(tempCalc4H.GetExtremumPoints(points4H) && ArraySize(points4H) >= 2)
+      if(tempCalc4H.GetExtremumPoints(inputPoints4H) && ArraySize(inputPoints4H) >= 2)
         {                 
          // 初始化交易分析器
-         if(g_tradeAnalyzer.AnalyzeRange(points4H, 2) && g_tradeAnalyzer.IsValid())
+         if(g_tradeAnalyzer.AnalyzeRange(inputPoints4H, 2) && g_tradeAnalyzer.IsValid())
            {
             // 使用4H周期极值点初始化主交易线段数组
-            g_tradeAnalyzer.InitializeMainSegmentsFromPoints(points4H);
+            g_tradeAnalyzer.InitializeMainSegmentsFromPoints(inputPoints4H);
             CZigzagSegment* h1leftsegments[];
             CZigzagSegment* h1rightsegments[];
             g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_H1, h1leftsegments, h1rightsegments);
@@ -321,7 +321,7 @@ for(int i=0; i<ArraySize(m5rightsegments); i++) {
 //+------------------------------------------------------------------+
 //| 处理基于交易分析器的标签绘制功能                                   |
 //+------------------------------------------------------------------+
-void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &points4H[])
+void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &inputPoints4H[])
   {
    if(!InpShowLabels || !g_tradeAnalyzer.IsValid())
       return;
@@ -345,7 +345,7 @@ void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &points4H[])
    CLineManager::DeleteAllLines("ZigzagLine4H_");
    
    // 绘制4H极值点标签
-   CExtremumPointDrawer::DrawExtremumPointLabels(points4H, "4H", true);
+   CExtremumPointDrawer::DrawExtremumPointLabels(inputPoints4H, "4H", true);
    
    // 绘制1H子线段，传递4H标签点用于重叠检测
    Draw1HSubSegments();

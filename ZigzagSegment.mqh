@@ -13,7 +13,6 @@
 // 前向声明
 class CZigzagSegmentManager;
 class CZigzagCalculator;
-string TimeframeToString(ENUM_TIMEFRAMES timeframe); // 从CommonUtils.mqh中引用的函数
 
 //+------------------------------------------------------------------+
 //| ZigZag线段类，包含两个极值点（峰值和谷值）                           |

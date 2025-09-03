@@ -90,7 +90,6 @@ private:
                 CZigzagSegmentManager* h1Manager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
                 if(h1Manager != NULL)
                 {
-                    CZigzagSegment* h1Segments[];
                     if(h1Manager.GetSegments(h1Segments) && ArraySize(h1Segments) > 0)
                     {
                         segmentInfo += BuildSegmentLines("H1左", h1Segments, true, rangeStartTime) + "\n";
