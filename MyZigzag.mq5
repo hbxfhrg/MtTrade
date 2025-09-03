@@ -279,6 +279,8 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputPoints4H[])
         {
          Print("警告: 无法获取4H极值点或极值点数量不足");
         }
+        
+       
      }
    else
      {
@@ -328,6 +330,22 @@ void Draw1HSubSegments()
    CSegmentDrawer::Draw1HSubSegments(h1Segments, validCount, points4H);
    
  
+  }
+
+//+------------------------------------------------------------------+
+//| 清理线段数组，释放动态创建的对象                                  |
+//+------------------------------------------------------------------+
+void CleanupSegmentArrays(CZigzagSegment* &segments[])
+  {
+   for(int i = 0; i < ArraySize(segments); i++)
+     {
+      if(segments[i] != NULL && CheckPointer(segments[i]))
+        {
+         delete segments[i];
+         segments[i] = NULL;
+        }
+     }
+   ArrayResize(segments, 0);
   }
 
 //+------------------------------------------------------------------+

@@ -130,12 +130,12 @@ CTradeBasePoint::CTradeBasePoint(const CTradeBasePoint &other)
 //+------------------------------------------------------------------+
 void CTradeBasePoint::ReleaseResources()
 {
-   // 释放缓存的线段对象（注释掉手动删除，由系统自动管理）
+   // 释放缓存的线段对象
    for(int i = 0; i < 5; i++)
    {
       if(m_cachedLeftSegments[i] != NULL)
       {
-         // delete m_cachedLeftSegments[i];  // 不再手动删除对象
+         delete m_cachedLeftSegments[i];
          m_cachedLeftSegments[i] = NULL;
       }
    }
@@ -399,10 +399,10 @@ bool CTradeBasePoint::CacheLeftSegmentForTimeframe(ENUM_TIMEFRAMES timeframe)
             return false;
       }
       
-      // 释放旧的缓存线段（注释掉手动删除，由系统自动管理）
+      // 释放旧的缓存线段
       if(m_cachedLeftSegments[timeframeIndex] != NULL)
       {
-         // delete m_cachedLeftSegments[timeframeIndex];  // 不再手动删除对象
+         delete m_cachedLeftSegments[timeframeIndex];
          m_cachedLeftSegments[timeframeIndex] = NULL;
       }
       
