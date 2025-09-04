@@ -114,11 +114,11 @@ public:
    void SetPointProperties(CSupportResistancePoint &point, double price, datetime time, 
                           int barIndex, ENUM_TIMEFRAMES timeframe)
      {
-      point.m_price = price;
-      point.m_time = time;
-      point.m_barIndex = barIndex;
-      point.m_timeframe = timeframe;
-      point.SetType(m_pointType);
+      point.price = price;
+      point.time = time;
+      point.bar_index = barIndex;
+      point.timeframe = timeframe;
+      point.type = m_pointType;
      }
    
    // 在1小时周期上查找匹配的K线时间
@@ -154,7 +154,7 @@ public:
       // 如果参考价格为0，则不计算
       if(m_referencePrice <= 0)
         {
-         point.m_price = 0.0;
+         point.price = 0.0;
          return;
         }
       
@@ -227,14 +227,14 @@ public:
    double GetPrice(ENUM_TIMEFRAMES timeframe)
      {
       CSupportResistancePoint* point = GetPoint(timeframe);
-      return point != NULL ? point.m_price : 0.0;
+      return point != NULL ? point.price : 0.0;
      }
      
    // 根据时间周期获取时间
    datetime GetTime(ENUM_TIMEFRAMES timeframe)
      {
       CSupportResistancePoint* point = GetPoint(timeframe);
-      return point != NULL ? point.m_time : 0;
+      return point != NULL ? point.time : 0;
      }
      
    // 获取价格点类型描述
@@ -334,9 +334,9 @@ public:
       m_isUpTrend = IsPointTypeSupport(pointType);
       
       // 更新价格点类型
-      m_pointH1.SetType(pointType);
-      m_pointH4.SetType(pointType);
-      m_pointD1.SetType(pointType);
+      m_pointH1.type = pointType;
+      m_pointH4.type = pointType;
+      m_pointD1.type = pointType;
      }
      
    // 重新计算所有价格点
@@ -364,6 +364,6 @@ public:
    bool IsPenetrated(ENUM_TIMEFRAMES timeframe)
      {
       CSupportResistancePoint* point = GetPoint(timeframe);
-      return point != NULL ? point.IsPenetrated() : false;
+      return point != NULL ? point.is_penetrated : false;
      }
   };

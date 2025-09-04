@@ -84,7 +84,7 @@ private:
             double tradeBasePrice = g_tradeAnalyzer.GetTradeBasePrice();
             if(tradeBasePrice > 0.0)
             {
-                datetime rangeStartTime = currentMainSegment.StartTime();
+                datetime rangeStartTime = currentMainSegment.m_start_point.time;
                 
                 // 1小时线段信息
                 CZigzagSegmentManager* h1Manager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
@@ -146,9 +146,9 @@ private:
             if(segments[i] != NULL)
             {
                 bool condition = isLeft ? 
-                    (segments[i].EndTime() <= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime() && 
-                     segments[i].StartTime() >= rangeStartTime) :
-                    (segments[i].StartTime() >= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime());
+                    (segments[i].m_end_point.time <= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime() && 
+                     segments[i].m_start_point.time >= rangeStartTime) :
+                    (segments[i].m_start_point.time >= g_tradeAnalyzer.m_tradeBasePoint.GetBaseTime());
                 
                 if(condition)
                 {
@@ -163,7 +163,7 @@ private:
             SortSegmentsByTime(filteredSegments, false, true);
             for(int i = 0; i < MathMin(3, count); i++)
             {
-                lineText += DoubleToString(filteredSegments[i].StartPrice(), _Digits) + "→";
+                lineText += DoubleToString(filteredSegments[i].m_start_point.value, _Digits) + "→";
             }
         }
         else

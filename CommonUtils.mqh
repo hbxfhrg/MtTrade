@@ -775,13 +775,13 @@ void SortSegmentsByTime(CZigzagSegment* &segments[], bool ascending = false, boo
             // 根据参数选择使用开始时间还是结束时间
             if(useEndTime)
             {
-               time1 = segments[j].EndTime();
-               time2 = segments[j+1].EndTime();
+               time1 = segments[j].m_end_point.time;
+               time2 = segments[j+1].m_end_point.time;
             }
             else
             {
-               time1 = segments[j].StartTime();
-               time2 = segments[j+1].StartTime();
+               time1 = segments[j].m_start_point.time;
+               time2 = segments[j+1].m_start_point.time;
             }
             
             // 根据排序方向进行比较

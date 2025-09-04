@@ -204,7 +204,7 @@ void CheckTradeAnalyzerRecalculation()
 //+------------------------------------------------------------------+
 //| 初始化交易分析器                                                 |
 //+------------------------------------------------------------------+
-void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputPoints4H[])
+void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputFourHourPoints[])
   {
 // 获取4H周期价格数据
    double h4_high[];
@@ -224,19 +224,19 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputPoints4H[])
       tempCalc4H.Calculate(h4_high, h4_low, h4_copied_high, 0);
 
       // 获取4H周期极值点
-      if(tempCalc4H.GetExtremumPoints(inputPoints4H) && ArraySize(inputPoints4H) >= 2)
+      if(tempCalc4H.GetExtremumPoints(inputFourHourPoints) && ArraySize(inputFourHourPoints) >= 2)
         {
          // 初始化交易分析器
-         if(g_tradeAnalyzer.AnalyzeRange(inputPoints4H, 2) && g_tradeAnalyzer.IsValid())
+         if(g_tradeAnalyzer.AnalyzeRange(inputFourHourPoints, 2) && g_tradeAnalyzer.IsValid())
            {
             // 使用4H周期极值点初始化主交易线段数组
-            g_tradeAnalyzer.InitializeMainSegmentsFromPoints(inputPoints4H);
+            g_tradeAnalyzer.InitializeMainSegmentsFromPoints(inputFourHourPoints);
             g_tradeAnalyzer.m_tradeBasePoint.CacheAllSegments();    
             
             // 打印日志：取缓存左线段数组第1条记录开始点价格
             if(g_tradeAnalyzer.m_tradeBasePoint.m_cachedLeftSegments.Size() > 0)
             {
-               double startPrice = g_tradeAnalyzer.m_tradeBasePoint.m_cachedLeftSegments[0].StartPoint().value;
+               double startPrice = g_tradeAnalyzer.m_tradeBasePoint.m_cachedLeftSegments[0].m_start_point.value;
                Print("缓存左线段数组第1条记录开始点价格: ", startPrice);
             }
             
@@ -263,7 +263,7 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputPoints4H[])
 //+------------------------------------------------------------------+
 //| 处理基于交易分析器的标签绘制功能                                   |
 //+------------------------------------------------------------------+
-void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &inputPoints4H[])
+void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &inputFourHourPoints[])
   {
    if(!InpShowLabels || !g_tradeAnalyzer.IsValid())
       return;
@@ -280,7 +280,7 @@ void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &inputPoints4H[])
 
 
 // 绘制4H极值点标签
-   CExtremumPointDrawer::DrawExtremumPointLabels(inputPoints4H, "4H", true);
+   CExtremumPointDrawer::DrawExtremumPointLabels(inputFourHourPoints, "4H", true);
 
 // 绘制1H子线段，传递4H标签点用于重叠检测
    Draw1HSubSegments();

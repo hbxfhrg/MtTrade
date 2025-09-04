@@ -20,12 +20,10 @@ class CZigzagCalculator;
 class CZigzagSegment
 {
 private:
-   CZigzagExtremumPoint m_start_point;   // 起始点（可能是峰值或谷值）
-   CZigzagExtremumPoint m_end_point;     // 结束点（可能是谷值或峰值）
-   double               m_price_diff;    // 价格差（绝对值）
-   double               m_price_diff_pct; // 价格差百分比
+  
+   
    CZigzagSegmentManager* m_manager;     // 线段管理器引用
-   ENUM_TIMEFRAMES      m_timeframe;     // 当前线段的时间周期
+  
 
 public:
                      CZigzagSegment();
@@ -34,34 +32,20 @@ public:
                      CZigzagSegment(const CZigzagSegment &other);
                     ~CZigzagSegment();
    
+   CZigzagExtremumPoint m_start_point;   // 起始点（可能是峰值或谷值）
+   CZigzagExtremumPoint m_end_point;     // 结束点（可能是谷值或峰值）
+   ENUM_TIMEFRAMES      timeframe;     // 当前线段的时间周期
+   double               m_price_diff;    // 价格差（绝对值）
+   double               m_price_diff_pct; // 价格差百分比
    // 设置线段管理器
    void                 SetManager(CZigzagSegmentManager* manager) { m_manager = manager; }
    
-   // 获取时间周期
-   ENUM_TIMEFRAMES      Timeframe() const { return m_timeframe; }
-   void                 Timeframe(ENUM_TIMEFRAMES value) { m_timeframe = value; }
+
    
    // 获取更小周期的线段
    CZigzagSegmentManager* GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe, bool fromStartorEnd = true);
    
-   // 获取/设置属性
-   CZigzagExtremumPoint StartPoint() const { return m_start_point; }
-   void                 StartPoint(const CZigzagExtremumPoint &value);
-   
-   CZigzagExtremumPoint EndPoint() const { return m_end_point; }
-   void                 EndPoint(const CZigzagExtremumPoint &value);
-   
-   // 获取起始点和结束点的价格和时间
-   double               StartPrice() const { return m_start_point.value; }
-   double               EndPrice() const { return m_end_point.value; }
-   datetime             StartTime() const { return m_start_point.time; }
-   datetime             EndTime() const { return m_end_point.time; }
-   
-   // 获取价格差相关信息
-   double               PriceDiff() const { return m_price_diff; }           // 价格差（绝对值）
-   double               PriceDiffPercent() const { return m_price_diff_pct; } // 价格差百分比
-   double               PriceLength() const { return m_price_diff; }         // 价格长度（与PriceDiff相同，更直观的命名）
-   double               PriceLengthInPips() const { return m_price_diff * MathPow(10, _Digits); } // 价格长度（以点数表示）
+
    
    // 计算价格差和百分比
    void                 CalculatePriceDiff();
@@ -72,6 +56,9 @@ public:
    
    // 获取线段长度（K线数量）
    int                  BarCount() const { return MathAbs(m_end_point.bar_index - m_start_point.bar_index); }
+   
+   // 获取价格长度（点数）
+   double               PriceLengthInPips() const;
    
    // 辅助方法
    string               ToString() const;
@@ -85,7 +72,7 @@ CZigzagSegment::CZigzagSegment()
    m_price_diff = 0.0;
    m_price_diff_pct = 0.0;
    m_manager = NULL;
-   m_timeframe = PERIOD_CURRENT;
+   timeframe = PERIOD_CURRENT;
 }
 
 //+------------------------------------------------------------------+
@@ -96,19 +83,19 @@ CZigzagSegment::CZigzagSegment(const CZigzagExtremumPoint &start, const CZigzagE
    m_start_point = start;
    m_end_point = end;
    m_manager = NULL;
-   m_timeframe = start.timeframe;
+   timeframe = start.timeframe;
    CalculatePriceDiff();
 }
 
 //+------------------------------------------------------------------+
 //| 带时间周期的参数化构造函数                                          |
 //+------------------------------------------------------------------+
-CZigzagSegment::CZigzagSegment(const CZigzagExtremumPoint &start, const CZigzagExtremumPoint &end, ENUM_TIMEFRAMES timeframe)
+CZigzagSegment::CZigzagSegment(const CZigzagExtremumPoint &start, const CZigzagExtremumPoint &end, ENUM_TIMEFRAMES tf)
 {
    m_start_point = start;
    m_end_point = end;
    m_manager = NULL;
-   m_timeframe = timeframe;
+   timeframe = tf;
    CalculatePriceDiff();
 }
 
@@ -122,7 +109,7 @@ CZigzagSegment::CZigzagSegment(const CZigzagSegment &other)
    m_price_diff = other.m_price_diff;
    m_price_diff_pct = other.m_price_diff_pct;
    m_manager = other.m_manager;
-   m_timeframe = other.m_timeframe;
+   timeframe = other.timeframe;
 }
 
 //+------------------------------------------------------------------+
@@ -133,23 +120,6 @@ CZigzagSegment::~CZigzagSegment()
    // 清理资源（如果有的话）
 }
 
-//+------------------------------------------------------------------+
-//| 设置起始点                                                         |
-//+------------------------------------------------------------------+
-void CZigzagSegment::StartPoint(const CZigzagExtremumPoint &value)
-{
-   m_start_point = value;
-   CalculatePriceDiff();
-}
-
-//+------------------------------------------------------------------+
-//| 设置结束点                                                         |
-//+------------------------------------------------------------------+
-void CZigzagSegment::EndPoint(const CZigzagExtremumPoint &value)
-{
-   m_end_point = value;
-   CalculatePriceDiff();
-}
 
 //+------------------------------------------------------------------+
 //| 计算价格差和百分比                                                 |
@@ -208,7 +178,7 @@ public:
 CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAMES smallerTimeframe,bool fromStartorEnd = true)
 {
    // 参数有效性检查
-   if(smallerTimeframe >= m_timeframe)
+   if(smallerTimeframe >= timeframe)
       return NULL;
    
    // 获取主线段时间范围
@@ -298,8 +268,8 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
       
       if(newSegment != NULL)
       {
-         datetime segStartTime = newSegment.StartTime();
-         datetime segEndTime = newSegment.EndTime();
+         datetime segStartTime = newSegment.m_start_point.time;
+         datetime segEndTime = newSegment.m_end_point.time;
          
          // 检查线段是否在主线段时间范围内
          // 线段的开始时间必须在主线段区间内才是有效的
@@ -329,4 +299,16 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
    // 创建并返回线段管理器
    CZigzagSegmentManager* segmentManager = new CZigzagSegmentManager(allSegments, segmentCount);
    return segmentManager;
+}
+
+//+------------------------------------------------------------------+
+//| 获取价格长度（点数）                                              |
+//+------------------------------------------------------------------+
+double CZigzagSegment::PriceLengthInPips() const
+{
+   if(m_start_point.value == 0 || m_end_point.value == 0)
+      return 0.0;
+   
+   double priceDiff = MathAbs(m_end_point.value - m_start_point.value);
+   return priceDiff / Point();
 }

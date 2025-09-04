@@ -279,7 +279,7 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
          }
          
          // 匹配开始点
-         if(totalSegments[i].StartPrice() == m_basePrice)
+         if(totalSegments[i].m_start_point.value == m_basePrice)
          {
             pivotIndex = i;
             Print("GetTimeframeSegments: 周期 ", timeframeName, " - 找到匹配的关键线段，索引: ", pivotIndex);

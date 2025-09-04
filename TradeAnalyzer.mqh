@@ -373,20 +373,20 @@ public:
       if(m_currentSegment == NULL)
          return;
       
-      datetime segmentStartTime = (*m_currentSegment).StartTime();
+      datetime segmentStartTime = (*m_currentSegment).m_start_point.time;
       
       // 根据趋势方向计算基准价
       if((*m_currentSegment).IsUptrend())
       {
          // 上涨趋势，找到区间开始时间之后的最高点价格
          datetime highTime = 0;
-         m_tradeBasePrice = FindHighestPriceAfterLowPrice((*m_currentSegment).StartPrice(), highTime, PERIOD_CURRENT, PERIOD_H1, segmentStartTime);
+         m_tradeBasePrice = FindHighestPriceAfterLowPrice((*m_currentSegment).m_start_point.value, highTime, PERIOD_CURRENT, PERIOD_H1, segmentStartTime);
       }
       else
       {
          // 下跌趋势，找到区间开始时间之后的最低点价格
          datetime lowTime = 0;
-         m_tradeBasePrice = FindLowestPriceAfterHighPrice((*m_currentSegment).StartPrice(), lowTime, PERIOD_CURRENT, PERIOD_H1, segmentStartTime);
+         m_tradeBasePrice = FindLowestPriceAfterHighPrice((*m_currentSegment).m_start_point.value, lowTime, PERIOD_CURRENT, PERIOD_H1, segmentStartTime);
       }
       
       // 初始化交易基准点对象
@@ -465,7 +465,7 @@ public:
      {
       if(m_currentSegment != NULL)
         {
-         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).EndPrice() : (*m_currentSegment).StartPrice();
+         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).m_end_point.value : (*m_currentSegment).m_start_point.value;
         }
       return 0.0;
      }
@@ -475,7 +475,7 @@ public:
      {
       if(m_currentSegment != NULL)
         {
-         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).StartPrice() : (*m_currentSegment).EndPrice();
+         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).m_start_point.value : (*m_currentSegment).m_end_point.value;
         }
       return 0.0;
      }
@@ -485,7 +485,7 @@ public:
      {
       if(m_currentSegment != NULL)
         {
-         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).EndTime() : (*m_currentSegment).StartTime();
+         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).m_end_point.time : (*m_currentSegment).m_start_point.time;
         }
       return 0;
      }
@@ -495,7 +495,7 @@ public:
      {
       if(m_currentSegment != NULL)
         {
-         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).StartTime() : (*m_currentSegment).EndTime();
+         return (*m_currentSegment).IsUptrend() ? (*m_currentSegment).m_start_point.time : (*m_currentSegment).m_end_point.time;
         }
       return 0;
      }

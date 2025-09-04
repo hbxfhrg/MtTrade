@@ -21,7 +21,7 @@ class CSegmentDrawer
 {
 public:
    // 绘制1小时子线段
-   static void Draw1HSubSegments(CZigzagSegment* &validSegments[], int validCount, CZigzagExtremumPoint &points4H[]);
+   static void Draw1HSubSegments(CZigzagSegment* &validSegments[], int validCount, CZigzagExtremumPoint &fourHourPoints[]);
    
    // 绘制交易基准点线段
    static void DrawTradeBaseSegments(CZigzagSegment* &leftSegments[], CZigzagSegment* &rightSegments[], int count, string prefix);
@@ -41,8 +41,8 @@ void CSegmentDrawer::DrawTradeBaseSegments(CZigzagSegment* &leftSegments[], CZig
          string lineName = StringFormat("%s_Left_%d", prefix, i);
          ObjectDelete(0, lineName);
          ObjectCreate(0, lineName, OBJ_TREND, 0, 
-                     leftSegments[i].StartTime(), leftSegments[i].StartPrice(),
-                     leftSegments[i].EndTime(), leftSegments[i].EndPrice());
+                     leftSegments[i].m_start_point.time, leftSegments[i].m_start_point.value,
+                     leftSegments[i].m_end_point.time, leftSegments[i].m_end_point.value);
          ObjectSetInteger(0, lineName, OBJPROP_COLOR, clrGreen);
          ObjectSetInteger(0, lineName, OBJPROP_WIDTH, 2);
       }
@@ -52,8 +52,8 @@ void CSegmentDrawer::DrawTradeBaseSegments(CZigzagSegment* &leftSegments[], CZig
          string lineName = StringFormat("%s_Right_%d", prefix, i);
          ObjectDelete(0, lineName);
          ObjectCreate(0, lineName, OBJ_TREND, 0, 
-                     rightSegments[i].StartTime(), rightSegments[i].StartPrice(),
-                     rightSegments[i].EndTime(), rightSegments[i].EndPrice());
+                     rightSegments[i].m_start_point.time, rightSegments[i].m_start_point.value,
+                     rightSegments[i].m_end_point.time, rightSegments[i].m_end_point.value);
          ObjectSetInteger(0, lineName, OBJPROP_COLOR, clrYellow);
          ObjectSetInteger(0, lineName, OBJPROP_WIDTH, 2);
       }
@@ -63,7 +63,7 @@ void CSegmentDrawer::DrawTradeBaseSegments(CZigzagSegment* &leftSegments[], CZig
 //+------------------------------------------------------------------+
 //| 绘制1小时子线段                                                   |
 //+------------------------------------------------------------------+
-void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int validCount, CZigzagExtremumPoint &points4H[])
+void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int validCount, CZigzagExtremumPoint &fourHourPoints[])
 {
    // 统计绘制的线段数量
    int drawnCount = 0;
@@ -98,8 +98,8 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
          
          // 创建趋势线
          bool lineCreated = ObjectCreate(0, lineName, OBJ_TREND, 0, 
-                                       validSegments[i].StartTime(), validSegments[i].StartPrice(),
-                                       validSegments[i].EndTime(), validSegments[i].EndPrice());
+                                       validSegments[i].m_start_point.time, validSegments[i].m_start_point.value,
+                                       validSegments[i].m_end_point.time, validSegments[i].m_end_point.value);
          
          if(!lineCreated)
          {
@@ -125,17 +125,17 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
          string startLabelName = StringFormat("ZigzagLabel_1H_%d_Start", i);
          string endLabelName = StringFormat("ZigzagLabel_1H_%d_End", i);
          
-         string startLabelText = StringFormat("1H: %s", DoubleToString(validSegments[i].StartPrice(), _Digits));
-         string endLabelText = StringFormat("1H: %s", DoubleToString(validSegments[i].EndPrice(), _Digits));
+         string startLabelText = StringFormat("1H: %s", DoubleToString(validSegments[i].m_start_point.value, _Digits));
+         string endLabelText = StringFormat("1H: %s", DoubleToString(validSegments[i].m_end_point.value, _Digits));
          
          // 检查起点标签是否与4小时标签重叠
-         bool startOverlapsWith4H = CExtremumPointDrawer::IsLabelOverlappingWith4HLabels(validSegments[i].StartTime(), points4H);
-         datetime startTime = validSegments[i].StartTime();
+         bool startOverlapsWith4H = CExtremumPointDrawer::IsLabelOverlappingWith4HLabels(validSegments[i].m_start_point.time, fourHourPoints);
+         datetime startTime = validSegments[i].m_start_point.time;
          
          // 创建起点标签
          ObjectDelete(0, startLabelName);
          bool startLabelCreated = ObjectCreate(0, startLabelName, OBJ_TEXT, 0, 
-                                              startTime, validSegments[i].StartPrice());
+                                              startTime, validSegments[i].m_start_point.value);
          
          if(startLabelCreated)
          {
@@ -146,7 +146,7 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             if(startOverlapsWith4H)
             {
                // 重叠时修改文本为4H标签格式
-               actualStartLabelText = StringFormat("4H: %s", DoubleToString(validSegments[i].StartPrice(), _Digits));
+               actualStartLabelText = StringFormat("4H: %s", DoubleToString(validSegments[i].m_start_point.value, _Digits));
                actualStartLabelColor = clrOrange;  // 重叠时使用橙色（4H标签颜色）
             }
             
@@ -160,7 +160,7 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             ObjectSetDouble(0, startLabelName, OBJPROP_ANGLE, 0);
             
             // 设置标签位置和锚点
-            if(validSegments[i].StartPoint().IsPeak())
+            if(validSegments[i].m_start_point.type == EXTREMUM_PEAK)
                ObjectSetInteger(0, startLabelName, OBJPROP_ANCHOR, ANCHOR_LOWER);
             else
                ObjectSetInteger(0, startLabelName, OBJPROP_ANCHOR, ANCHOR_UPPER);
@@ -175,13 +175,13 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
          }
          
          // 检查终点标签是否与4小时标签重叠
-         bool endOverlapsWith4H = CExtremumPointDrawer::IsLabelOverlappingWith4HLabels(validSegments[i].EndTime(), points4H);
-         datetime endTime = validSegments[i].EndTime();
+         bool endOverlapsWith4H = CExtremumPointDrawer::IsLabelOverlappingWith4HLabels(validSegments[i].m_end_point.time, fourHourPoints);
+         datetime endTime = validSegments[i].m_end_point.time;
          
          // 创建终点标签
          ObjectDelete(0, endLabelName);
          bool endLabelCreated = ObjectCreate(0, endLabelName, OBJ_TEXT, 0, 
-                                            endTime, validSegments[i].EndPrice());
+                                            endTime, validSegments[i].m_end_point.value);
          
          if(endLabelCreated)
          {
@@ -192,7 +192,7 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             if(endOverlapsWith4H)
             {
                // 重叠时修改文本为4H标签格式
-               actualEndLabelText = StringFormat("4H: %s", DoubleToString(validSegments[i].EndPrice(), _Digits));
+               actualEndLabelText = StringFormat("4H: %s", DoubleToString(validSegments[i].m_end_point.value, _Digits));
                actualEndLabelColor = clrOrange;  // 重叠时使用橙色（4H标签颜色）
             }
             
@@ -206,7 +206,7 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             ObjectSetDouble(0, endLabelName, OBJPROP_ANGLE, 0);
             
             // 设置标签位置和锚点
-            if(validSegments[i].EndPoint().IsPeak())
+            if(validSegments[i].m_end_point.type == EXTREMUM_PEAK)
                ObjectSetInteger(0, endLabelName, OBJPROP_ANCHOR, ANCHOR_LOWER);
             else
                ObjectSetInteger(0, endLabelName, OBJPROP_ANCHOR, ANCHOR_UPPER);

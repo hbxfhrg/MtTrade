@@ -18,14 +18,14 @@ class CExtremumPointDrawer
 {
 public:
    // 检查标签是否与4H标签重叠
-   static bool IsLabelOverlappingWith4HLabels(datetime time, CZigzagExtremumPoint &points4H[])
+   static bool IsLabelOverlappingWith4HLabels(datetime time, CZigzagExtremumPoint &fourHourPoints[])
    {
       const int TIME_TOLERANCE = 3600; // 1小时的容差
       
-      for(int i = 0; i < ArraySize(points4H); i++)
+      for(int i = 0; i < ArraySize(fourHourPoints); i++)
       {
          // 检查时间是否接近4H极值点时间
-         if(MathAbs((int)time - (int)points4H[i].time) < TIME_TOLERANCE)
+         if(MathAbs((int)time - (int)fourHourPoints[i].time) < TIME_TOLERANCE)
          {
             return true;
          }

@@ -29,7 +29,7 @@ private:
    int               m_depth;       // 深度参数
    int               m_deviation;   // 偏差参数
    int               m_backstep;    // 回溯步数参数
-   ENUM_TIMEFRAMES   m_timeframe;   // 时间周期
+   ENUM_TIMEFRAMES   timeframe;   // 时间周期
    
    
 public:
@@ -99,8 +99,7 @@ public:
    void              SetParameters(int depth, int deviation, int backstep, ENUM_TIMEFRAMES timeframe=PERIOD_CURRENT);
    int               GetDepth() const { return m_depth; }
    int               GetDeviation() const { return m_deviation; }
-   int               GetBackstep() const { return m_backstep; }
-   ENUM_TIMEFRAMES   GetTimeframe() const { return m_timeframe; }
+
   };
 
 
@@ -108,12 +107,12 @@ public:
 //+------------------------------------------------------------------+
 //| 构造函数                                                          |
 //+------------------------------------------------------------------+
-CZigzagCalculator::CZigzagCalculator(int depth, int deviation, int backstep, int recalcDepth, ENUM_TIMEFRAMES timeframe)
+CZigzagCalculator::CZigzagCalculator(int depth, int deviation, int backstep, int recalcDepth, ENUM_TIMEFRAMES tf)
   {
    m_depth = depth;
    m_deviation = deviation;
    m_backstep = backstep;
-   m_timeframe = timeframe;
+   timeframe = tf;
    m_recalcDepth = recalcDepth; // 设置重新计算深度
   }
 
@@ -128,12 +127,12 @@ CZigzagCalculator::~CZigzagCalculator()
 //+------------------------------------------------------------------+
 //| 设置参数                                                          |
 //+------------------------------------------------------------------+
-void CZigzagCalculator::SetParameters(int depth, int deviation, int backstep, ENUM_TIMEFRAMES timeframe)
+void CZigzagCalculator::SetParameters(int depth, int deviation, int backstep, ENUM_TIMEFRAMES tf_param)
   {
    m_depth = depth;
    m_deviation = deviation;
    m_backstep = backstep;
-   m_timeframe = timeframe;
+   timeframe = tf_param;
   }
 
 //+------------------------------------------------------------------+
@@ -482,10 +481,10 @@ bool CZigzagCalculator::CalculateForCurrentChart(int bars_count)
   {
    // 获取当前图表的符号和时间周期
    string symbol = Symbol();
-   ENUM_TIMEFRAMES timeframe = (m_timeframe == PERIOD_CURRENT) ? (ENUM_TIMEFRAMES)Period() : m_timeframe;
+   ENUM_TIMEFRAMES current_tf = (timeframe == PERIOD_CURRENT) ? (ENUM_TIMEFRAMES)Period() : timeframe;
    
    // 调用CalculateForSymbol方法
-   return CalculateForSymbol(symbol, timeframe, bars_count);
+   return CalculateForSymbol(symbol, current_tf, bars_count);
   }
 
 //+------------------------------------------------------------------+
@@ -512,26 +511,26 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
    
    // 根据时间周期获取相应的时间数据，使用与CalculateForSymbol相同的参数
    string symbol;
-   ENUM_TIMEFRAMES timeframe;
+   ENUM_TIMEFRAMES current_tf = timeframe;
    
-   if(m_timeframe == PERIOD_CURRENT)
+   if(current_tf == PERIOD_CURRENT)
      {
       // 当前周期，直接使用当前图表的时间
       symbol = Symbol();
-      timeframe = (ENUM_TIMEFRAMES)Period();
+      current_tf = (ENUM_TIMEFRAMES)Period();
      }
    else
      {
       // 指定周期，使用指定周期的时间
       symbol = Symbol();
-      timeframe = m_timeframe;
+      // current_tf保持不变
      }
    
    // 使用与CalculateForSymbol相同的参数
    int copy_count = size + m_depth;
    int start_pos = 0;  // 从最新K线开始获取
    
-   copied = CopyTime(symbol, timeframe, start_pos, copy_count, time_array);
+   copied = CopyTime(symbol, current_tf, start_pos, copy_count, time_array);
    
    if(copied <= 0)
      {
@@ -571,7 +570,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
         {
          ArrayResize(temp_points, temp_count + 1);
          temp_points[temp_count] = CZigzagExtremumPoint(
-            m_timeframe,
+            timeframe,
             time_array[time_index], // 使用调整后的时间索引
             i,
             ZigzagPeakBuffer[i],
@@ -584,7 +583,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
         {
          ArrayResize(temp_points, temp_count + 1);
          temp_points[temp_count] = CZigzagExtremumPoint(
-            m_timeframe,
+            timeframe,
             time_array[time_index], // 使用调整后的时间索引
             i,
             ZigzagBottomBuffer[i],
