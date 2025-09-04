@@ -233,12 +233,26 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputFourHourPoints[])
             g_tradeAnalyzer.InitializeMainSegmentsFromPoints(inputFourHourPoints);
             g_tradeAnalyzer.m_tradeBasePoint.CacheAllSegments();    
             
-            // 打印日志：取缓存左线段数组第1条记录开始点价格
-            if(g_tradeAnalyzer.m_tradeBasePoint.m_cachedLeftSegments.Size() > 0)
+           
+            
+            // 使用KeyValueStore获取缓存数据
+            Print("=== 所有周期的第一个线段开始点价格（使用KeyValueStore） ===");
+            string timeframeNames[] = {"M5", "M15", "M30", "H1"};
+            int timeframeIndices[] = {0, 1, 2, 3};
+            
+            for(int i = 0; i < 4; i++)
             {
-               double startPrice = g_tradeAnalyzer.m_tradeBasePoint.m_cachedLeftSegments[0].m_start_point.value;
-               Print("缓存左线段数组第1条记录开始点价格: ", startPrice);
+               CZigzagSegment* leftSegArray[];
+               if(g_tradeAnalyzer.m_tradeBasePoint.m_leftSegmentsStore.GetArray(timeframeIndices[i], leftSegArray) && ArraySize(leftSegArray) > 0)
+               {
+                  double leftStartPrice = leftSegArray[0].m_start_point.value;
+                  double leftEndPrice = leftSegArray[0].m_end_point.value;
+                  Print(timeframeNames[i], "周期缓存左线段数组第1条记录开始点价格: ", leftStartPrice, ", 结束点价格: ", leftEndPrice);
+               }
             }
+            Print("====================================================");
+            
+            
             
             // 获取当前主线段
             CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();

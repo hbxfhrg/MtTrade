@@ -12,6 +12,8 @@
 #include "CommonUtils.mqh"
 #include "LogUtil.mqh"
 #include "EnumDefinitions.mqh"
+#include <Generic/HashMap.mqh>
+#include "KeyValueStore.mqh"
 
 //+------------------------------------------------------------------+
 //| 动态交易点类 - 封装交易参考基准价格                                 |
@@ -34,9 +36,6 @@ private:
    
   
    
-   // 线程安全保护（简单的计数器用于模拟临界区）
-   int               m_threadSafetyCounter;
-   
    // 查找与基准价格匹配的K线序号
    int FindMatchingCandleIndex(double basePrice, ENUM_TIMEFRAMES timeframe);
    
@@ -50,9 +49,10 @@ public:
    CTradeBasePoint(double basePrice = 0.0);
    CTradeBasePoint(const CTradeBasePoint &other); // 拷贝构造函数
    ~CTradeBasePoint();
-    // 缓存各时间周期的左右线段数组（去除1分钟周期）- 使用对象引用
-   CZigzagSegment*   m_cachedLeftSegments[];  // 缓存左向线段对象引用数组
-   CZigzagSegment*   m_cachedRightSegments[]; // 缓存右向线段对象引用数组
+   KeyValueStore m_leftSegmentsStore;  // 左线段缓存
+   KeyValueStore m_rightSegmentsStore; // 右线段缓存
+
+  
    // 初始化方法
    bool Initialize(double basePrice);
    
@@ -99,22 +99,9 @@ CTradeBasePoint::CTradeBasePoint(double basePrice)
    m_referencePointType = REFERENCE_POINT_HIGH; // 默认设置为高点
    m_currentSegment = NULL;  // 初始化当前线段对象
    
-   // 初始化缓存数组为动态数组
-   ArrayResize(m_cachedLeftSegments, 4);
-   ArrayResize(m_cachedRightSegments, 4);
-   
-   for(int i = 0; i < ArraySize(m_cachedLeftSegments); i++)
-   {
-      m_cachedLeftSegments[i] = NULL;
-   }
-   
-   for(int i = 0; i < ArraySize(m_cachedRightSegments); i++)
-   {
-      m_cachedRightSegments[i] = NULL;
-   }
-   
-   // 初始化线程安全计数器
-   m_threadSafetyCounter = 0;
+   // 重置KeyValueStore缓存
+   m_leftSegmentsStore.Clear();
+   m_rightSegmentsStore.Clear();
    
    if(basePrice > 0.0)
       Initialize(basePrice);
@@ -141,9 +128,9 @@ CTradeBasePoint::CTradeBasePoint(const CTradeBasePoint &other)
 //+------------------------------------------------------------------+
 void CTradeBasePoint::ReleaseResources()
 {
-   // 释放缓存的线段对象引用数组
-   ArrayFree(m_cachedLeftSegments);
-   ArrayFree(m_cachedRightSegments);
+   // 重置KeyValueStore缓存
+   m_leftSegmentsStore.Clear();
+   m_rightSegmentsStore.Clear();
 }
 
 //+------------------------------------------------------------------+
@@ -365,13 +352,7 @@ bool CTradeBasePoint::CacheSegmentsForTimeframe(ENUM_TIMEFRAMES timeframe)
    if(!m_isValid || m_currentSegment == NULL)
       return false;
       
-   // 线程安全保护：如果其他线程正在操作缓存，等待
-   while(m_threadSafetyCounter > 0)
-   {
-      Sleep(1); // 短暂等待
-   }
-   
-   m_threadSafetyCounter++;
+
    
    // 获取指定时间周期的所有线段
    CZigzagSegment* leftSegments[];
@@ -379,7 +360,6 @@ bool CTradeBasePoint::CacheSegmentsForTimeframe(ENUM_TIMEFRAMES timeframe)
    
    if(!GetTimeframeSegments(timeframe, leftSegments, rightSegments))
    {
-      m_threadSafetyCounter--;
       return false;
    }
       
@@ -391,41 +371,23 @@ bool CTradeBasePoint::CacheSegmentsForTimeframe(ENUM_TIMEFRAMES timeframe)
       case PERIOD_M30: timeframeIndex = 2; break;
       case PERIOD_H1:  timeframeIndex = 3; break;
       default: 
-         m_threadSafetyCounter--;
          return false;
    }
    
-   // 释放旧的缓存线段数组
-   ArrayFree(m_cachedLeftSegments);
-   ArrayFree(m_cachedRightSegments);
-   
-   // 缓存左线段数组（对象引用）
-   int leftCount = ArraySize(leftSegments);
-   if(leftCount > 0)
+   // 使用KeyValueStore存储线段数组
+   if(ArraySize(leftSegments) > 0)
    {
-      ArrayResize(m_cachedLeftSegments, leftCount);
-      for(int i = 0; i < leftCount; i++)
-      {
-         m_cachedLeftSegments[i] = leftSegments[i]; // 直接引用对象
-      }
+      m_leftSegmentsStore.SetArray(timeframeIndex, leftSegments);
    }
    
-   // 缓存右线段数组（对象引用）
-   int rightCount = ArraySize(rightSegments);
-   if(rightCount > 0)
+   if(ArraySize(rightSegments) > 0)
    {
-      ArrayResize(m_cachedRightSegments, rightCount);
-      for(int i = 0; i < rightCount; i++)
-      {
-         m_cachedRightSegments[i] = rightSegments[i]; // 直接引用对象
-      }
+      m_rightSegmentsStore.SetArray(timeframeIndex, rightSegments);
    }
-   
-   // 注意：leftSegments和rightSegments数组由GetTimeframeSegments方法创建
-   // MQL5会自动在函数结束时释放这些临时数组，不需要手动删除
-   
-   m_threadSafetyCounter--;
-   return (leftCount > 0 || rightCount > 0);
+      
+   bool hasLeft = (ArraySize(leftSegments) > 0);
+   bool hasRight = (ArraySize(rightSegments) > 0);
+   return (hasLeft || hasRight);
 }
 
 //+------------------------------------------------------------------+
@@ -461,39 +423,48 @@ bool CTradeBasePoint::GetTimeframeCachedSegments(ENUM_TIMEFRAMES timeframe, CZig
       
 
    
-   // 简单的线程安全保护
-   m_threadSafetyCounter++;
+
    
-   // 如果缓存中存在，直接返回
-   if(ArraySize(m_cachedLeftSegments) > 0 && ArraySize(m_cachedRightSegments) > 0)
+   // 从KeyValueStore获取缓存
+   int timeframeIndex = -1;
+   switch(timeframe)
    {
-      // 获取左线段数组引用
-      int leftCount = ArraySize(m_cachedLeftSegments);
-      ArrayResize(leftSegments, leftCount);
-      for(int i = 0; i < leftCount; i++)
-      {
-         leftSegments[i] = m_cachedLeftSegments[i]; // 直接返回对象引用
-      }
-      
-      // 获取右线段数组引用
-      int rightCount = ArraySize(m_cachedRightSegments);
-      ArrayResize(rightSegments, rightCount);
-      for(int i = 0; i < rightCount; i++)
-      {
-         rightSegments[i] = m_cachedRightSegments[i]; // 直接返回对象引用
-      }
-      
-      m_threadSafetyCounter--;
-      return true;
+      case PERIOD_M5:  timeframeIndex = 0; break;
+      case PERIOD_M15: timeframeIndex = 1; break;
+      case PERIOD_M30: timeframeIndex = 2; break;
+      case PERIOD_H1:  timeframeIndex = 3; break;
+      default: 
+         return false;
+   }
+   
+   bool hasLeft = false;
+   bool hasRight = false;
+   
+   CZigzagSegment* leftSeg = NULL;
+   if(m_leftSegmentsStore.Get(timeframeIndex, leftSeg) && leftSeg != NULL)
+   {
+      ArrayResize(leftSegments, 1);
+      leftSegments[0] = leftSeg;
+      hasLeft = true;
+   }
+   
+   CZigzagSegment* rightSeg = NULL;
+   if(m_rightSegmentsStore.Get(timeframeIndex, rightSeg) && rightSeg != NULL)
+   {
+      ArrayResize(rightSegments, 1);
+      rightSegments[0] = rightSeg;
+      hasRight = true;
    }
    
    // 如果缓存中不存在，尝试查找并缓存
-   if(CacheSegmentsForTimeframe(timeframe))
+   if(!hasLeft && !hasRight)
    {
-      m_threadSafetyCounter--;
-      return GetTimeframeCachedSegments(timeframe, leftSegments, rightSegments);
+      if(CacheSegmentsForTimeframe(timeframe))
+      {
+         return GetTimeframeCachedSegments(timeframe, leftSegments, rightSegments);
+      }
+      return false;
    }
    
-   m_threadSafetyCounter--;
-   return false;
+   return (hasLeft || hasRight);
 }
