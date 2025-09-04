@@ -31,7 +31,7 @@ public:
    datetime          h1_time;      // 1小时K线时间
 
                      CZigzagExtremumPoint();
-                     CZigzagExtremumPoint(ENUM_TIMEFRAMES timeframe, datetime time, int bar_index, double value, ENUM_EXTREMUM_TYPE type);
+                     CZigzagExtremumPoint(ENUM_TIMEFRAMES timeframe, datetime atime, int bar_index, double value, ENUM_EXTREMUM_TYPE type);
                      CZigzagExtremumPoint(const CZigzagExtremumPoint &other);
                     ~CZigzagExtremumPoint();
    
@@ -80,13 +80,13 @@ CZigzagExtremumPoint::CZigzagExtremumPoint(const CZigzagExtremumPoint &other)
    this.h1_time = other.h1_time;
 }
 
-CZigzagExtremumPoint::CZigzagExtremumPoint(ENUM_TIMEFRAMES atimeframe, datetime time, int bar_index, double value, ENUM_EXTREMUM_TYPE type)
+CZigzagExtremumPoint::CZigzagExtremumPoint(ENUM_TIMEFRAMES atimeframe, datetime atime, int bar_idx, double val, ENUM_EXTREMUM_TYPE typ)
 {
    this.timeframe = atimeframe;
-   this.time = time;
-   this.bar_index = bar_index;
-   this.value = value;
-   this.type = type;
+   this.time = atime;
+   this.bar_index = bar_idx;
+   this.value = val;
+   this.type = typ;
    this.h1_index = FindTimeframeIndex(ENUM_TIMEFRAMES::PERIOD_H1);
    this.h1_time = 0;  // 初始化为0，需要时再计算
 }

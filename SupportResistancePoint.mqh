@@ -23,32 +23,32 @@ public:
    bool              is_penetrated;    // 是否被穿越（支撑点被向下穿越或压力点被向上穿越）
    
    // 构造函数
-   CSupportResistancePoint(double price = 0.0, 
-                          datetime time = 0, 
-                          ENUM_TIMEFRAMES timeframe = PERIOD_CURRENT, 
+   CSupportResistancePoint(double price_val = 0.0, 
+                          datetime time_val = 0, 
+                          ENUM_TIMEFRAMES tf = PERIOD_CURRENT, 
                           int barIndex = -1, 
                           bool isSupport = true)
      {
-      this.price = price;
-      this.time = time;
-      this.timeframe = timeframe;
+      this.price = price_val;
+      this.time = time_val;
+      this.timeframe = tf;
       this.bar_index = barIndex;
       this.type = isSupport ? SR_SUPPORT : SR_RESISTANCE;
       this.is_penetrated = false;
      }
      
    // 重载构造函数，直接使用枚举类型
-   CSupportResistancePoint(double price, 
-                          datetime time, 
-                          ENUM_TIMEFRAMES timeframe, 
+   CSupportResistancePoint(double price_val, 
+                          datetime time_val, 
+                          ENUM_TIMEFRAMES tf, 
                           int barIndex, 
-                          ENUM_SR_POINT_TYPE type)
+                          ENUM_SR_POINT_TYPE point_type)
      {
-      this.price = price;
-      this.time = time;
-      this.timeframe = timeframe;
+      this.price = price_val;
+      this.time = time_val;
+      this.timeframe = tf;
       this.bar_index = barIndex;
-      this.type = type;
+      this.type = point_type;
       this.is_penetrated = false;
      }
      
