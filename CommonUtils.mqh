@@ -125,7 +125,7 @@ bool IsPriceInArray(double price, const CZigzagExtremumPoint &points[])
    for(int i = 0; i < ArraySize(points); i++)
      {
       // 严格相等比较
-      if(price == points[i].Value())
+      if(price == points[i].value)
         {
          return true;
         }
@@ -315,7 +315,7 @@ bool GetExtremumPointsInPriceRange(ENUM_TIMEFRAMES timeframe, double highPrice, 
    for(int i = 0; i < ArraySize(allPoints); i++)
      {
       // 获取极值点的时间和对应的K线序号
-      datetime pointTime = allPoints[i].Time();
+      datetime pointTime = allPoints[i].time;
       int pointBarIndex = iBarShift(Symbol(), timeframe, pointTime);
       
       // 检查该极值点是否在指定的K线序号范围内（从最远序号到当前序号0）
@@ -393,7 +393,7 @@ bool ConvertExtremumPointsToSegments(const CZigzagExtremumPoint &points[], CZigz
    // 确保极点是交替的（峰值和谷值）
    for(int i = 1; i < pointCount; i++)
      {
-      if(points[i].Type() == points[i-1].Type())
+      if(points[i].type == points[i-1].type)
         {
          // 极点类型不交替，可能导致线段生成错误
         }
@@ -653,18 +653,18 @@ bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENU
    
    for(int i = 0; i < ArraySize(largePoints); i++)
      {
-      if(largePoints[i].Type() == EXTREMUM_PEAK) // 高点
+      if(largePoints[i].type == EXTREMUM_PEAK) // 高点
         {
-         if(largePoints[i].Time() > latestHighTime)
+         if(largePoints[i].time > latestHighTime)
            {
-            latestHighTime = largePoints[i].Time();
+            latestHighTime = largePoints[i].time;
            }
         }
-      else if(largePoints[i].Type() == EXTREMUM_BOTTOM) // 低点
+      else if(largePoints[i].type == EXTREMUM_BOTTOM) // 低点
         {
-         if(largePoints[i].Time() > latestLowTime)
+         if(largePoints[i].time > latestLowTime)
            {
-            latestLowTime = largePoints[i].Time();
+            latestLowTime = largePoints[i].time;
            }
         }
      }

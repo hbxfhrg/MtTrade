@@ -25,7 +25,7 @@ public:
       for(int i = 0; i < ArraySize(points4H); i++)
       {
          // 检查时间是否接近4H极值点时间
-         if(MathAbs((int)time - (int)points4H[i].Time()) < TIME_TOLERANCE)
+         if(MathAbs((int)time - (int)points4H[i].time) < TIME_TOLERANCE)
          {
             return true;
          }
@@ -43,10 +43,10 @@ public:
       for(int i = 0; i < ArraySize(points); i++)
       {
          string labelName = StringFormat("ZigzagLabel_%s_%d", source, i);
-         string labelText = StringFormat("%s: %s", source, DoubleToString(points[i].Value(), _Digits));
+         string labelText = StringFormat("%s: %s", source, DoubleToString(points[i].value, _Digits));
          
          // 确定使用的时间，对于4H极点使用1小时周期的时间
-         datetime labelTime = points[i].Time();
+         datetime labelTime = points[i].time;
          if(source == "4H")
          {
             // 对于4小时极点，使用预计算的1小时K线时间
@@ -60,8 +60,8 @@ public:
          // 创建工具提示
          string tooltipText = StringFormat("来源: %s\n时间: %s\n价格: %s\n类型: %s", 
                                          source,
-                                         TimeToString(points[i].Time(), TIME_DATE|TIME_MINUTES),
-                                         DoubleToString(points[i].Value(), _Digits),
+                                         TimeToString(points[i].time, TIME_DATE|TIME_MINUTES),
+                                         DoubleToString(points[i].value, _Digits),
                                          points[i].IsPeak() ? "峰值" : "谷值");
          
          // 创建标签
@@ -69,7 +69,7 @@ public:
             labelName,
             labelText,
             labelTime,  // 使用修正后的时间
-            points[i].Value(),
+            points[i].value,
             points[i].IsPeak(),
             isMain,  // 4H为主要（大周期），1H为次要
             NULL,    // 使用默认颜色
@@ -102,10 +102,10 @@ public:
          // 创建连接线
          CLineManager::CreateTrendLine(
             lineName,
-            points[i].Time(),
-            points[i].Value(),
-            points[i+1].Time(),
-            points[i+1].Value(),
+            points[i].time,
+            points[i].value,
+            points[i+1].time,
+            points[i+1].value,
             lineColor,
             1,  // 线宽
             STYLE_SOLID  // 线型

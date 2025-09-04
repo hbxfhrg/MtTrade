@@ -611,7 +611,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
         }
         
       // 检查当前点与前一个点的类型是否相同
-      if(temp_points[i].Type() != temp_points[i-1].Type())
+      if(temp_points[i].type != temp_points[i-1].type)
         {
          ArrayResize(filtered_points, filtered_count + 1);
          filtered_points[filtered_count] = temp_points[i];
@@ -631,7 +631,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
      {
       for(int j = i + 1; j < filtered_count; j++)
         {
-         if(filtered_points[i].Time() < filtered_points[j].Time())
+         if(filtered_points[i].time < filtered_points[j].time)
            {
             CZigzagExtremumPoint temp = filtered_points[i];
             filtered_points[i] = filtered_points[j];

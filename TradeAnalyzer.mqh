@@ -329,7 +329,7 @@ public:
          // 确保线段的时间顺序正确：起点时间应该早于终点时间
          CZigzagExtremumPoint startPoint, endPoint;
       
-         if(points[i].Time() < points[i+1].Time())
+         if(points[i].time < points[i+1].time)
            {
             // points[i]时间更早，作为起点
             startPoint = points[i];

@@ -52,10 +52,10 @@ public:
    void                 EndPoint(const CZigzagExtremumPoint &value);
    
    // 获取起始点和结束点的价格和时间
-   double               StartPrice() const { return m_start_point.Value(); }
-   double               EndPrice() const { return m_end_point.Value(); }
-   datetime             StartTime() const { return m_start_point.Time(); }
-   datetime             EndTime() const { return m_end_point.Time(); }
+   double               StartPrice() const { return m_start_point.value; }
+   double               EndPrice() const { return m_end_point.value; }
+   datetime             StartTime() const { return m_start_point.time; }
+   datetime             EndTime() const { return m_end_point.time; }
    
    // 获取价格差相关信息
    double               PriceDiff() const { return m_price_diff; }           // 价格差（绝对值）
@@ -67,11 +67,11 @@ public:
    void                 CalculatePriceDiff();
    
    // 获取线段方向（上升/下降）
-   bool                 IsUptrend() const { return m_end_point.Value() > m_start_point.Value(); }
-   bool                 IsDowntrend() const { return m_end_point.Value() < m_start_point.Value(); }
+   bool                 IsUptrend() const { return m_end_point.value > m_start_point.value; }
+   bool                 IsDowntrend() const { return m_end_point.value < m_start_point.value; }
    
    // 获取线段长度（K线数量）
-   int                  BarCount() const { return MathAbs(m_end_point.BarIndex() - m_start_point.BarIndex()); }
+   int                  BarCount() const { return MathAbs(m_end_point.bar_index - m_start_point.bar_index); }
    
    // 辅助方法
    string               ToString() const;
@@ -96,7 +96,7 @@ CZigzagSegment::CZigzagSegment(const CZigzagExtremumPoint &start, const CZigzagE
    m_start_point = start;
    m_end_point = end;
    m_manager = NULL;
-   m_timeframe = start.Timeframe();
+   m_timeframe = start.timeframe;
    CalculatePriceDiff();
 }
 
@@ -156,7 +156,7 @@ void CZigzagSegment::EndPoint(const CZigzagExtremumPoint &value)
 //+------------------------------------------------------------------+
 void CZigzagSegment::CalculatePriceDiff()
 {
-   if(m_start_point.Value() == 0 || m_end_point.Value() == 0)
+   if(m_start_point.value == 0 || m_end_point.value == 0)
    {
       m_price_diff = 0.0;
       m_price_diff_pct = 0.0;
@@ -164,11 +164,11 @@ void CZigzagSegment::CalculatePriceDiff()
    }
    
    // 计算价格差的绝对值
-   m_price_diff = MathAbs(m_end_point.Value() - m_start_point.Value());
+   m_price_diff = MathAbs(m_end_point.value - m_start_point.value);
    
    // 计算价格差的百分比
-   if(m_start_point.Value() != 0)
-      m_price_diff_pct = (m_price_diff / m_start_point.Value()) * 100.0;
+   if(m_start_point.value != 0)
+      m_price_diff_pct = (m_price_diff / m_start_point.value) * 100.0;
    else
       m_price_diff_pct = 0.0;
 }
@@ -179,8 +179,8 @@ void CZigzagSegment::CalculatePriceDiff()
 string CZigzagSegment::ToString() const
 {
    string direction = IsUptrend() ? "上升" : "下降";
-   string start_time = TimeToString(m_start_point.Time());
-   string end_time = TimeToString(m_end_point.Time());
+   string start_time = TimeToString(m_start_point.time);
+   string end_time = TimeToString(m_end_point.time);
    string price_diff_str = DoubleToString(m_price_diff, _Digits);
    string price_diff_pct_str = DoubleToString(m_price_diff_pct, 2);
    string price_length_pips_str = DoubleToString(PriceLengthInPips(), 1);
@@ -212,8 +212,8 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
       return NULL;
    
    // 获取主线段时间范围
-   datetime startTime = m_start_point.Time();
-   datetime endTime = m_end_point.Time();
+   datetime startTime = m_start_point.time;
+   datetime endTime = m_end_point.time;
    
    // 确保startTime是较早的时间，endTime是较晚的时间
    if(startTime > endTime)
@@ -248,7 +248,30 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
    // 确保barsCount在合理范围内（30-2000）
    if(barsCount < 30)
       barsCount = 30;
-  
+   
+   // 如果周期小于30分钟，根据不同的周期调整barsCount
+   if(smallerTimeframe < PERIOD_M30)
+   {
+      // 取结束时间的定位
+      int endBarIndex = iBarShift(Symbol(), smallerTimeframe, endTime);
+      
+      // 根据不同周期增加不同的值
+      if(smallerTimeframe == PERIOD_M5)
+         barsCount = endBarIndex + 400;      // 5分钟周期加400
+      else if(smallerTimeframe == PERIOD_M1) 
+         barsCount = endBarIndex + 1500;     // 1分钟周期加1500
+      else if(smallerTimeframe == PERIOD_M15)
+         barsCount = endBarIndex + 200;      // 15分钟周期加200
+      else
+         barsCount = endBarIndex + 300;      // 其他小于30分钟的周期默认加300
+      
+      // 确保barsCount在合理范围内（30-2000）
+      if(barsCount < 30)
+         barsCount = 30;
+      else if(barsCount > 2000)
+         barsCount = 2000;
+   }
+   
    // 创建ZigZag计算器并计算极值点
    CZigzagCalculator zigzagCalc(12, 5, 3, barsCount, smallerTimeframe);
    
@@ -267,8 +290,8 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
    int segmentCount = 0;
    for(int i = 0; i < point_count - 1; i++)
    {
-      points[i].Timeframe(smallerTimeframe);
-      points[i+1].Timeframe(smallerTimeframe);
+      points[i].timeframe = smallerTimeframe;
+      points[i+1].timeframe = smallerTimeframe;
       
       // 创建新线段
       CZigzagSegment* newSegment = new CZigzagSegment(points[i+1], points[i], smallerTimeframe);

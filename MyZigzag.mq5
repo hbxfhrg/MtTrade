@@ -59,8 +59,8 @@ void OnInit()
   {
 //--- 初始化配置管理器
    CConfigManager::Init(Symbol());
-   
-   // 加载配置（简化版本，只保留必要参数）
+
+// 加载配置（简化版本，只保留必要参数）
    bool showLabels = InpShowLabels;
    color labelColor = InpLabelColor;
    color label4HColor = InpLabel4HColor;
@@ -73,33 +73,33 @@ void OnInit()
    g_LabelColor = labelColor;
    g_Label4HColor = label4HColor;
    CLabelManager::Init(labelColor, label4HColor);
-   
+
 //--- 初始化线条管理器
    CLineManager::Init();
-   
+
 //--- 初始化图形管理器
    CShapeManager::Init();
-   
+
 //--- 设置是否显示已失效的价格点
    g_ShowPenetratedPoints = showPenetratedPoints;
-   
+
 //--- 初始化信息面板管理器
    g_InfoPanelTextColor = infoPanelColor;
    g_InfoPanelBgColor = infoPanelBgColor;
    CInfoPanelManager::Init(infoPanel, infoPanelColor, infoPanelBgColor);
-   
+
 //--- 初始化交易分析器（核心数据源）
    g_tradeAnalyzer.Init();
-    // 初始化交易分析器并获取4H数据（仅在需要时）
-   
-  InitializeTradeAnalyzer(points4H);
+// 初始化交易分析器并获取4H数据（仅在需要时）
+
+   InitializeTradeAnalyzer(points4H);
 //--- 设置精度和标签
    IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
    string short_name = "MyZigzag-TradeAnalyzer";
    IndicatorSetString(INDICATOR_SHORTNAME, short_name);
-   
+
 //--- 关闭图表网格和交易水平线
-   ChartSetInteger(0, CHART_SHOW_GRID, 0);   
+   ChartSetInteger(0, CHART_SHOW_GRID, 0);
    ChartSetInteger(0, CHART_SHOW_TRADE_LEVELS, false);
    ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
   }
@@ -109,15 +109,15 @@ void OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
-   // 清理标签和图形对象
+// 清理标签和图形对象
    CLabelManager::DeleteAllLabels("ZigzagLabel_");
    CLabelManager::DeleteAllLabels("ZigzagLabel4H_");
-   
-   // 清理线段对象
+
+// 清理线段对象
    CLineManager::DeleteAllLines("ZigzagLine_");
    CLineManager::DeleteAllLines("ZigzagLine4H_");
-   
-   // 删除图表对象
+
+// 删除图表对象
    ObjectsDeleteAll(0, "ZigzagLabel_");
    ObjectsDeleteAll(0, "ZigzagLabel4H_");
    ObjectsDeleteAll(0, "ZigzagLine_");
@@ -144,8 +144,8 @@ int OnCalculate(const int rates_total,
   {
    if(rates_total < 100)
       return(0);
-      
-   // 初始化时清除旧标签
+
+// 初始化时清除旧标签
    if(prev_calculated == 0)
      {
       CLabelManager::DeleteAllLabels("ZigzagLabel_");
@@ -153,24 +153,24 @@ int OnCalculate(const int rates_total,
       CLineManager::DeleteAllLines("ZigzagLine_");
       CLineManager::DeleteAllLines("ZigzagLine4H_");
      }
-   
-   // 检查是否需要重新计算交易分析器（1分钟K线收线时）
+
+// 检查是否需要重新计算交易分析器（1分钟K线收线时）
    CheckTradeAnalyzerRecalculation();
-   
-  
+
+
    if(needRecalculateTradeAnalyzer)
      {
-    
+
       needRecalculateTradeAnalyzer = false;  // 重置标志
      }
-   
-   // 处理标签绘制功能（基于交易分析器数据）
+
+// 处理标签绘制功能（基于交易分析器数据）
    ProcessTradeAnalyzerLabelDrawing(points4H);
-   
-   // 处理交易分析和信息面板功能
+
+// 处理交易分析和信息面板功能
    ProcessTradeAnalysisAndInfoPanel();
-   
-   // 返回计算的柱数
+
+// 返回计算的柱数
    return(rates_total);
   }
 
@@ -179,15 +179,15 @@ int OnCalculate(const int rates_total,
 //+------------------------------------------------------------------+
 void CheckTradeAnalyzerRecalculation()
   {
-   // 获取当前时间
+// 获取当前时间
    datetime currentTime = TimeCurrent();
-   
-   // 获取当前分钟数（使用正确的方法）
+
+// 获取当前分钟数（使用正确的方法）
    MqlDateTime timeStruct;
    TimeToStruct(currentTime, timeStruct);
    int currentMinute = timeStruct.min;
-   
-   // 检查是否到了新的分钟（即1分钟K线收线时）
+
+// 检查是否到了新的分钟（即1分钟K线收线时）
    if(currentMinute != lastMinute)
      {
       // 检查是否距离上次计算至少1分钟
@@ -206,65 +206,53 @@ void CheckTradeAnalyzerRecalculation()
 //+------------------------------------------------------------------+
 void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputPoints4H[])
   {
-   // 获取4H周期价格数据
+// 获取4H周期价格数据
    double h4_high[];
    double h4_low[];
-   
-   // 根据K线搜索策略，大周期最大搜索200根K线
+
+// 根据K线搜索策略，大周期最大搜索200根K线
    int maxBars4H = 200;
-   
-   // 从最新时间往前获取4H周期数据
+
+// 从最新时间往前获取4H周期数据
    int h4_copied_high = CopyHigh(Symbol(), PERIOD_H4, 0, maxBars4H, h4_high);
    int h4_copied_low = CopyLow(Symbol(), PERIOD_H4, 0, maxBars4H, h4_low);
-   
+
    if(h4_copied_high > 0 && h4_copied_low > 0)
      {
       // 创建临时4H计算器获取极值点
       CZigzagCalculator tempCalc4H(12, 5, 3, maxBars4H, PERIOD_H4);
       tempCalc4H.Calculate(h4_high, h4_low, h4_copied_high, 0);
-      
+
       // 获取4H周期极值点
       if(tempCalc4H.GetExtremumPoints(inputPoints4H) && ArraySize(inputPoints4H) >= 2)
-        {                 
+        {
          // 初始化交易分析器
          if(g_tradeAnalyzer.AnalyzeRange(inputPoints4H, 2) && g_tradeAnalyzer.IsValid())
            {
             // 使用4H周期极值点初始化主交易线段数组
             g_tradeAnalyzer.InitializeMainSegmentsFromPoints(inputPoints4H);
-            g_tradeAnalyzer.m_tradeBasePoint.CacheAllSegments();
-                       
-       
-              // 获取当前主线段
-   CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
-   if(currentMainSegment == NULL)
-     {
-      Print("警告: 无法获取当前主线段");
-      return;
-     }
-     
-   // 获取1H子线段管理器（仅限当前主交易区间内）
-   CZigzagSegmentManager* segmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
-   if(segmentManager == NULL)
-     {
-      Print("警告: 无法获取1H子线段管理器");
-      return;
-     }   
-
-   if(!segmentManager.GetSegments(h1Segments))
-     {
-      Print("警告: 无法从1小时线段管理器获取线段数组");
-      return;
-     }
-   
-
+            g_tradeAnalyzer.m_tradeBasePoint.CacheAllSegments();    
+            
+            // 打印日志：取缓存左线段数组第1条记录开始点价格
+            if(g_tradeAnalyzer.m_tradeBasePoint.m_cachedLeftSegments.Size() > 0)
+            {
+               double startPrice = g_tradeAnalyzer.m_tradeBasePoint.m_cachedLeftSegments[0].StartPoint().value;
+               Print("缓存左线段数组第1条记录开始点价格: ", startPrice);
+            }
+            
+            // 获取当前主线段
+            CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
+             // 获取1H子线段管理器（仅限当前主交易区间内）
+            CZigzagSegmentManager* segmentManager = currentMainSegment.GetSmallerTimeframeSegments(PERIOD_H1);
+            segmentManager.GetSegments(h1Segments);
            }
         }
       else
         {
          Print("警告: 无法获取4H极值点或极值点数量不足");
         }
-        
-       
+
+
      }
    else
      {
@@ -279,25 +267,25 @@ void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &inputPoints4H[])
   {
    if(!InpShowLabels || !g_tradeAnalyzer.IsValid())
       return;
-      
-   // 静态变量用于跟踪上次更新时间
+
+// 静态变量用于跟踪上次更新时间
    static datetime lastLabelUpdateTime = 0;
    datetime currentLabelTime = TimeCurrent();
-   
-   // 控制更新频率
+
+// 控制更新频率
    if(lastLabelUpdateTime != 0 && currentLabelTime - lastLabelUpdateTime < 30)
       return;
-      
-   lastLabelUpdateTime = currentLabelTime;
-   
 
-   // 绘制4H极值点标签
+   lastLabelUpdateTime = currentLabelTime;
+
+
+// 绘制4H极值点标签
    CExtremumPointDrawer::DrawExtremumPointLabels(inputPoints4H, "4H", true);
-   
-   // 绘制1H子线段，传递4H标签点用于重叠检测
+
+// 绘制1H子线段，传递4H标签点用于重叠检测
    Draw1HSubSegments();
-   
-   
+
+
   }
 
 //+------------------------------------------------------------------+
@@ -305,15 +293,15 @@ void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &inputPoints4H[])
 //+------------------------------------------------------------------+
 void Draw1HSubSegments()
   {
- 
-   
+
+
    int validCount = ArraySize(h1Segments);
-   
-  
-   // 使用SegmentDrawer绘制1H子线段
+
+
+// 使用SegmentDrawer绘制1H子线段
    CSegmentDrawer::Draw1HSubSegments(h1Segments, validCount, points4H);
-   
- 
+
+
   }
 
 //+------------------------------------------------------------------+
@@ -339,9 +327,10 @@ void ProcessTradeAnalysisAndInfoPanel()
   {
    if(!InpShowInfoPanel || !g_tradeAnalyzer.IsValid())
       return;
-   
-   // 绘制支撑或压力线
-   //CShapeManager::DrawSupportResistanceLines();
-   
-   
+
+// 绘制支撑或压力线
+//CShapeManager::DrawSupportResistanceLines();
+
+
   }
+//+------------------------------------------------------------------+

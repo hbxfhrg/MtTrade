@@ -32,9 +32,7 @@ private:
    // 当前线段对象引用
    CZigzagSegment*   m_currentSegment;   // 当前线段对象引用
    
-   // 缓存各时间周期的左右线段数组（去除1分钟周期）- 使用对象引用
-   CZigzagSegment*   m_cachedLeftSegments[];  // 缓存左向线段对象引用数组
-   CZigzagSegment*   m_cachedRightSegments[]; // 缓存右向线段对象引用数组
+  
    
    // 线程安全保护（简单的计数器用于模拟临界区）
    int               m_threadSafetyCounter;
@@ -52,7 +50,9 @@ public:
    CTradeBasePoint(double basePrice = 0.0);
    CTradeBasePoint(const CTradeBasePoint &other); // 拷贝构造函数
    ~CTradeBasePoint();
-   
+    // 缓存各时间周期的左右线段数组（去除1分钟周期）- 使用对象引用
+   CZigzagSegment*   m_cachedLeftSegments[];  // 缓存左向线段对象引用数组
+   CZigzagSegment*   m_cachedRightSegments[]; // 缓存右向线段对象引用数组
    // 初始化方法
    bool Initialize(double basePrice);
    
@@ -176,14 +176,8 @@ bool CTradeBasePoint::Initialize(double basePrice)
    m_baseTime = iTime(Symbol(), PERIOD_CURRENT, m_barIndex);
    
       
-   m_isValid = true;
+   m_isValid = true; 
    
-   // 初始化成功后缓存所有时间周期的左向第一个线段
-   // 注释掉自动缓存计算，由外部控制
-   // if(m_isValid && m_currentSegment != NULL)
-   // {
-   //    CacheAllLeftFirstSegments();
-   // }
    
    return true;
 }
