@@ -231,24 +231,8 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputPoints4H[])
            {
             // 使用4H周期极值点初始化主交易线段数组
             g_tradeAnalyzer.InitializeMainSegmentsFromPoints(inputPoints4H);
-            CZigzagSegment* h1leftsegments[];
-            CZigzagSegment* h1rightsegments[];
-            g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_H1, h1leftsegments, h1rightsegments);
-            
-            CZigzagSegment* m5leftsegments[];
-            CZigzagSegment* m5rightsegments[];
-            g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_M5, m5leftsegments, m5rightsegments);
-            
-            // 增加15分钟周期线段计算
-            CZigzagSegment* m15leftsegments[];
-            CZigzagSegment* m15rightsegments[];
-            g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_M15, m15leftsegments, m15rightsegments);
-            
-            // 增加30分钟周期线段计算
-            CZigzagSegment* m30leftsegments[];
-            CZigzagSegment* m30rightsegments[];
-            g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(PERIOD_M30, m30leftsegments, m30rightsegments);
-           
+            g_tradeAnalyzer.m_tradeBasePoint.CacheAllSegments();
+                       
        
               // 获取当前主线段
    CZigzagSegment* currentMainSegment = g_tradeAnalyzer.GetCurrentSegment();
