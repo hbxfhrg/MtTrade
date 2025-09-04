@@ -21,6 +21,7 @@
 #include "ConfigManager.mqh"
 #include "GlobalInstances.mqh"
 #include "ZigzagSegmentManager.mqh"
+#include "Strategies/CL001.mqh"
 
 //--- 输入参数（简化版本，专注于显示控制）
 input bool   InpShowLabels = true;        // 显示极值点标签
@@ -235,7 +236,11 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputFourHourPoints[])
             
            
             
-            // 使用KeyValueStore获取缓存数据
+            // 创建并执行CL001策略
+            CStrategyCL001 strategy;
+            strategy.Execute(g_tradeAnalyzer.m_tradeBasePoint);
+            
+            // 打印周期信息
             Print("=== 所有周期的第一个线段开始点价格（使用KeyValueStore） ===");
             string timeframeNames[] = {"M5", "M15", "M30", "H1"};
             int timeframeIndices[] = {0, 1, 2, 3};
