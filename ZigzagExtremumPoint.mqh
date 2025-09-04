@@ -80,9 +80,9 @@ CZigzagExtremumPoint::CZigzagExtremumPoint(const CZigzagExtremumPoint &other)
    this.h1_time = other.h1_time;
 }
 
-CZigzagExtremumPoint::CZigzagExtremumPoint(ENUM_TIMEFRAMES timeframe, datetime time, int bar_index, double value, ENUM_EXTREMUM_TYPE type)
+CZigzagExtremumPoint::CZigzagExtremumPoint(ENUM_TIMEFRAMES atimeframe, datetime time, int bar_index, double value, ENUM_EXTREMUM_TYPE type)
 {
-   this.timeframe = timeframe;
+   this.timeframe = atimeframe;
    this.time = time;
    this.bar_index = bar_index;
    this.value = value;

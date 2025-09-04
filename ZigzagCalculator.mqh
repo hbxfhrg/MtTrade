@@ -395,7 +395,7 @@ bool CZigzagCalculator::Calculate(const double &high[], const double &low[], int
 //+------------------------------------------------------------------+
 //| 从指定时间周期获取ZigZag值                                         |
 //+------------------------------------------------------------------+
-bool CZigzagCalculator::GetZigzagValuesForTimeframe(string symbol, ENUM_TIMEFRAMES timeframe, int bars_count, double &peaks[], double &bottoms[], double &colors[])
+bool CZigzagCalculator::GetZigzagValuesForTimeframe(string symbol, ENUM_TIMEFRAMES atimeframe, int bars_count, double &peaks[], double &bottoms[], double &colors[])
   {
    // 检查参数
    if(bars_count <= 0)
@@ -408,7 +408,7 @@ bool CZigzagCalculator::GetZigzagValuesForTimeframe(string symbol, ENUM_TIMEFRAM
       
    // 获取历史数据
    MqlRates rates[];
-   if(CopyRates(symbol, timeframe, start_pos, copy_count, rates) <= 0)
+   if(CopyRates(symbol, atimeframe, start_pos, copy_count, rates) <= 0)
      {
       return false;
      }
@@ -439,7 +439,7 @@ bool CZigzagCalculator::GetZigzagValuesForTimeframe(string symbol, ENUM_TIMEFRAM
 //+------------------------------------------------------------------+
 //| 为指定品种和时间周期直接计算ZigZag值                              |
 //+------------------------------------------------------------------+
-bool CZigzagCalculator::CalculateForSymbol(const string symbol, ENUM_TIMEFRAMES timeframe, int bars_count)
+bool CZigzagCalculator::CalculateForSymbol(const string symbol, ENUM_TIMEFRAMES atimeframe, int bars_count)
   {
    // 检查参数
    if(bars_count <= 0)
@@ -452,7 +452,7 @@ bool CZigzagCalculator::CalculateForSymbol(const string symbol, ENUM_TIMEFRAMES 
    
    // 获取历史数据
    MqlRates rates[];
-   if(CopyRates(symbol, timeframe, start_pos, copy_count, rates) <= 0)
+   if(CopyRates(symbol, atimeframe, start_pos, copy_count, rates) <= 0)
      {
       return false;
      }
