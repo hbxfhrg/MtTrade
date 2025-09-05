@@ -5,8 +5,8 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2000-2025, MetaQuotes Ltd."
 #property link      "https://www.mql5.com"
-#property indicator_chart_window
-// 移除绘图缓冲区，专注于标签和分析显示
+#property strict
+#property version   "1.00"
 
 //--- 包含文件
 #include "ZigzagCalculator.mqh"
@@ -52,11 +52,13 @@ bool              cache4HInitialized = false; // 4H缓存是否已初始化
 static datetime   lastTradeAnalyzerCalcTime = 0;  // 上次交易分析器计算时间
 static bool       needRecalculateTradeAnalyzer = true;  // 是否需要重新计算交易分析器
 static int        lastMinute = -1;  // 上次检查的分钟数
+// 执行交易策略
+CStrategyCL001 strategy;
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
 //+------------------------------------------------------------------+
-void OnInit()
+int OnInit()
   {
 //--- 初始化配置管理器
    CConfigManager::Init(Symbol());
@@ -94,6 +96,7 @@ void OnInit()
 // 初始化交易分析器并获取4H数据（仅在需要时）
 
    InitializeTradeAnalyzer(points4H);
+   
 //--- 设置精度和标签
    IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
    string short_name = "MyZigzag-TradeAnalyzer";
@@ -103,6 +106,10 @@ void OnInit()
    ChartSetInteger(0, CHART_SHOW_GRID, 0);
    ChartSetInteger(0, CHART_SHOW_TRADE_LEVELS, false);
    ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
+   
+   
+
+   return(INIT_SUCCEEDED);
   }
 
 //+------------------------------------------------------------------+
@@ -132,47 +139,25 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 //| Custom indicator calculation function                             |
 //+------------------------------------------------------------------+
-int OnCalculate(const int rates_total,
-                const int prev_calculated,
-                const datetime &time[],
-                const double &open[],
-                const double &high[],
-                const double &low[],
-                const double &close[],
-                const long &tick_volume[],
-                const long &volume[],
-                const int &spread[])
+void OnTick()
   {
-   if(rates_total < 100)
-      return(0);
-
-// 初始化时清除旧标签
-   if(prev_calculated == 0)
-     {
-      CLabelManager::DeleteAllLabels("ZigzagLabel_");
-      CLabelManager::DeleteAllLabels("ZigzagLabel4H_");
-      CLineManager::DeleteAllLines("ZigzagLine_");
-      CLineManager::DeleteAllLines("ZigzagLine4H_");
-     }
-
-// 检查是否需要重新计算交易分析器（1分钟K线收线时）
+   // 检查是否需要重新计算
    CheckTradeAnalyzerRecalculation();
 
-
    if(needRecalculateTradeAnalyzer)
-     {
+   {// 执行交易分析
+      InitializeTradeAnalyzer(points4H);
+      needRecalculateTradeAnalyzer = false;
+   }
 
-      needRecalculateTradeAnalyzer = false;  // 重置标志
-     }
+  
+   CStrategyCL001 strategyInstance;
+   CStrategyCL001 strategy;
+   strategy.Execute(g_tradeAnalyzer.m_tradeBasePoint);
 
-// 处理标签绘制功能（基于交易分析器数据）
+   // 更新图形显示
    ProcessTradeAnalyzerLabelDrawing(points4H);
-
-// 处理交易分析和信息面板功能
    ProcessTradeAnalysisAndInfoPanel();
-
-// 返回计算的柱数
-   return(rates_total);
   }
 
 //+------------------------------------------------------------------+
@@ -182,24 +167,19 @@ void CheckTradeAnalyzerRecalculation()
   {
 // 获取当前时间
    datetime currentTime = TimeCurrent();
-
-// 获取当前分钟数（使用正确的方法）
    MqlDateTime timeStruct;
    TimeToStruct(currentTime, timeStruct);
-   int currentMinute = timeStruct.min;
 
-// 检查是否到了新的分钟（即1分钟K线收线时）
-   if(currentMinute != lastMinute)
-     {
+// 检查是否为0秒（1分钟K线收线时）
+   if(timeStruct.sec == 0)
+   {
       // 检查是否距离上次计算至少1分钟
       if(currentTime - lastTradeAnalyzerCalcTime >= 60)
-        {
+      {
          needRecalculateTradeAnalyzer = true;
          lastTradeAnalyzerCalcTime = currentTime;
-        }
-      // 更新上次检查的分钟数
-      lastMinute = currentMinute;
-     }
+      }
+   }
   }
 
 //+------------------------------------------------------------------+
@@ -236,8 +216,7 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputFourHourPoints[])
             
            
             
-            // 创建并执行CL001策略
-            CStrategyCL001 strategy;
+            // 执行CL001策略
             strategy.Execute(g_tradeAnalyzer.m_tradeBasePoint);
             
             // 打印周期信息
