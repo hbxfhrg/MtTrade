@@ -214,7 +214,8 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputFourHourPoints[])
             g_tradeAnalyzer.InitializeMainSegmentsFromPoints(inputFourHourPoints);
             g_tradeAnalyzer.m_tradeBasePoint.CacheAllSegments();    
             
-           
+            // 输出交易基准点的价格
+            Print(StringFormat("[交易基准点] 价格: %s", DoubleToString(g_tradeAnalyzer.m_tradeBasePoint.GetBasePrice(), _Digits)));
             
             // 执行CL001策略
             strategy.Execute(g_tradeAnalyzer.m_tradeBasePoint);
@@ -229,9 +230,25 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputFourHourPoints[])
                CZigzagSegment* leftSegArray[];
                if(g_tradeAnalyzer.m_tradeBasePoint.m_leftSegmentsStore.GetArray(timeframeIndices[i], leftSegArray) && ArraySize(leftSegArray) > 0)
                {
-                  double leftStartPrice = leftSegArray[0].m_start_point.value;
-                  double leftEndPrice = leftSegArray[0].m_end_point.value;
-                  Print(timeframeNames[i], "周期缓存左线段数组第1条记录开始点价格: ", leftStartPrice, ", 结束点价格: ", leftEndPrice);
+                  int count = MathMin(ArraySize(leftSegArray), 5); // 最多输出5个线段
+                  for(int j = 0; j < count; j++)
+                  {
+                     double leftStartPrice = leftSegArray[j].m_start_point.value;
+                     double leftEndPrice = leftSegArray[j].m_end_point.value;
+                     Print(timeframeNames[i], "周期缓存左线段数组第", j+1, "条记录开始点价格: ", leftStartPrice, ", 结束点价格: ", leftEndPrice);
+                  }
+               }
+               
+               CZigzagSegment* rightSegArray[];
+               if(g_tradeAnalyzer.m_tradeBasePoint.m_rightSegmentsStore.GetArray(timeframeIndices[i], rightSegArray) && ArraySize(rightSegArray) > 0)
+               {
+                  int count = MathMin(ArraySize(rightSegArray), 5); // 最多输出5个线段
+                  for(int j = 0; j < count; j++)
+                  {
+                     double rightStartPrice = rightSegArray[j].m_start_point.value;
+                     double rightEndPrice = rightSegArray[j].m_end_point.value;
+                     Print(timeframeNames[i], "周期缓存右线段数组第", j+1, "条记录开始点价格: ", rightStartPrice, ", 结束点价格: ", rightEndPrice);
+                  }
                }
             }
             Print("====================================================");

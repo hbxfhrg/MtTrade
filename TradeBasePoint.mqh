@@ -266,7 +266,7 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
          }
          
          // 匹配开始点
-         if(totalSegments[i].m_start_point.value == m_basePrice)
+         if(totalSegments[i].m_end_point.value == m_basePrice)
          {
             pivotIndex = i;
             Print("GetTimeframeSegments: 周期 ", timeframeName, " - 找到匹配的关键线段，索引: ", pivotIndex);
@@ -279,17 +279,17 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
       }
    }
 
-   // 处理左侧线段（关键线段之后的所有线段）
+   // 处理左侧线段（关键线段之后的所有线段，含关键线段本身）
    int leftCount = 0;
    if(pivotIndex >= 0)
    {
-      leftCount = segmentCount - pivotIndex - 1; // 不包括关键线段
+      leftCount = segmentCount - pivotIndex; 
       Print("GetTimeframeSegments: 周期 ", timeframeName, " - 左侧线段数量: ", leftCount, ", pivotIndex: ", pivotIndex);
       ArrayResize(leftSegments, leftCount);
-      for(int i = pivotIndex + 1; i < segmentCount; i++)
+      for(int i = pivotIndex; i < segmentCount; i++)
       {
          // 调试日志：记录每个左侧线段的处理
-         int targetIndex = i - pivotIndex - 1;
+         int targetIndex = i - pivotIndex;
          if(totalSegments[i] != NULL && CheckPointer(totalSegments[i]))
          {
             leftSegments[targetIndex] = new CZigzagSegment(*totalSegments[i]);
@@ -303,14 +303,14 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
       }
    } 
 
-   // 处理右侧线段（关键线段之前的所有线段，包括关键线段本身）
+   // 处理右侧线段（关键线段之前的所有线段，不包括关键线段本身）
    int rightCount = 0;
    if(pivotIndex >= 0)
    {
-      rightCount = pivotIndex + 1; // 包括关键线段本身
+      rightCount = pivotIndex; 
       Print("GetTimeframeSegments: 周期 ", timeframeName, " - 右侧线段数量: ", rightCount, ", pivotIndex: ", pivotIndex);
       ArrayResize(rightSegments, rightCount);
-      for(int i = 0; i <= pivotIndex; i++)
+      for(int i = 0; i < pivotIndex; i++)
       {
          if(totalSegments[i] != NULL && CheckPointer(totalSegments[i]))
          {
