@@ -78,7 +78,7 @@ public:
             // 检查参考交易点的时K线序号在3以内
             if(tradeBasePoint.GetBarIndex() <= 3)
             {
-               // 从右向线段中获取5分钟下跌线段的最低点
+               // 从右向线段中获取5分钟下跌线段的最低点,如果未有5分钟右向线段则说明行情强势
                CZigzagSegment* rightM5Segments[];
                if(tradeBasePoint.m_rightSegmentsStore.GetArray(0, rightM5Segments) && ArraySize(rightM5Segments) > 0)
                {

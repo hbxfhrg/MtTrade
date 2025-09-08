@@ -19,7 +19,7 @@
 //+------------------------------------------------------------------+
 //| ZigZag线段管理类                                                  |
 //+------------------------------------------------------------------+
-class CZigzagSegmentManager
+class CZigzagSegmentManager：public CObject
 {
 private:
    CZigzagSegment*      m_segments[];        // 线段数组，承接线段类中取小周期返回的线段

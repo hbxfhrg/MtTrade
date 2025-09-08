@@ -22,7 +22,7 @@
 //+------------------------------------------------------------------+
 //| ZigzagCalculator类用于计算ZigZag指标的极值                        |
 //+------------------------------------------------------------------+
-class CZigzagCalculator
+class CZigzagCalculator：public CObject
   {
 private:
    // 参数

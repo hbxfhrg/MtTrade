@@ -19,7 +19,7 @@
 //| 动态交易点类 - 封装交易参考基准价格                                 |
 //| 提供基于交易参考价格的线段查询和分析功能                            |
 //+------------------------------------------------------------------+
-class CTradeBasePoint
+class CTradeBasePoint：public CObject
 {
 private:
    // 交易参考基准价格和时间
@@ -398,7 +398,7 @@ bool CTradeBasePoint::CacheAllSegments()
    if(!m_isValid || m_currentSegment == NULL)
       return false;
       
-   // 移除1分钟周期，避免极点计算死掉
+   // 移除1分钟周期，避免堆栈溢出和性能问题
    ENUM_TIMEFRAMES timeframes[] = {PERIOD_M5, PERIOD_M15, PERIOD_M30, PERIOD_H1};
    bool success = true;
    
