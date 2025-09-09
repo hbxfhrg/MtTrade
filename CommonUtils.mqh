@@ -119,7 +119,7 @@ double PriceDifferenceInPercent(double price1, double price2)
 //+------------------------------------------------------------------+
 //| 检查价格点是否在另一个价格点数组中出现                              |
 //+------------------------------------------------------------------+
-bool IsPriceInArray(double price, const CZigzagExtremumPoint &points[])
+bool IsPriceInArray(double price, const SZigzagExtremumPoint &points[])
   {
    // 遍历所有极值点
    for(int i = 0; i < ArraySize(points); i++)
@@ -261,7 +261,7 @@ double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_T
 //| 根据价格范围获取极值点                                             |
 //+------------------------------------------------------------------+
 bool GetExtremumPointsInPriceRange(ENUM_TIMEFRAMES timeframe, double highPrice, double lowPrice,
-                                  CZigzagExtremumPoint &points[], int maxCount = 0)
+                                  SZigzagExtremumPoint &points[], int maxCount = 0)
   {
    // 检查参数有效性
    if(highPrice <= lowPrice || maxCount < 0)
@@ -301,14 +301,14 @@ bool GetExtremumPointsInPriceRange(ENUM_TIMEFRAMES timeframe, double highPrice, 
      }
       
    // 获取所有极值点
-   CZigzagExtremumPoint allPoints[];
+   SZigzagExtremumPoint allPoints[];
    if(!zigzagCalc.GetExtremumPoints(allPoints))
      {
       return false;
      }
       
    // 筛选出在指定价格范围内的极值点
-   CZigzagExtremumPoint tempPoints[];
+   SZigzagExtremumPoint tempPoints[];
    int count = 0;
    
    // 筛选的逻辑更换成高低点价格所在周期的K线序号最大值到当前序号0之间的所有极点值
@@ -322,7 +322,8 @@ bool GetExtremumPointsInPriceRange(ENUM_TIMEFRAMES timeframe, double highPrice, 
       if(pointBarIndex >= 0 && pointBarIndex <= farthestBarIndex)
         {
          ArrayResize(tempPoints, count + 1);
-         tempPoints[count++] = allPoints[i];
+         InitZigzagExtremumPoint(tempPoints[count], allPoints[i].timeframe, allPoints[i].time, allPoints[i].bar_index, allPoints[i].value, allPoints[i].type);
+         count++;
          
          // 如果达到最大数量限制，则停止添加
          if(maxCount > 0 && count >= maxCount)
@@ -348,7 +349,7 @@ bool GetExtremumPointsInPriceRange(ENUM_TIMEFRAMES timeframe, double highPrice, 
 //| 获取指定周期和K线范围内的极点                                      |
 //+------------------------------------------------------------------+
 bool GetExtremumPointsInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int endBar, 
-                                CZigzagExtremumPoint &points[], int maxCount = 0)
+                                SZigzagExtremumPoint &points[], int maxCount = 0)
   {
    // 检查参数有效性
    if(startBar < 0 || endBar < 0 || startBar < endBar || maxCount < 0)
@@ -381,7 +382,7 @@ bool GetExtremumPointsInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int en
 //+------------------------------------------------------------------+
 //| 将极点数组转换为线段数组                                           |
 //+------------------------------------------------------------------+
-bool ConvertExtremumPointsToSegments(const CZigzagExtremumPoint &points[], CZigzagSegment* &segments[], ENUM_TIMEFRAMES timeframe)
+bool ConvertExtremumPointsToSegments(const SZigzagExtremumPoint &points[], CZigzagSegment* &segments[], ENUM_TIMEFRAMES timeframe)
   {
    // 检查参数有效性
    int pointCount = ArraySize(points);
@@ -425,7 +426,7 @@ bool GetSegmentsInPriceRange(ENUM_TIMEFRAMES timeframe, double highPrice, double
                            CZigzagSegment* &segments[], int maxCount = 0)
   {
    // 先获取极点
-   CZigzagExtremumPoint points[];
+   SZigzagExtremumPoint points[];
    if(!GetExtremumPointsInPriceRange(timeframe, highPrice, lowPrice, points, maxCount > 0 ? maxCount + 1 : 0))
       return false;
       
@@ -483,7 +484,7 @@ bool GetSegmentsInBarRange(ENUM_TIMEFRAMES timeframe, int startBar, int endBar,
                           CZigzagSegment* &segments[], int maxCount = 0)
   {
    // 先获取极点
-   CZigzagExtremumPoint points[];
+   SZigzagExtremumPoint points[];
    if(!GetExtremumPointsInBarRange(timeframe, startBar, endBar, points, maxCount > 0 ? maxCount + 1 : 0))
       return false;
       
@@ -641,7 +642,7 @@ bool GetSmallTimeframeSegmentsExcludingRange(ENUM_TIMEFRAMES smallTimeframe, ENU
      }
    
    // 先获取大周期的极值点，用于确定区间高低点
-   CZigzagExtremumPoint largePoints[];
+   SZigzagExtremumPoint largePoints[];
    if(!GetExtremumPointsInPriceRange(largeTimeframe, highPrice, lowPrice, largePoints, 0))
      {
       return false;

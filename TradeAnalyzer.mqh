@@ -135,7 +135,7 @@ public:
      }
      
    // 从极点数组中分析区间，创建多个主交易线段
-   bool AnalyzeRange(CZigzagExtremumPoint &points[], int minPoints = 2)
+   bool AnalyzeRange(SZigzagExtremumPoint &points[], int minPoints = 2)
      {
       // 检查数据有效性
       if(ArraySize(points) < minPoints)
@@ -304,7 +304,7 @@ public:
      }
      
    // 从4H周期极值点数组初始化主交易线段
-   bool InitializeMainSegmentsFromPoints(CZigzagExtremumPoint &points[])
+   bool InitializeMainSegmentsFromPoints(SZigzagExtremumPoint &points[])
      {
       if(ArraySize(points) < 2)
          return false;
@@ -327,19 +327,19 @@ public:
       for(int i = 0; i < segmentCount; i++)
         {
          // 确保线段的时间顺序正确：起点时间应该早于终点时间
-         CZigzagExtremumPoint startPoint, endPoint;
+         SZigzagExtremumPoint startPoint, endPoint;
       
          if(points[i].time < points[i+1].time)
            {
             // points[i]时间更早，作为起点
-            startPoint = points[i];
-            endPoint = points[i+1];
+            InitZigzagExtremumPoint(startPoint, points[i].timeframe, points[i].time, points[i].bar_index, points[i].value, points[i].type);
+            InitZigzagExtremumPoint(endPoint, points[i+1].timeframe, points[i+1].time, points[i+1].bar_index, points[i+1].value, points[i+1].type);
            }
          else
            {
             // points[i+1]时间更早，作为起点
-            startPoint = points[i+1];
-            endPoint = points[i];
+            InitZigzagExtremumPoint(startPoint, points[i+1].timeframe, points[i+1].time, points[i+1].bar_index, points[i+1].value, points[i+1].type);
+            InitZigzagExtremumPoint(endPoint, points[i].timeframe, points[i].time, points[i].bar_index, points[i].value, points[i].type);
            }
       
          m_mainTradingSegments[i] = new CZigzagSegment(startPoint, endPoint);

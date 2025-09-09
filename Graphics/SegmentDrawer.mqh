@@ -21,7 +21,7 @@ class CSegmentDrawer
 {
 public:
    // 绘制1小时子线段
-   static void Draw1HSubSegments(CZigzagSegment* &validSegments[], int validCount, CZigzagExtremumPoint &fourHourPoints[]);
+   static void Draw1HSubSegments(CZigzagSegment* &validSegments[], int validCount, SZigzagExtremumPoint &fourHourPoints[]);
    
    // 绘制交易基准点线段
    static void DrawTradeBaseSegments(CZigzagSegment* &leftSegments[], CZigzagSegment* &rightSegments[], int count, string prefix);
@@ -63,7 +63,7 @@ void CSegmentDrawer::DrawTradeBaseSegments(CZigzagSegment* &leftSegments[], CZig
 //+------------------------------------------------------------------+
 //| 绘制1小时子线段                                                   |
 //+------------------------------------------------------------------+
-void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int validCount, CZigzagExtremumPoint &fourHourPoints[])
+void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int validCount, SZigzagExtremumPoint &fourHourPoints[])
 {
    // 统计绘制的线段数量
    int drawnCount = 0;
@@ -77,7 +77,7 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
          string lineName = StringFormat("ZigzagLine_1H_%d", i);
          
          // 确定线段颜色：上涨用蓝色，下跌用红色
-         color lineColor;
+         color lineColor = clrBlue;
          if(validSegments[i].IsUptrend())
          {
             // 上涨线段 - 蓝色
@@ -90,7 +90,6 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             lineColor = clrRed;
             drawnDowntrendCount++;
          }
-         
          
          // 创建连接线 - 绕过防闪烁机制，强制更新
          // 先删除可能存在的同名对象
@@ -118,7 +117,6 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             ObjectSetInteger(0, lineName, OBJPROP_ZORDER, 1); // 设置Z顺序
             
             drawnCount++;
-           
          }
          
          // 只在线段起点和终点绘制标签
@@ -128,7 +126,7 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
          string startLabelText = StringFormat("1H: %s", DoubleToString(validSegments[i].m_start_point.value, _Digits));
          string endLabelText = StringFormat("1H: %s", DoubleToString(validSegments[i].m_end_point.value, _Digits));
          
-         // 检查起点标签是否与4小时标签重叠
+         // 检查起点标签是否与4小时极值点重叠
          bool startOverlapsWith4H = CExtremumPointDrawer::IsLabelOverlappingWith4HLabels(validSegments[i].m_start_point.time, fourHourPoints);
          datetime startTime = validSegments[i].m_start_point.time;
          
@@ -167,18 +165,17 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             
             // 设置X轴偏移量
             ObjectSetInteger(0, startLabelName, OBJPROP_XOFFSET, 0);            
-           
          }
          else
          {
             Print(StringFormat("警告: 线段%d起点标签创建失败", i));
          }
          
-         // 检查终点标签是否与4小时标签重叠
+         // 检查终点标签是否与4小时极值点重叠
          bool endOverlapsWith4H = CExtremumPointDrawer::IsLabelOverlappingWith4HLabels(validSegments[i].m_end_point.time, fourHourPoints);
          datetime endTime = validSegments[i].m_end_point.time;
          
-         // 创建终点标签
+         // 创建终点极值点类型标签
          ObjectDelete(0, endLabelName);
          bool endLabelCreated = ObjectCreate(0, endLabelName, OBJ_TEXT, 0, 
                                             endTime, validSegments[i].m_end_point.value);
@@ -213,8 +210,6 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
             
             // 设置X轴偏移量
             ObjectSetInteger(0, endLabelName, OBJPROP_XOFFSET, 0);
-            
-            
          }
          else
          {

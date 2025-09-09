@@ -27,13 +27,13 @@ private:
 
 public:
                      CZigzagSegment();
-                     CZigzagSegment(const CZigzagExtremumPoint &start, const CZigzagExtremumPoint &end);
-                     CZigzagSegment(const CZigzagExtremumPoint &start, const CZigzagExtremumPoint &end, ENUM_TIMEFRAMES timeframe);
+                     CZigzagSegment(const SZigzagExtremumPoint &start, const SZigzagExtremumPoint &end);
+                     CZigzagSegment(const SZigzagExtremumPoint &start, const SZigzagExtremumPoint &end, ENUM_TIMEFRAMES timeframe);
                      CZigzagSegment(const CZigzagSegment &other);
                     ~CZigzagSegment();
    
-   CZigzagExtremumPoint m_start_point;   // 起始点（可能是峰值或谷值）
-   CZigzagExtremumPoint m_end_point;     // 结束点（可能是谷值或峰值）
+   SZigzagExtremumPoint m_start_point;   // 起始点（可能是峰值或谷值）
+   SZigzagExtremumPoint m_end_point;     // 结束点（可能是谷值或峰值）
    ENUM_TIMEFRAMES      timeframe;     // 当前线段的时间周期
    double               m_price_diff;    // 价格差（绝对值）
    double               m_price_diff_pct; // 价格差百分比
@@ -78,7 +78,7 @@ CZigzagSegment::CZigzagSegment()
 //+------------------------------------------------------------------+
 //| 参数化构造函数                                                     |
 //+------------------------------------------------------------------+
-CZigzagSegment::CZigzagSegment(const CZigzagExtremumPoint &start, const CZigzagExtremumPoint &end)
+CZigzagSegment::CZigzagSegment(const SZigzagExtremumPoint &start, const SZigzagExtremumPoint &end)
 {
    m_start_point = start;
    m_end_point = end;
@@ -90,7 +90,7 @@ CZigzagSegment::CZigzagSegment(const CZigzagExtremumPoint &start, const CZigzagE
 //+------------------------------------------------------------------+
 //| 带时间周期的参数化构造函数                                          |
 //+------------------------------------------------------------------+
-CZigzagSegment::CZigzagSegment(const CZigzagExtremumPoint &start, const CZigzagExtremumPoint &end, ENUM_TIMEFRAMES tf)
+CZigzagSegment::CZigzagSegment(const SZigzagExtremumPoint &start, const SZigzagExtremumPoint &end, ENUM_TIMEFRAMES tf)
 {
    m_start_point = start;
    m_end_point = end;
@@ -248,7 +248,7 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
    if(!zigzagCalc.CalculateForSymbol(Symbol(), smallerTimeframe, barsCount))
       return NULL;
    
-   CZigzagExtremumPoint points[];
+   SZigzagExtremumPoint points[];
    if(!zigzagCalc.GetExtremumPoints(points) || ArraySize(points) < 2)
       return NULL;
       

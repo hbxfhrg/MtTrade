@@ -88,17 +88,17 @@ public:
      }
      
    // 检查价格是否穿越了此点
-   bool CheckPenetration(double price)
+   bool CheckPenetration(double checkPrice)
      {
       // 如果是支撑点，则价格低于支撑点表示被穿越
-      if(type == SR_SUPPORT && price < this.price)
+      if(type == SR_SUPPORT && checkPrice < this.price)
         {
          is_penetrated = true;
          return true;
         }
       
       // 如果是压力点，则价格高于压力点表示被穿越
-      if(type == SR_RESISTANCE && price > this.price)
+      if(type == SR_RESISTANCE && checkPrice > this.price)
         {
          is_penetrated = true;
          return true;

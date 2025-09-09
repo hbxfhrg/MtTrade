@@ -90,10 +90,10 @@ public:
    bool              CalculateForCurrentChart(int bars_count);
    
    // 获取极值点对象数组
-   bool              GetExtremumPoints(CZigzagExtremumPoint &points[], int max_count = 0);
+   bool              GetExtremumPoints(SZigzagExtremumPoint &points[], int max_count = 0);
    
    // 获取最近的N个极值点
-   bool              GetRecentExtremumPoints(CZigzagExtremumPoint &points[], int count);
+   bool              GetRecentExtremumPoints(SZigzagExtremumPoint &points[], int count);
    
    // 获取/设置参数
    void              SetParameters(int depth, int deviation, int backstep, ENUM_TIMEFRAMES timeframe=PERIOD_CURRENT);
@@ -490,7 +490,7 @@ bool CZigzagCalculator::CalculateForCurrentChart(int bars_count)
 //+------------------------------------------------------------------+
 //| 获取极值点对象数组                                                |
 //+------------------------------------------------------------------+
-bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int max_count/* = 0*/)
+bool CZigzagCalculator::GetExtremumPoints(SZigzagExtremumPoint &points[], int max_count/* = 0*/)
   {
    // 检查缓冲区是否已初始化
    int size = ArraySize(ZigzagPeakBuffer);
@@ -548,7 +548,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
    if(time_offset < 0) time_offset = 0;
    
    // 临时数组存储所有极值点
-   CZigzagExtremumPoint temp_points[];
+   SZigzagExtremumPoint temp_points[];
    int temp_count = 0;
    
    // 收集所有极值点 - 使用valid_size防止越界
@@ -569,7 +569,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
       if(ZigzagPeakBuffer[i] != 0)
         {
          ArrayResize(temp_points, temp_count + 1);
-         temp_points[temp_count] = CZigzagExtremumPoint(
+         InitZigzagExtremumPoint(temp_points[temp_count],
             timeframe,
             time_array[time_index], // 使用调整后的时间索引
             i,
@@ -582,7 +582,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
       else if(ZigzagBottomBuffer[i] != 0)
         {
          ArrayResize(temp_points, temp_count + 1);
-         temp_points[temp_count] = CZigzagExtremumPoint(
+         InitZigzagExtremumPoint(temp_points[temp_count],
             timeframe,
             time_array[time_index], // 使用调整后的时间索引
             i,
@@ -595,7 +595,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
      }
    
    // 过滤无效点（相邻的相同类型的极值点）
-   CZigzagExtremumPoint filtered_points[];
+   SZigzagExtremumPoint filtered_points[];
    int filtered_count = 0;
    
    for(int i = 0; i < temp_count; i++)
@@ -604,7 +604,8 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
       if(i == 0)
         {
          ArrayResize(filtered_points, filtered_count + 1);
-         filtered_points[filtered_count] = temp_points[i];
+         ArrayResize(filtered_points, filtered_count + 1);
+         InitZigzagExtremumPoint(filtered_points[filtered_count], temp_points[i].timeframe, temp_points[i].time, temp_points[i].bar_index, temp_points[i].value, temp_points[i].type);
          filtered_count++;
          continue;
         }
@@ -632,9 +633,10 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
         {
          if(filtered_points[i].time < filtered_points[j].time)
            {
-            CZigzagExtremumPoint temp = filtered_points[i];
-            filtered_points[i] = filtered_points[j];
-            filtered_points[j] = temp;
+            SZigzagExtremumPoint temp;
+            InitZigzagExtremumPoint(temp, filtered_points[i].timeframe, filtered_points[i].time, filtered_points[i].bar_index, filtered_points[i].value, filtered_points[i].type);
+            InitZigzagExtremumPoint(filtered_points[i], filtered_points[j].timeframe, filtered_points[j].time, filtered_points[j].bar_index, filtered_points[j].value, filtered_points[j].type);
+            InitZigzagExtremumPoint(filtered_points[j], temp.timeframe, temp.time, temp.bar_index, temp.value, temp.type);
            }
         }
      }
@@ -642,7 +644,7 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
    // 复制排序后的结果
    for(int i = 0; i < filtered_count; i++)
      {
-      points[i] = filtered_points[i];
+      InitZigzagExtremumPoint(points[i], filtered_points[i].timeframe, filtered_points[i].time, filtered_points[i].bar_index, filtered_points[i].value, filtered_points[i].type);
      }
    
    return true;
@@ -651,13 +653,13 @@ bool CZigzagCalculator::GetExtremumPoints(CZigzagExtremumPoint &points[], int ma
 //+------------------------------------------------------------------+
 //| 获取最近的N个极值点                                               |
 //+------------------------------------------------------------------+
-bool CZigzagCalculator::GetRecentExtremumPoints(CZigzagExtremumPoint &points[], int count)
+bool CZigzagCalculator::GetRecentExtremumPoints(SZigzagExtremumPoint &points[], int count)
   {
    if(count <= 0)
       return false;
       
    // 获取所有极值点（已经按时间排序，最新的在前面）
-   CZigzagExtremumPoint all_points[];
+   SZigzagExtremumPoint all_points[];
    if(!GetExtremumPoints(all_points))
       return false;
       
@@ -671,7 +673,7 @@ bool CZigzagCalculator::GetRecentExtremumPoints(CZigzagExtremumPoint &points[], 
    // 复制最近的N个点（由于GetExtremumPoints已经排序，直接取前N个即可）
    for(int i = 0; i < return_count; i++)
      {
-      points[i] = all_points[i];
+      InitZigzagExtremumPoint(points[i], all_points[i].timeframe, all_points[i].time, all_points[i].bar_index, all_points[i].value, all_points[i].type);
      }
    
    return true;

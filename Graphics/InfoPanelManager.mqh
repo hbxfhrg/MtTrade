@@ -7,7 +7,6 @@
 #property link      "https://www.mql5.com"
 
 #include "../GlobalInstances.mqh"
-#include "../Strategies/StrategyManager.mqh"
 #include "LabelManager.mqh"
 
 // 全局面板属性

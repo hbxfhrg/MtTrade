@@ -37,7 +37,7 @@ input bool   InpShowPenetratedPoints = false; // 显示已失效的价格点
 
 //--- 信息面板对象名称
 string infoPanel = "ZigzagInfoPanel";
-CZigzagExtremumPoint points4H[];
+SZigzagExtremumPoint points4H[];
 CZigzagSegment* h1Segments[];
 //--- 缓存变量
 datetime          lastCalculationTime = 0;  // 上次计算的时间
@@ -151,8 +151,6 @@ void OnTick()
    }
 
   
-   CStrategyCL001 strategyInstance;
-   CStrategyCL001 strategy;
    strategy.Execute(g_tradeAnalyzer.m_tradeBasePoint);
 
    // 更新图形显示
@@ -185,7 +183,7 @@ void CheckTradeAnalyzerRecalculation()
 //+------------------------------------------------------------------+
 //| 初始化交易分析器                                                 |
 //+------------------------------------------------------------------+
-void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputFourHourPoints[])
+void InitializeTradeAnalyzer(SZigzagExtremumPoint &inputFourHourPoints[])
   {
 // 获取4H周期价格数据
    double h4_high[];
@@ -278,7 +276,7 @@ void InitializeTradeAnalyzer(CZigzagExtremumPoint &inputFourHourPoints[])
 //+------------------------------------------------------------------+
 //| 处理基于交易分析器的标签绘制功能                                   |
 //+------------------------------------------------------------------+
-void ProcessTradeAnalyzerLabelDrawing(CZigzagExtremumPoint &inputFourHourPoints[])
+void ProcessTradeAnalyzerLabelDrawing(SZigzagExtremumPoint &inputFourHourPoints[])
   {
    if(!InpShowLabels || !g_tradeAnalyzer.IsValid())
       return;

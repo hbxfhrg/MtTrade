@@ -153,7 +153,7 @@ private:
          if(m_trade.BuyLimit(LotSize, entryPrice, Symbol(), stopLoss, takeProfit, ORDER_TIME_GTC, 0, "CL001 Strategy (M5)"))
          {
             m_orderTicket = m_trade.ResultOrder();
-            Print("CL001策略主挂单已生成(基于M5): 进场=", entryPrice, " 止损=", stopLoss, " 止盈=", takeProfit);
+            Print("CL001策略主挂单已生成(基于M5): 进场=", DoubleToString(entryPrice, _Digits), " 止损=", DoubleToString(stopLoss, _Digits), " 止盈=", DoubleToString(takeProfit, _Digits));
             
             // 副挂单(基于15分钟起点)
             double secondaryEntryPrice = m_secondaryReferencePrice + EntryOffset * _Point;
@@ -163,7 +163,7 @@ private:
             if(m_trade.BuyLimit(LotSize, secondaryEntryPrice, Symbol(), secondaryStopLoss, secondaryTakeProfit, ORDER_TIME_GTC, 0, "CL001 Strategy (M15)"))
             {
                m_secondaryOrderTicket = m_trade.ResultOrder();
-               Print("CL001策略副挂单已生成(基于M15): 进场=", secondaryEntryPrice, " 止损=", secondaryStopLoss, " 止盈=", secondaryTakeProfit);
+               Print("CL001策略副挂单已生成(基于M15): 进场=", DoubleToString(secondaryEntryPrice, _Digits), " 止损=", DoubleToString(secondaryStopLoss, _Digits), " 止盈=", DoubleToString(secondaryTakeProfit, _Digits));
             }
          }
       }
