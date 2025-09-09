@@ -65,23 +65,30 @@ public:
    bool CheckConditions(CTradeBasePoint &tradeBasePoint)
    {
       if(m_state != STRATEGY_IDLE_WAITING_CONDITION)
+      {
+         Print("CL001: 策略状态不是空闲等待条件，当前状态: ", EnumToString(m_state));
          return false;
+      }
          
-      CZigzagSegment* m5Segments[], *m15Segments[], *localH1Segments[];
+      CZigzagSegment* m5Segments[], *m15Segments[], *h1Segments[];
       if(tradeBasePoint.m_leftSegmentsStore.GetArray(0, m5Segments) && ArraySize(m5Segments) > 0 &&
          tradeBasePoint.m_leftSegmentsStore.GetArray(1, m15Segments) && ArraySize(m15Segments) > 0 &&
          tradeBasePoint.m_leftSegmentsStore.GetArray(3, h1Segments) && ArraySize(h1Segments) > 0)
       {
          // 检查1小时线段方向为上涨
-         if(localH1Segments[0].IsUptrend())
+         if(h1Segments[0].IsUptrend())
          {
-            // 检查参考交易点的时K线序号在3以内
-            if(tradeBasePoint.GetBarIndex() <= 3)
+            Print("CL001: H1线段方向为上涨");
+            // 检查参考交易点的时K线序号在8以内
+            int barIndex = tradeBasePoint.GetBarIndex();
+            if(barIndex <= 8)
             {
-               // 从右向线段中获取5分钟下跌线段的最低点,如果未有5分钟右向线段则说明行情强势
+               Print("CL001: K线序号 ", barIndex, " 在8以内");
+               // 从极值右向线段中获取5分钟下跌线段的最低点
                CZigzagSegment* rightM5Segments[];
                if(tradeBasePoint.m_rightSegmentsStore.GetArray(0, rightM5Segments) && ArraySize(rightM5Segments) > 0)
                {
+                  Print("CL001: 获取到M5右向线段，数量: ", ArraySize(rightM5Segments));
                   double minDownPrice = DBL_MAX;
                   for(int i=0; i<ArraySize(rightM5Segments); i++)
                   {
@@ -91,22 +98,62 @@ public:
                      }
                   }
                   
-                  if(minDownPrice != DBL_MAX && 
-                     SymbolInfoDouble(Symbol(), SYMBOL_BID) > minDownPrice &&
-                     SymbolInfoDouble(Symbol(), SYMBOL_BID) > m5Segments[0].m_start_point.value &&
-                     SymbolInfoDouble(Symbol(), SYMBOL_BID) > m15Segments[0].m_start_point.value)
+                  if(minDownPrice != DBL_MAX)
                   {
-                     m_referencePrice = m5Segments[0].m_start_point.value;
-                     m_secondaryReferencePrice = m15Segments[0].m_start_point.value;
-                     m_state = STRATEGY_PENDING_ORDER_PLACED;
-                     return true;
+                     double m5StartPrice = m5Segments[0].m_start_point.value;
+                     double m15StartPrice = m15Segments[0].m_start_point.value;
+                     
+                     Print("CL001: M5起点价格: ", m5StartPrice, ", M15起点价格: ", m15StartPrice, ", 最低下跌价格: ", minDownPrice);
+                     
+                     // 根据右向线段最低价格相对于M5和M15起点价格的位置，分三种下单逻辑
+                     if(minDownPrice > m5StartPrice && minDownPrice > m15StartPrice)
+                     {
+                        Print("CL001: 情况1 - 最低价格在M5和M15起点之上");
+                        // 情况1：最低价格在M5和M15起点价格之上（强势行情）
+                        // 检查M5右向线段数量，当有且仅有两个线段时使用特殊逻辑
+                        if(ArraySize(rightM5Segments) == 2)
+                        {
+                           // 使用第一个线段的终点作为参考点
+                           m_referencePrice = rightM5Segments[0].m_end_point.value;
+                           m_secondaryReferencePrice = rightM5Segments[0].m_end_point.value;
+                           m_state = STRATEGY_PENDING_ORDER_PLACED;
+                           Print("CL001: 强势行情特殊逻辑 - 使用第一个线段终点作为参考点");
+                           return true;
+                        }
+                        else
+                        {
+                           // 默认逻辑：使用M5和M15起点价格
+                           m_referencePrice = m5StartPrice;
+                           m_secondaryReferencePrice = m15StartPrice;
+                           m_state = STRATEGY_PENDING_ORDER_PLACED;
+                           Print("CL001: 强势行情 - 最低价格在M5和M15起点之上");
+                           return true;
+                        }
+                     }
+                     else if(minDownPrice > m15StartPrice && minDownPrice <= m5StartPrice)
+                     {
+                        // 情况2：最低价格在M15起点之上但在M5起点之下（中等强度行情）
+                        m_referencePrice = minDownPrice;  // 使用右向线段最低点作为参考
+                        m_secondaryReferencePrice = m15StartPrice;
+                        m_state = STRATEGY_PENDING_ORDER_PLACED;
+                        Print("CL001: 中等强度行情 - 最低价格在M15之上但M5之下");
+                        return true;
+                     }
+                     else if(minDownPrice <= m15StartPrice)
+                     {
+                        // 情况3：最低价格在M15起点之下（弱势行情）
+                        m_referencePrice = minDownPrice;  // 使用右向线段最低点作为参考
+                        m_secondaryReferencePrice = minDownPrice; // 副参考点也使用最低点
+                        m_state = STRATEGY_PENDING_ORDER_PLACED;
+                        Print("CL001: 弱势行情 - 最低价格在M15起点之下");
+                        return true;
+                     }
                   }
                }
                else
                {
-                  //补右向线段为0时，即强势行情的，寻找1分钟右向K线段，至少出现2根以上线段，
-                 // 即（到至少出现在1个下跌，1个上升）这个时候才允许定位到下跌线段的的低点，
-                 // 做为进场的点参考点。（要考虑幅度，后续做为参数，这个线段允许幅度是多少应该是个范围，不能太大也不能太小）
+                  // 没有右向线段时的处理逻辑（后续补充）
+                  Print("CL001: 没有M5右向线段，需要补充1分钟线段分析逻辑");
                }
             }
          }

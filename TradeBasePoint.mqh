@@ -230,27 +230,27 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
       
    // 调试日志：记录当前处理的时间周期
    string timeframeName = EnumToString(timeframe);
-   Print("GetTimeframeSegments: 开始处理周期 ", timeframeName);
+  // Print("GetTimeframeSegments: 开始处理周期 ", timeframeName);
       
    // 获取指定时间周期的线段管理器
    CZigzagSegmentManager* segmentManager = m_currentSegment.GetSmallerTimeframeSegments(timeframe, true);
    if(segmentManager == NULL)
    {
-      Print("GetTimeframeSegments: 周期 ", timeframeName, " - 获取线段管理器失败");
+     // Print("GetTimeframeSegments: 周期 ", timeframeName, " - 获取线段管理器失败");
       return false;
    }
       
    CZigzagSegment* totalSegments[];
    if(!segmentManager.GetSegments(totalSegments))
    {
-      Print("GetTimeframeSegments: 周期 ", timeframeName, " - 获取线段数组失败");
+     //Print("GetTimeframeSegments: 周期 ", timeframeName, " - 获取线段数组失败");
       
       return false;
    }    
    
    // 调试日志：记录获取到的线段数量
    int segmentCount = ArraySize(totalSegments);
-   Print("GetTimeframeSegments: 周期 ", timeframeName, " - 获取到 ", segmentCount, " 条线段");
+  // Print("GetTimeframeSegments: 周期 ", timeframeName, " - 获取到 ", segmentCount, " 条线段");
    
    // 查找关键分隔线段（比较价格）
    int pivotIndex = -1;
@@ -261,7 +261,7 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
          // 调试日志：检查每个线段的指针有效性
          if(!CheckPointer(totalSegments[i]))
          {
-            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 第 ", i, " 条线段指针无效");
+            //Print("GetTimeframeSegments: 周期 ", timeframeName, " - 第 ", i, " 条线段指针无效");
             continue;
          }
          
@@ -269,13 +269,13 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
          if(totalSegments[i].m_end_point.value == m_basePrice)
          {
             pivotIndex = i;
-            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 找到匹配的关键线段，索引: ", pivotIndex);
+           // Print("GetTimeframeSegments: 周期 ", timeframeName, " - 找到匹配的关键线段，索引: ", pivotIndex);
             break;
          }
       }
       else
       {
-         Print("GetTimeframeSegments: 周期 ", timeframeName, " - 第 ", i, " 条线段为NULL");
+         //Print("GetTimeframeSegments: 周期 ", timeframeName, " - 第 ", i, " 条线段为NULL");
       }
    }
 
@@ -284,7 +284,7 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
    if(pivotIndex >= 0)
    {
       leftCount = segmentCount - pivotIndex; 
-      Print("GetTimeframeSegments: 周期 ", timeframeName, " - 左侧线段数量: ", leftCount, ", pivotIndex: ", pivotIndex);
+      //Print("GetTimeframeSegments: 周期 ", timeframeName, " - 左侧线段数量: ", leftCount, ", pivotIndex: ", pivotIndex);
       ArrayResize(leftSegments, leftCount);
       for(int i = pivotIndex; i < segmentCount; i++)
       {
@@ -293,11 +293,11 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
          if(totalSegments[i] != NULL && CheckPointer(totalSegments[i]))
          {
             leftSegments[targetIndex] = new CZigzagSegment(*totalSegments[i]);
-            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 创建左侧线段 ", targetIndex, ", 源索引: ", i);
+           // Print("GetTimeframeSegments: 周期 ", timeframeName, " - 创建左侧线段 ", targetIndex, ", 源索引: ", i);
          }
          else
          {
-            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 左侧线段源索引 ", i, " 指针无效");
+            //Print("GetTimeframeSegments: 周期 ", timeframeName, " - 左侧线段源索引 ", i, " 指针无效");
             leftSegments[targetIndex] = NULL;
          }
       }
@@ -308,18 +308,18 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
    if(pivotIndex >= 0)
    {
       rightCount = pivotIndex; 
-      Print("GetTimeframeSegments: 周期 ", timeframeName, " - 右侧线段数量: ", rightCount, ", pivotIndex: ", pivotIndex);
+      //Print("GetTimeframeSegments: 周期 ", timeframeName, " - 右侧线段数量: ", rightCount, ", pivotIndex: ", pivotIndex);
       ArrayResize(rightSegments, rightCount);
       for(int i = 0; i < pivotIndex; i++)
       {
          if(totalSegments[i] != NULL && CheckPointer(totalSegments[i]))
          {
             rightSegments[i] = new CZigzagSegment(*totalSegments[i]);
-            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 创建右侧线段 ", i);
+            //Print("GetTimeframeSegments: 周期 ", timeframeName, " - 创建右侧线段 ", i);
          }
          else
          {
-            Print("GetTimeframeSegments: 周期 ", timeframeName, " - 右侧线段源索引 ", i, " 指针无效");
+            //Print("GetTimeframeSegments: 周期 ", timeframeName, " - 右侧线段源索引 ", i, " 指针无效");
             rightSegments[i] = NULL;
          }
       }

@@ -124,10 +124,17 @@ bool CZigzagSegmentManager::GetSegments(CZigzagSegment* &segments[])
    // 调整数组大小
    ArrayResize(segments, total);
    
-   // 复制线段
+   // 复制线段，检查NULL指针
    for(int i = 0; i < total; i++)
    {
-      segments[i] = new CZigzagSegment(*m_segments[i]);
+      if(m_segments[i] != NULL)
+      {
+         segments[i] = new CZigzagSegment(*m_segments[i]);
+      }
+      else
+      {
+         segments[i] = NULL; // 确保设置为NULL
+      }
    }
    
    return total > 0;
