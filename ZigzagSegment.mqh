@@ -17,7 +17,7 @@ class CZigzagCalculator;
 //+------------------------------------------------------------------+
 //| ZigZag线段类，包含两个极值点（峰值和谷值）                           |
 //+------------------------------------------------------------------+
-class CZigzagSegment：public CObject
+class CZigzagSegment:public CObject
 {
 private:
   

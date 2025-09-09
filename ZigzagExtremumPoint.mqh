@@ -19,7 +19,7 @@ enum ENUM_EXTREMUM_TYPE
 //+------------------------------------------------------------------+
 //| 极值点对象类                                                       |
 //+------------------------------------------------------------------+
-class CZigzagExtremumPoint：public CObject
+class CZigzagExtremumPoint
 {
 public:
    ENUM_TIMEFRAMES   timeframe;    // 时间周期

@@ -1,7 +1,7 @@
 //+------------------------------------------------------------------+
 //|                  KeyValueStore 键值存储类                         |
 //+------------------------------------------------------------------+
-class KeyValueStore：public CObject
+class KeyValueStore:public CObject
 {
 private:
     struct SegmentArray {

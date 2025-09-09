@@ -19,7 +19,7 @@
 //| 动态交易点类 - 封装交易参考基准价格                                 |
 //| 提供基于交易参考价格的线段查询和分析功能                            |
 //+------------------------------------------------------------------+
-class CTradeBasePoint：public CObject
+class CTradeBasePoint:public CObject
 {
 private:
    // 交易参考基准价格和时间
