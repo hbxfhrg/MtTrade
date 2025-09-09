@@ -142,6 +142,10 @@ int FindBarIndexByPrice(double targetPrice, ENUM_SERIESMODE seriesMode, ENUM_TIM
    // 获取当前图表的总K线数量
    int totalBars = Bars(Symbol(), timeframe);
    
+   // 添加调试日志
+   Print(StringFormat("FindBarIndexByPrice: 查找价格 %.5f, 模式 %d, 周期 %s, 总K线数 %d", 
+                     targetPrice, seriesMode, EnumToString(timeframe), totalBars));
+   
    for(int i = 0; i < totalBars; i++)
      {
       double price;
@@ -168,9 +172,17 @@ int FindBarIndexByPrice(double targetPrice, ENUM_SERIESMODE seriesMode, ENUM_TIM
       // 严格相等比较
       if(price == targetPrice)
         {
+         // 添加找到匹配的日志
+         Print(StringFormat("FindBarIndexByPrice: 找到匹配 K线 %d, 价格 %.5f = 目标价格 %.5f", i, price, targetPrice));
          return i;
         }
      }
+   
+   // 添加未找到匹配的详细日志
+   Print(StringFormat("FindBarIndexByPrice: 未找到匹配价格 %.5f, 最后检查的K线范围: 0 - %d", targetPrice, totalBars - 1));
+   Print(StringFormat("FindBarIndexByPrice: 当前图表价格范围: 最低 %.5f - 最高 %.5f", 
+                     iLow(Symbol(), timeframe, iLowest(Symbol(), timeframe, MODE_LOW, totalBars, 0)),
+                     iHigh(Symbol(), timeframe, iHighest(Symbol(), timeframe, MODE_HIGH, totalBars, 0))));
    
    return -1;
   }
@@ -194,10 +206,17 @@ double FindLowestPriceAfterHighPrice(double highPrice, datetime &lowTime, ENUM_T
       return 0.0;
      }
    
-   // 如果是当前K线（索引为0），则切换到1分钟周期查找
-   if(barIndex == 0)
+   // 如果是当前K线（索引为0）且当前周期不是1分钟周期，则切换到1分钟周期查找
+   // 避免在1分钟周期时形成无限递归
+   if(barIndex == 0 && searchTimeframe != PERIOD_M1)
      {
       return FindLowestPriceAfterHighPrice(highPrice, lowTime, PERIOD_M1);
+     }
+     else if(barIndex == 0 && searchTimeframe == PERIOD_M1)
+     {
+      // 在1分钟周期已经是当前K线，直接返回当前价格
+      lowTime = TimeCurrent();
+      return highPrice;
      }
    
    // 从该K线开始向未来方向查找最低价
@@ -226,6 +245,10 @@ double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_T
    // 在指定周期上查找低点价格的位置
    int barIndex = FindBarIndexByPrice(lowPrice, MODE_LOW, searchTimeframe);
    
+   // 极值点查找调试日志
+   Print(StringFormat("FindHighestPriceAfterLowPrice: 查找低点价格 %.5f, 周期 %s, 找到K线索引 %d", 
+                     lowPrice, EnumToString(searchTimeframe), barIndex));
+   
    // 如果找不到匹配的K线
    if(barIndex < 0)
      {
@@ -233,10 +256,19 @@ double FindHighestPriceAfterLowPrice(double lowPrice, datetime &highTime, ENUM_T
       return 0.0;
      }
    
-   // 如果是当前K线（索引为0），则切换到1分钟周期查找
-   if(barIndex == 0)
+   // 如果是当前K线（索引为0）且当前周期不是1分钟周期，则切换到1分钟周期查找
+   // 避免在1分钟周期时形成无限递归
+   if(barIndex == 0 && searchTimeframe != PERIOD_M1)
      {
+      Print("FindHighestPriceAfterLowPrice: 当前K线，切换到1分钟周期查找");
       return FindHighestPriceAfterLowPrice(lowPrice, highTime, PERIOD_M1);
+     }
+     else if(barIndex == 0 && searchTimeframe == PERIOD_M1)
+     {
+      // 在1分钟周期已经是当前K线，直接返回当前价格
+      Print("FindHighestPriceAfterLowPrice: 1分钟周期当前K线，返回当前价格");
+      highTime = TimeCurrent();
+      return lowPrice;
      }
    
    // 从该K线开始向未来方向查找最高价
