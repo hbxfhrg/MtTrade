@@ -199,7 +199,7 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
    
    // 调试日志：输出startBarIndex的值和时间信息
    string timeframeName = EnumToString(smallerTimeframe);
-   //Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - startBarIndex = ", startBarIndex, ", startTime = ", TimeToString(startTime));
+   Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - startBarIndex = ", startBarIndex, ", startTime = ", TimeToString(startTime));
    
    // 如果iBarShift返回-1，尝试使用iTime验证时间有效性
    if(startBarIndex < 0)
@@ -208,16 +208,16 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
       datetime firstBarTime = iTime(Symbol(), smallerTimeframe, 0);
       datetime lastBarTime = iTime(Symbol(), smallerTimeframe, Bars(Symbol(), smallerTimeframe) - 1);
       
-      //Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 时间范围: ", TimeToString(firstBarTime), " 到 ", TimeToString(lastBarTime));
-      //Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 请求时间 ", TimeToString(startTime), " 不在图表时间范围内");
+      Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 时间范围: ", TimeToString(firstBarTime), " 到 ", TimeToString(lastBarTime));
+      Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 请求时间 ", TimeToString(startTime), " 不在图表时间范围内");
       return NULL; // 无法找到区间开始时间对应的K线，返回NULL
    }
    
    int barsCount = startBarIndex + 30;
    
    // 确保barsCount在合理范围内（30-2000）
-   if(barsCount < 30)
-      barsCount = 30;
+   if(barsCount < 200)
+      barsCount = 200;
    
    // 如果周期小于30分钟，根据不同的周期调整barsCount
    if(smallerTimeframe < PERIOD_M30)
@@ -236,8 +236,8 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
          barsCount = endBarIndex + 300;      // 其他小于30分钟的周期默认加300
       
       // 确保barsCount在合理范围内（30-2000）
-      if(barsCount < 30)
-         barsCount = 30;
+      if(barsCount < 200)
+         barsCount = 200;
       else if(barsCount > 2000)
          barsCount = 2000;
    }
@@ -275,21 +275,20 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
          // 线段的开始时间必须在主线段区间内才是有效的
          if (fromStartorEnd)
          {
-         if(segStartTime >= startTime)
-         {
-            allSegments[segmentCount++] = newSegment;
+            if(segStartTime >= startTime)
+            {
+               allSegments[segmentCount++] = newSegment;
+               Print("GetSmallerTimeframeSegments: 添加线段 (fromStartorEnd=true) - 开始时间: ", TimeToString(segStartTime), ", 主线段开始时间: ", TimeToString(startTime));
+            }
          }
-       
-      }
-      else
-      {
-         if(segStartTime >= endTime)
+         else
          {
-            allSegments[segmentCount++] = newSegment;
+            if(segStartTime >= endTime)
+            {
+               allSegments[segmentCount++] = newSegment;
+               Print("GetSmallerTimeframeSegments: 添加线段 (fromStartorEnd=false) - 开始时间: ", TimeToString(segStartTime), ", 主线段结束时间: ", TimeToString(endTime));
+            }
          }
-        
-      }
-
       }
    }
    

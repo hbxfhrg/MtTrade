@@ -265,6 +265,9 @@ bool CTradeBasePoint::GetTimeframeSegments(ENUM_TIMEFRAMES timeframe, CZigzagSeg
             continue;
          }
          
+       //强势的时候1小时高点可能还未被确认，取1小时线段会有点问题
+       
+
          // 匹配开始点
          if(totalSegments[i].m_end_point.value == m_basePrice)
          {
