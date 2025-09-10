@@ -147,7 +147,7 @@ void OnTick()
    if(needRecalculateTradeAnalyzer)
    {// 执行交易分析
       InitializeTradeAnalyzer(points4H);
-      strategy.Execute(g_tradeAnalyzer.m_tradeBasePoint);
+      strategy.CheckConditions(g_tradeAnalyzer.m_tradeBasePoint);
       
 
    // 更新图形显示
@@ -222,33 +222,33 @@ void InitializeTradeAnalyzer(SZigzagExtremumPoint &inputFourHourPoints[])
             strategy.Execute(g_tradeAnalyzer.m_tradeBasePoint);
             
             //打印周期信息
-            Print("=== 所有周期的第一个线段开始点价格（使用KeyValueStore） ===");
+            Print("=== 线段信息输出（左侧每周期第一个，右侧最多5个） ===");
             string timeframeNames[] = {"M5", "M15", "M30", "H1"};
             int timeframeIndices[] = {0, 1, 2, 3};
             
             for(int i = 0; i < 4; i++)
             {
+               Print("-**************"); 
+               // 左侧线段：只输出每周期第一个线段
                CZigzagSegment* leftSegArray[];
                if(g_tradeAnalyzer.m_tradeBasePoint.m_leftSegmentsStore.GetArray(timeframeIndices[i], leftSegArray) && ArraySize(leftSegArray) > 0)
                {
-                  int count = MathMin(ArraySize(leftSegArray), 5); // 最多输出5个线段
-                  for(int j = 0; j < count; j++)
-                  {
-                     double leftStartPrice = leftSegArray[j].m_start_point.value;
-                     double leftEndPrice = leftSegArray[j].m_end_point.value;
-                     Print(timeframeNames[i], "周期缓存左线段数组第", j+1, "条记录开始点价格: ", leftStartPrice, ", 结束点价格: ", leftEndPrice);
-                  }
+                  double leftStartPrice = leftSegArray[0].m_start_point.value;
+                  double leftEndPrice = leftSegArray[0].m_end_point.value;
+                  string leftDirection = (leftEndPrice > leftStartPrice) ? "↑" : "↓";
+                  Print(timeframeNames[i], "周期左侧线段[0]: ", leftStartPrice, " -> ", leftEndPrice, " ", leftDirection);
                }
-               
+                Print("-------------");              // 右侧线段：输出最多5个线段
                CZigzagSegment* rightSegArray[];
                if(g_tradeAnalyzer.m_tradeBasePoint.m_rightSegmentsStore.GetArray(timeframeIndices[i], rightSegArray) && ArraySize(rightSegArray) > 0)
                {
-                  int count = MathMin(ArraySize(rightSegArray), 5); // 最多输出5个线段
+                  int count = MathMin(ArraySize(rightSegArray), 5);
                   for(int j = 0; j < count; j++)
                   {
                      double rightStartPrice = rightSegArray[j].m_start_point.value;
                      double rightEndPrice = rightSegArray[j].m_end_point.value;
-                     Print(timeframeNames[i], "周期缓存右线段数组第", j+1, "条记录开始点价格: ", rightStartPrice, ", 结束点价格: ", rightEndPrice);
+                     string rightDirection = (rightEndPrice > rightStartPrice) ? "↑" : "↓";
+                     Print(timeframeNames[i], "周期右侧线段[", j, "]: ", rightStartPrice, " -> ", rightEndPrice, " ", rightDirection);
                   }
                }
             }

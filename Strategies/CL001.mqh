@@ -74,9 +74,31 @@ public:
          tradeBasePoint.m_leftSegmentsStore.GetArray(3, h1Segments) && ArraySize(h1Segments) > 0)
       {
          // 检查1小时线段方向为上涨
-         if(h1Segments[0].IsUptrend())
+         // 输出H1线段详细信息
+         bool isH1Uptrend = h1Segments[0].IsUptrend();
+         double h1StartPrice = h1Segments[0].m_start_point.value;
+         double h1EndPrice = h1Segments[0].m_end_point.value;
+         string h1Direction = isH1Uptrend ? "上涨↑" : "下跌↓";
+         
+         // 获取右侧线段数量
+         CZigzagSegment* m5RightSegments[], *m15RightSegments[], *h1RightSegments[];
+         int m5RightCount = 0, m15RightCount = 0, h1RightCount = 0;
+         if(tradeBasePoint.m_rightSegmentsStore.GetArray(0, m5RightSegments)) m5RightCount = ArraySize(m5RightSegments);
+         if(tradeBasePoint.m_rightSegmentsStore.GetArray(1, m15RightSegments)) m15RightCount = ArraySize(m15RightSegments);
+         if(tradeBasePoint.m_rightSegmentsStore.GetArray(3, h1RightSegments)) h1RightCount = ArraySize(h1RightSegments);
+         
+         Print(StringFormat("CL001: H1线段方向=%s, 开始价格=%.5f, 结束价格=%.5f", h1Direction, h1StartPrice, h1EndPrice));
+         Print(StringFormat("CL001: 右侧线段数量 - M5:%d, M15:%d, H1:%d", m5RightCount, m15RightCount, h1RightCount));
+         
+         // 当M5右侧线段数量为2时，输出额外信息
+         if(m5RightCount == 2)
          {
-            Print("CL001: H1线段方向为上涨");
+            int h1Index = tradeBasePoint.GetBarIndex();
+            Print(StringFormat("CL001: M5右侧线段数量为2 - tradeBasePoint信息: H1线段索引=%d", h1Index));
+         }
+         
+         if(isH1Uptrend)
+         {
             // 检查参考交易点的时K线序号在8以内
             int barIndex = tradeBasePoint.GetBarIndex();
             if(barIndex <= 3)
