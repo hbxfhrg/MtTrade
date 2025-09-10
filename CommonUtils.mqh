@@ -175,7 +175,8 @@ int FindBarIndexByPrice(double targetPrice, ENUM_SERIESMODE seriesMode, ENUM_TIM
      }
    
    // 添加未找到匹配的详细日志
-   Print(StringFormat("FindBarIndexByPrice: 未找到匹配价格 %.5f, 最后检查的K线范围: 0 - %d", targetPrice, totalBars - 1));
+   string timeframeStr = TimeframeToString(timeframe);
+   Print(StringFormat("FindBarIndexByPrice: 未找到匹配价格 %.5f, 周期: %s, 最后检查的K线范围: 0 - %d", targetPrice, timeframeStr, totalBars - 1));
    Print(StringFormat("FindBarIndexByPrice: 当前图表价格范围: 最低 %.5f - 最高 %.5f", 
                      iLow(Symbol(), timeframe, iLowest(Symbol(), timeframe, MODE_LOW, totalBars, 0)),
                      iHigh(Symbol(), timeframe, iHighest(Symbol(), timeframe, MODE_HIGH, totalBars, 0))));
@@ -680,6 +681,27 @@ void SortSegmentsByTime(CZigzagSegment* &segments[], bool ascending = false, boo
    }
 }
 
+
+//+------------------------------------------------------------------+
+//| 将时间周期枚举转换为可读字符串                                    |
+//+------------------------------------------------------------------+
+string GetTimeframeString(ENUM_TIMEFRAMES tf)
+{
+   switch(tf)
+   {
+      case PERIOD_M1:    return "M1";
+      case PERIOD_M5:    return "M5";
+      case PERIOD_M15:   return "M15";
+      case PERIOD_M30:   return "M30";
+      case PERIOD_H1:    return "H1";
+      case PERIOD_H4:    return "H4";
+      case PERIOD_D1:    return "D1";
+      case PERIOD_W1:    return "W1";
+      case PERIOD_MN1:   return "MN1";
+      case PERIOD_CURRENT: return "Current";
+      default:           return "Unknown";
+   }
+}
 
 // 包含ZigzagSegment.mqh，放在文件末尾以避免循环引用
 #include "ZigzagSegment.mqh"

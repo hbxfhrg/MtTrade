@@ -199,7 +199,7 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
    
    // 调试日志：输出startBarIndex的值和时间信息
    string timeframeName = EnumToString(smallerTimeframe);
-   Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - startBarIndex = ", startBarIndex, ", startTime = ", TimeToString(startTime));
+   //Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - startBarIndex = ", startBarIndex, ", startTime = ", TimeToString(startTime));
    
    // 如果iBarShift返回-1，尝试使用iTime验证时间有效性
    if(startBarIndex < 0)
@@ -208,8 +208,8 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
       datetime firstBarTime = iTime(Symbol(), smallerTimeframe, 0);
       datetime lastBarTime = iTime(Symbol(), smallerTimeframe, Bars(Symbol(), smallerTimeframe) - 1);
       
-      Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 时间范围: ", TimeToString(firstBarTime), " 到 ", TimeToString(lastBarTime));
-      Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 请求时间 ", TimeToString(startTime), " 不在图表时间范围内");
+      //Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 时间范围: ", TimeToString(firstBarTime), " 到 ", TimeToString(lastBarTime));
+     // Print("GetSmallerTimeframeSegments: 周期 ", timeframeName, " - 请求时间 ", TimeToString(startTime), " 不在图表时间范围内");
       return NULL; // 无法找到区间开始时间对应的K线，返回NULL
    }
    
@@ -278,7 +278,7 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
             if(segStartTime >= startTime)
             {
                allSegments[segmentCount++] = newSegment;
-               Print("GetSmallerTimeframeSegments: 添加线段 (fromStartorEnd=true) - 开始时间: ", TimeToString(segStartTime), ", 主线段开始时间: ", TimeToString(startTime));
+               //Print("GetSmallerTimeframeSegments: 添加线段 (fromStartorEnd=true) - 开始时间: ", TimeToString(segStartTime), ", 主线段开始时间: ", TimeToString(startTime));
             }
          }
          else
@@ -286,7 +286,7 @@ CZigzagSegmentManager* CZigzagSegment::GetSmallerTimeframeSegments(ENUM_TIMEFRAM
             if(segStartTime >= endTime)
             {
                allSegments[segmentCount++] = newSegment;
-               Print("GetSmallerTimeframeSegments: 添加线段 (fromStartorEnd=false) - 开始时间: ", TimeToString(segStartTime), ", 主线段结束时间: ", TimeToString(endTime));
+               //Print("GetSmallerTimeframeSegments: 添加线段 (fromStartorEnd=false) - 开始时间: ", TimeToString(segStartTime), ", 主线段结束时间: ", TimeToString(endTime));
             }
          }
       }

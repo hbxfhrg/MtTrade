@@ -218,5 +218,5 @@ void CSegmentDrawer::Draw1HSubSegments(CZigzagSegment* &validSegments[], int val
       }
    }
    
-   Print(StringFormat("成功绘制线段数量：%d个 (上涨: %d个, 下跌: %d个)", drawnCount, drawnUptrendCount, drawnDowntrendCount));
+   // Print(StringFormat("成功绘制线段数量：%d个 (上涨: %d个, 下跌: %d个)", drawnCount, drawnUptrendCount, drawnDowntrendCount));
 }
