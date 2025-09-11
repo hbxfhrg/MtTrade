@@ -1,5 +1,5 @@
 {
     "files.associations": {
-        "*.mqh": "mql4"
+        "*.mqh": "mql-output"
     }
 }

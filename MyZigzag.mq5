@@ -147,8 +147,7 @@ void OnTick()
    if(needRecalculateTradeAnalyzer)
    {// 执行交易分析
       InitializeTradeAnalyzer(points4H);
-      strategy.CheckConditions(g_tradeAnalyzer.m_tradeBasePoint);
-      
+      strategy.CheckConditions(g_tradeAnalyzer.m_tradeBasePoint);      
 
    // 更新图形显示
    ProcessTradeAnalyzerLabelDrawing(points4H);
@@ -366,4 +365,13 @@ void ProcessTradeAnalysisAndInfoPanel()
 
 
   }
+
+//+------------------------------------------------------------------+
+//| Trade event handler                                              |
+//+------------------------------------------------------------------+
+void OnTrade()
+{
+   // 调用策略的交易事件处理
+   strategy.OnTrade();
+}
 //+------------------------------------------------------------------+

@@ -39,13 +39,13 @@ enum ENUM_STRATEGY_STATE
 #include <Trade/Trade.mqh>
 #include <Trade/OrderInfo.mqh>
 #include <Trade/PositionInfo.mqh>
-#include "../CSVLogger.mqh"
+#include "../OrderMonitor.mqh"
 
 class CStrategyCL001
 {
 private:
    CTrade m_trade;
-   CCSVLogger m_csvLogger;
+   COrderMonitor m_orderMonitor;
    ENUM_STRATEGY_STATE m_state;
    ulong m_orderTicket;
    ulong m_secondaryOrderTicket;
@@ -60,10 +60,10 @@ public:
                      m_positionTicket(0),
                      m_referencePrice(0),
                      m_secondaryReferencePrice(0),
-                     m_csvLogger("cl001_order_log.csv") {}
+                     m_orderMonitor("CL001") {}
    
    string GetStrategyName() const { return "CL001"; }
-   string GetStrategyDescription() const { return "双起点挂单策略"; }
+   string GetStrategyDescription() const { return "新突破行情5分钟追方向策略"; }
    
    ENUM_STRATEGY_STATE GetState() const { return m_state; }
    
@@ -156,10 +156,7 @@ public:
                               m_orderTicket = m_trade.ResultOrder();
                               Print("CL001策略特殊挂单已生成: 进场=", DoubleToString(entryPrice, _Digits), " 止损=", DoubleToString(stopLoss, _Digits), " 止盈=", DoubleToString(takeProfit, _Digits));
                               
-                              // 记录订单参数到CSV
-                              m_csvLogger.LogOrderEvent("ORDER_PLACED", Symbol(), "BUY_LIMIT", LotSize, 
-                                                       entryPrice, stopLoss, takeProfit, expiryTime,
-                                                       m_orderTicket, "CL001 Strategy (Special)", "Order placed successfully", 0);
+
                               
                               m_state = STRATEGY_PENDING_ORDER_PLACED;
                               return true;
@@ -222,6 +219,12 @@ public:
       }
    }
    
+   // 交易事件处理（应该在EA的OnTrade事件中调用）
+   void OnTrade()
+   {
+      m_orderMonitor.OnTrade();
+   }
+   
 private:
    void ExecuteNewOrder(CTradeBasePoint &tradeBasePoint)
    {
@@ -243,29 +246,19 @@ private:
                {
                   m_positionTicket = positionInfo.Ticket();
                   
-                  // 记录订单成交
-                  m_csvLogger.LogOrderFilled(m_orderTicket, Symbol(), "BUY_LIMIT", orderInfo.VolumeInitial(),
-                                            orderInfo.PriceOpen(), orderInfo.StopLoss(), orderInfo.TakeProfit(),
-                                            orderInfo.TimeExpiration(), "CL001 Strategy - Order filled");
+
                   
                   m_state = STRATEGY_ACTIVE_POSITION_MONITOR;
                }
                else if(orderInfo.State() == ORDER_STATE_CANCELED)
                {
-                  // 记录订单取消（超时未成交）
-                  m_csvLogger.LogOrderTimeout(m_orderTicket, Symbol(), "BUY_LIMIT", orderInfo.VolumeInitial(),
-                                            orderInfo.PriceOpen(), orderInfo.StopLoss(), orderInfo.TakeProfit(),
-                                            orderInfo.TimeExpiration(), "CL001 Strategy - Order canceled (timeout)");
+
                   
                   m_state = STRATEGY_IDLE_WAITING_CONDITION;
                }
                else if(orderInfo.State() == ORDER_STATE_REJECTED)
                {
-                  // 记录订单拒绝
-                  m_csvLogger.LogOrderEvent("REJECTED", Symbol(), "BUY_LIMIT", orderInfo.VolumeInitial(),
-                                          orderInfo.PriceOpen(), orderInfo.StopLoss(), orderInfo.TakeProfit(),
-                                          orderInfo.TimeExpiration(), m_orderTicket, 
-                                          "CL001 Strategy - Order rejected", "Order rejected", GetLastError());
+
                   
                   m_state = STRATEGY_IDLE_WAITING_CONDITION;
                }
@@ -327,20 +320,12 @@ private:
          // 检查是否触发止盈
          if(positionInfo.Profit() >= 0 && positionInfo.Profit() >= positionInfo.TakeProfit() - positionInfo.PriceOpen())
          {
-            // 记录止盈触发
-            m_csvLogger.LogOrderTakeProfit(m_positionTicket, Symbol(), "BUY", positionInfo.Volume(),
-                                         positionInfo.PriceOpen(), positionInfo.StopLoss(), positionInfo.TakeProfit(),
-                                         "CL001 Strategy - Take profit triggered");
             Print("CL001策略: 止盈触发，盈利=", DoubleToString(positionInfo.Profit(), 2));
             m_state = STRATEGY_COMPLETED_CLOSED;
          }
          // 检查是否触发止损
          else if(positionInfo.Profit() <= positionInfo.StopLoss() - positionInfo.PriceOpen())
          {
-            // 记录止损触发
-            m_csvLogger.LogOrderStopLoss(m_positionTicket, Symbol(), "BUY", positionInfo.Volume(),
-                                        positionInfo.PriceOpen(), positionInfo.StopLoss(), positionInfo.TakeProfit(),
-                                        "CL001 Strategy - Stop loss triggered");
             Print("CL001策略: 止损触发，亏损=", DoubleToString(positionInfo.Profit(), 2));
             m_state = STRATEGY_COMPLETED_CLOSED;
          }
