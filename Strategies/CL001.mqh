@@ -266,35 +266,91 @@ public:
    // 交易事件处理（应该在EA的OnTrade事件中调用）
    void OnTrade()
    {
-      // 使用MySQL数据库记录交易
-      static CDatabaseManager dbManager;
+      // 使用数据库管理器记录交易
+      static CDatabaseManager dbManager("localhost", "root", "password", "mttrade", 3306);
       
-      // 获取最新交易信息
+      // 记录OnTrade事件触发
+      Print("OnTrade事件被触发");
+      
+      // 检查是否有活动订单或持仓
+      bool hasActiveOrder = false;
       COrderInfo orderInfo;
       CPositionInfo positionInfo;
-      ulong currentTicket = m_trade.ResultOrder();
       
-      if(orderInfo.Select(currentTicket) || positionInfo.Select(currentTicket))
+      // 检查挂单
+      for(int i = OrdersTotal() - 1; i >= 0; i--)
       {
-         string symbol = orderInfo.Symbol() != "" ? orderInfo.Symbol() : positionInfo.Symbol();
-         string type = orderInfo.OrderType() != -1 ? EnumToString((ENUM_ORDER_TYPE)orderInfo.OrderType()) : 
-                                                   EnumToString((ENUM_POSITION_TYPE)positionInfo.PositionType());
-         double volume = orderInfo.VolumeCurrent() > 0 ? orderInfo.VolumeCurrent() : positionInfo.Volume();
-         double price = orderInfo.PriceOpen() > 0 ? orderInfo.PriceOpen() : positionInfo.PriceOpen();
-         double sl = orderInfo.StopLoss() > 0 ? orderInfo.StopLoss() : positionInfo.StopLoss();
-         double tp = orderInfo.TakeProfit() > 0 ? orderInfo.TakeProfit() : positionInfo.TakeProfit();
-         string comment = orderInfo.Comment() != "" ? orderInfo.Comment() : positionInfo.Comment();
-         
-         // 记录到MySQL数据库
-         if(!dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, type, 
-            DoubleToString(volume,2), DoubleToString(price,_Digits),
-            DoubleToString(sl,_Digits), DoubleToString(tp,_Digits), comment))
+         if(orderInfo.SelectByIndex(i) && 
+            orderInfo.Symbol() == Symbol() && 
+            StringFind(orderInfo.Comment(), "CL001 Strategy") != -1)
          {
-            Print("MySQL交易记录保存失败");
+            hasActiveOrder = true;
+            string symbol = orderInfo.Symbol();
+            string type = EnumToString((ENUM_ORDER_TYPE)orderInfo.OrderType());
+            double volume = orderInfo.VolumeCurrent();
+            double price = orderInfo.PriceOpen();
+            double sl = orderInfo.StopLoss();
+            double tp = orderInfo.TakeProfit();
+            string comment = orderInfo.Comment();
+            datetime setupTime = orderInfo.TimeSetup();
+            
+            Print("检测到挂单变化: 票据=", orderInfo.Ticket(), ", 类型=", type, ", 价格=", price);
+            
+            // 记录到数据库
+            if(!dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, "ORDER_" + type, 
+               DoubleToString(volume,2), DoubleToString(price,_Digits),
+               DoubleToString(sl,_Digits), DoubleToString(tp,_Digits), 
+               comment + " (Order Update)"))
+            {
+               Print("挂单记录保存失败: ", dbManager.GetLastError());
+            }
+            break;
          }
       }
-         
-         // 所有日志记录已通过MySQL数据库处理
+      
+      // 检查持仓
+      if(!hasActiveOrder)
+      {
+         for(int i = PositionsTotal() - 1; i >= 0; i--)
+         {
+            if(positionInfo.SelectByIndex(i) && 
+               positionInfo.Symbol() == Symbol() && 
+               StringFind(positionInfo.Comment(), "CL001 Strategy") != -1)
+            {
+               hasActiveOrder = true;
+               string symbol = positionInfo.Symbol();
+               string type = EnumToString((ENUM_POSITION_TYPE)positionInfo.PositionType());
+               double volume = positionInfo.Volume();
+               double price = positionInfo.PriceOpen();
+               double sl = positionInfo.StopLoss();
+               double tp = positionInfo.TakeProfit();
+               string comment = positionInfo.Comment();
+               
+               Print("检测到持仓变化: 票据=", positionInfo.Ticket(), ", 类型=", type, ", 价格=", price);
+               
+               // 记录到数据库
+               if(!dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, "POSITION_" + type, 
+                  DoubleToString(volume,2), DoubleToString(price,_Digits),
+                  DoubleToString(sl,_Digits), DoubleToString(tp,_Digits), 
+                  comment + " (Position Update)"))
+               {
+                  Print("持仓记录保存失败: ", dbManager.GetLastError());
+               }
+               break;
+            }
+         }
+      }
+      
+      // 如果没有找到CL001策略相关的订单或持仓，记录通用事件
+      if(!hasActiveOrder)
+      {
+         Print("没有检测到CL001策略相关的活动订单或持仓");
+         if(!dbManager.LogTradeToMySQL((int)TimeCurrent(), Symbol(), "TRADE_EVENT", 
+            "0.00", "0.00000", "0.00000", "0.00000", "Trade event triggered - no active orders"))
+         {
+            Print("交易事件记录保存失败: ", dbManager.GetLastError());
+         }
+      }
    }
    
 private:
