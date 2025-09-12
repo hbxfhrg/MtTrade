@@ -147,7 +147,7 @@ void OnTick()
    if(needRecalculateTradeAnalyzer)
    {// 执行交易分析
       InitializeTradeAnalyzer(points4H);
-      strategy.CheckConditions(g_tradeAnalyzer.m_tradeBasePoint);      
+      strategy.Execute(g_tradeAnalyzer.m_tradeBasePoint);      
 
    // 更新图形显示
    ProcessTradeAnalyzerLabelDrawing(points4H);

@@ -8,17 +8,17 @@
 #property strict
 
 /*
-策略名称：双起点挂单策略
+策略名称：新突破行情5分钟追方向策略
 策略说明：
 1. 当1小时线段方向为上涨且参考交易点时K线序号在3以内
 2. 从右向线段中获取5分钟下跌线段的最低点
-3. 当前价格高于5分钟和15分钟线段起点价格
-4. 同时挂两个进场单：
-   - 主进场点=5分钟起点价格+EntryOffset点
-   - 副进场点=15分钟起点价格+EntryOffset点
-5. 止损点分别为对应起点价格
-6. 止盈点分别为对应起点价格+TakeProfitOffset点
-7. 适用于做多交易
+3. 根据右向线段最低价格相对于M5和M15起点价格的位置分三种情况：
+   - 情况1：最低价格在M5和M15起点之上（强势行情）
+   - 情况2：最低价格在M15起点之上但在M5起点之下（中等强度行情）
+   - 情况3：最低价格在M15起点之下（弱势行情）
+4. 特殊处理：当M5右向线段数量为2时使用特殊挂单逻辑
+5. 止损和止盈根据线段起点和终点计算
+6. 适用于做多交易
 */
 
 input int EntryOffset = 3000;      // 进场点偏移点数(默认3000点)
@@ -27,14 +27,7 @@ input int TakeProfitOffset = 9000; // 止盈点偏移点数(默认9000点)
 input double LotSize = 0.1;        // 交易手数(默认0.1手)
 input int OrderExpiryHours = 24;   // 挂单有效时间(小时，默认24小时)
 
-// 策略状态枚举
-enum ENUM_STRATEGY_STATE
-{
-   STRATEGY_IDLE_WAITING_CONDITION,    // 策略空闲状态，等待交易条件满足
-   STRATEGY_PENDING_ORDER_PLACED,      // 已生成限价挂单，等待价格触发成交
-   STRATEGY_ACTIVE_POSITION_MONITOR,  // 订单已成交变为持仓，正在监控价格波动
-   STRATEGY_COMPLETED_CLOSED           // 策略已完成(止盈/止损/手动平仓)
-};
+
 
 #include <Trade/Trade.mqh>
 #include <Trade/OrderInfo.mqh>
@@ -43,10 +36,9 @@ enum ENUM_STRATEGY_STATE
 
 class CStrategyCL001
 {
-private:
+protected:  // 修改为protected以允许子类访问
    CTrade m_trade;
    COrderMonitor m_orderMonitor;
-   ENUM_STRATEGY_STATE m_state;
    ulong m_orderTicket;
    ulong m_secondaryOrderTicket;
    ulong m_positionTicket;
@@ -54,8 +46,7 @@ private:
    double m_secondaryReferencePrice;
    
 public:
-   CStrategyCL001() : m_state(STRATEGY_IDLE_WAITING_CONDITION), 
-                     m_orderTicket(0),
+   CStrategyCL001() : m_orderTicket(0),
                      m_secondaryOrderTicket(0),
                      m_positionTicket(0),
                      m_referencePrice(0),
@@ -64,13 +55,63 @@ public:
    
    string GetStrategyName() const { return "CL001"; }
    string GetStrategyDescription() const { return "新突破行情5分钟追方向策略"; }
-   
-   ENUM_STRATEGY_STATE GetState() const { return m_state; }
+
+   // 修改挂单价格
+   bool ModifyOrderPrice(ulong ticket, double newPrice)
+   {
+      if(m_trade.OrderModify(ticket, newPrice, 0, 0, 0, "CL001 Modified"))
+      {
+         m_orderTicket = ticket;
+         return true;
+      }
+      return false;
+   }
+
+   // 基于行情取消订单(无参数版本)
+   bool CancelOrderByMarket()
+   {
+      COrderInfo orderInfo;
+      // 遍历所有订单查找本策略的挂单
+      for(int i = OrdersTotal() - 1; i >= 0; i--)
+      {
+         if(orderInfo.SelectByIndex(i) && 
+            orderInfo.Symbol() == Symbol() && 
+            orderInfo.OrderType() == ORDER_TYPE_BUY_LIMIT &&
+            StringFind(orderInfo.Comment(), "CL001 Strategy") != -1)
+         {
+            // 计算从挂单时间后的最高价
+            int startBar = iBarShift(Symbol(), PERIOD_CURRENT, orderInfo.TimeSetup());
+            double highestPrice = 0;
+            for(int j = startBar; j >= 0; j--)
+            {
+               highestPrice = MathMax(highestPrice, iHigh(Symbol(), PERIOD_CURRENT, j));
+            }
+            if(highestPrice > orderInfo.TakeProfit())
+            {
+               Print("取消订单: 最高价", highestPrice, "已超过止盈价", orderInfo.TakeProfit());
+               return m_trade.OrderDelete(orderInfo.Ticket());
+            }
+         }
+      }
+      return false;
+   }
+
+   // 基于行情关闭订单
+   bool ClosePositionByMarket(ulong ticket, double currentPrice, double threshold)
+   {
+      CPositionInfo positionInfo;
+      if(positionInfo.Select(ticket))
+      {
+         if(MathAbs(positionInfo.PriceOpen() - currentPrice) > threshold * _Point)
+         {
+            return m_trade.PositionClose(ticket);
+         }
+      }
+      return false;
+   }
    
    bool CheckConditions(CTradeBasePoint &tradeBasePoint)
    {
-      
-         
       CZigzagSegment* m5Segments[], *m15Segments[], *h1SegmentsLocal[];
       if(tradeBasePoint.m_leftSegmentsStore.GetArray(0, m5Segments) && ArraySize(m5Segments) > 0 &&
          tradeBasePoint.m_leftSegmentsStore.GetArray(1, m15Segments) && ArraySize(m15Segments) > 0 &&
@@ -137,9 +178,9 @@ public:
                         if(ArraySize(rightM5Segments) == 2)
                         {
                            // 使用第一个线段的终点作为参考点，直接生成挂单
-                           double entryPrice = rightM5Segments[0].m_end_point.value ;
+                           double entryPrice = rightM5Segments[0].m_end_point.value;
                            double stopLoss = rightM5Segments[0].m_end_point.value - StopLossOffset * _Point;
-                           double takeProfit = rightM5Segments[0].m_start_point.value ;
+                           double takeProfit = rightM5Segments[0].m_start_point.value;
                            
                            // 检查是否已存在相同点位的挂单
                            if(HasExistingOrderAtPrice(entryPrice, stopLoss))
@@ -147,6 +188,7 @@ public:
                               Print("CL001策略: 已存在相同点位的挂单，跳过重复挂单 进场=", DoubleToString(entryPrice, _Digits), " 止损=", DoubleToString(stopLoss, _Digits));
                               return false;
                            }
+                         
                            
                            // 计算过期时间（当前时间 + OrderExpiryHours小时）
                            datetime expiryTime = TimeCurrent() + (OrderExpiryHours * 3600);
@@ -156,9 +198,20 @@ public:
                               m_orderTicket = m_trade.ResultOrder();
                               Print("CL001策略特殊挂单已生成: 进场=", DoubleToString(entryPrice, _Digits), " 止损=", DoubleToString(stopLoss, _Digits), " 止盈=", DoubleToString(takeProfit, _Digits));
                               
-
-                              
-                              m_state = STRATEGY_PENDING_ORDER_PLACED;
+                              // 检查并关闭价格更高的旧挂单(仅限本策略)
+                              COrderInfo orderInfo;
+                              for(int k = OrdersTotal() - 1; k >= 0; k--)
+                              {
+                                 if(orderInfo.SelectByIndex(k) && 
+                                    orderInfo.Symbol() == Symbol() && 
+                                    orderInfo.OrderType() == ORDER_TYPE_BUY_LIMIT &&
+                                    orderInfo.PriceOpen() > entryPrice &&
+                                    StringFind(orderInfo.Comment(), "CL001 Strategy") != -1)
+                                 {
+                                    m_trade.OrderDelete(orderInfo.Ticket());
+                                    Print("关闭本策略旧挂单: 价格=", DoubleToString(orderInfo.PriceOpen(), _Digits));
+                                 }
+                              }
                               return true;
                            }
                            return false;
@@ -170,7 +223,6 @@ public:
                         // 情况2：最低价格在M15起点之上但在M5起点之下（中等强度行情）
                         m_referencePrice = minDownPrice;  // 使用右向线段最低点作为参考
                         m_secondaryReferencePrice = m15StartPrice;
-                        m_state = STRATEGY_PENDING_ORDER_PLACED;
                         Print("CL001: 中等强度行情 - 最低价格在M15之上但M5之下");
                         return true;
                      }
@@ -179,7 +231,6 @@ public:
                         // 情况3：最低价格在M15起点之下（弱势行情）
                         m_referencePrice = minDownPrice;  // 使用右向线段最低点作为参考
                         m_secondaryReferencePrice = minDownPrice; // 副参考点也使用最低点
-                        m_state = STRATEGY_PENDING_ORDER_PLACED;
                         Print("CL001: 弱势行情 - 最低价格在M15起点之下");
                         return true;
                      }
@@ -198,82 +249,27 @@ public:
    
    void Execute(CTradeBasePoint &tradeBasePoint)
    {
-      CheckStrategyStatus();
+     CheckConditions(tradeBasePoint);
+    
+    // 检查并取消不符合条件的订单
+    CancelOrderByMarket();
       
-      switch(m_state)
-      {
-         case STRATEGY_IDLE_WAITING_CONDITION:
-            CheckConditions(tradeBasePoint); // 检查交易条件
-            break;
-            
-         case STRATEGY_PENDING_ORDER_PLACED:
-            ExecuteNewOrder(tradeBasePoint);
-            break;
-            
-         case STRATEGY_ACTIVE_POSITION_MONITOR:
-            MonitorPosition();
-            break;
-            
-         case STRATEGY_COMPLETED_CLOSED:
-            break;
-      }
+       
    }
    
    // 交易事件处理（应该在EA的OnTrade事件中调用）
    void OnTrade()
    {
-      m_orderMonitor.OnTrade();
+      // 准备策略特定的日志信息
+      string strategyInfo = StringFormat("CL001 Strategy - RefPrice: %.5f, SecRefPrice: %.5f", 
+                                       m_referencePrice, m_secondaryReferencePrice);
+      m_orderMonitor.OnTrade(); // 移除参数，使用默认实现
    }
    
 private:
-   void ExecuteNewOrder(CTradeBasePoint &tradeBasePoint)
-   {
-             
-     
-   }
+
    
-   void CheckStrategyStatus()
-   {
-      COrderInfo orderInfo;
-      CPositionInfo positionInfo;
-      
-      switch(m_state)
-      {
-         case STRATEGY_PENDING_ORDER_PLACED:
-            if(orderInfo.Select(m_orderTicket))
-            {
-               if(orderInfo.State() == ORDER_STATE_FILLED)
-               {
-                  m_positionTicket = positionInfo.Ticket();
-                  
 
-                  
-                  m_state = STRATEGY_ACTIVE_POSITION_MONITOR;
-               }
-               else if(orderInfo.State() == ORDER_STATE_CANCELED)
-               {
-
-                  
-                  m_state = STRATEGY_IDLE_WAITING_CONDITION;
-               }
-               else if(orderInfo.State() == ORDER_STATE_REJECTED)
-               {
-
-                  
-                  m_state = STRATEGY_IDLE_WAITING_CONDITION;
-               }
-            }
-            break;
-            
-         case STRATEGY_ACTIVE_POSITION_MONITOR:
-            if(!positionInfo.Select(m_positionTicket))
-            {
-               m_state = STRATEGY_COMPLETED_CLOSED;
-            }
-            break;
-      }
-   }
-   
    bool HasExistingOrderAtPrice(double entryPrice, double stopLoss)
    {
       COrderInfo orderInfo;
@@ -312,28 +308,5 @@ private:
       return false;
    }
    
-   void MonitorPosition()
-   {
-      CPositionInfo positionInfo;
-      if(positionInfo.Select(m_positionTicket))
-      {
-         // 检查是否触发止盈
-         if(positionInfo.Profit() >= 0 && positionInfo.Profit() >= positionInfo.TakeProfit() - positionInfo.PriceOpen())
-         {
-            Print("CL001策略: 止盈触发，盈利=", DoubleToString(positionInfo.Profit(), 2));
-            m_state = STRATEGY_COMPLETED_CLOSED;
-         }
-         // 检查是否触发止损
-         else if(positionInfo.Profit() <= positionInfo.StopLoss() - positionInfo.PriceOpen())
-         {
-            Print("CL001策略: 止损触发，亏损=", DoubleToString(positionInfo.Profit(), 2));
-            m_state = STRATEGY_COMPLETED_CLOSED;
-         }
-      }
-      else
-      {
-         // 仓位不存在，可能是手动平仓或其他原因
-         m_state = STRATEGY_COMPLETED_CLOSED;
-      }
-   }
+
 };
