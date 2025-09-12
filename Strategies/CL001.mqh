@@ -33,6 +33,7 @@ input int OrderExpiryHours = 24;   // 挂单有效时间(小时，默认24小时
 #include <Trade/OrderInfo.mqh>
 #include <Trade/PositionInfo.mqh>
 #include "../OrderMonitor.mqh"
+#include "DatabaseManager.mqh"
 
 class CStrategyCL001
 {
@@ -195,8 +196,13 @@ public:
                            
                            if(m_trade.BuyLimit(LotSize, entryPrice, Symbol(), stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiryTime, "CL001 Strategy (Special)"))
                            {
-                              m_orderTicket = m_trade.ResultOrder();
-                              Print("CL001策略特殊挂单已生成: 进场=", DoubleToString(entryPrice, _Digits), " 止损=", DoubleToString(stopLoss, _Digits), " 止盈=", DoubleToString(takeProfit, _Digits));
+                              // 获取并验证订单票据
+                              m_orderTicket = m_trade.ResultOrder();                            
+                              
+                              Print("CL001策略特殊挂单已生成: 订单号=", m_orderTicket, 
+                                   " 进场=", DoubleToString(entryPrice, _Digits), 
+                                   " 止损=", DoubleToString(stopLoss, _Digits), 
+                                   " 止盈=", DoubleToString(takeProfit, _Digits));
                               
                               // 检查并关闭价格更高的旧挂单(仅限本策略)
                               COrderInfo orderInfo;
@@ -260,10 +266,35 @@ public:
    // 交易事件处理（应该在EA的OnTrade事件中调用）
    void OnTrade()
    {
-      // 准备策略特定的日志信息
-      string strategyInfo = StringFormat("CL001 Strategy - RefPrice: %.5f, SecRefPrice: %.5f", 
-                                       m_referencePrice, m_secondaryReferencePrice);
-      m_orderMonitor.OnTrade(); // 移除参数，使用默认实现
+      // 使用MySQL数据库记录交易
+      static CDatabaseManager dbManager;
+      
+      // 获取最新交易信息
+      COrderInfo orderInfo;
+      CPositionInfo positionInfo;
+      ulong currentTicket = m_trade.ResultOrder();
+      
+      if(orderInfo.Select(currentTicket) || positionInfo.Select(currentTicket))
+      {
+         string symbol = orderInfo.Symbol() != "" ? orderInfo.Symbol() : positionInfo.Symbol();
+         string type = orderInfo.OrderType() != -1 ? EnumToString((ENUM_ORDER_TYPE)orderInfo.OrderType()) : 
+                                                   EnumToString((ENUM_POSITION_TYPE)positionInfo.PositionType());
+         double volume = orderInfo.VolumeCurrent() > 0 ? orderInfo.VolumeCurrent() : positionInfo.Volume();
+         double price = orderInfo.PriceOpen() > 0 ? orderInfo.PriceOpen() : positionInfo.PriceOpen();
+         double sl = orderInfo.StopLoss() > 0 ? orderInfo.StopLoss() : positionInfo.StopLoss();
+         double tp = orderInfo.TakeProfit() > 0 ? orderInfo.TakeProfit() : positionInfo.TakeProfit();
+         string comment = orderInfo.Comment() != "" ? orderInfo.Comment() : positionInfo.Comment();
+         
+         // 记录到MySQL数据库
+         if(!dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, type, 
+            DoubleToString(volume,2), DoubleToString(price,_Digits),
+            DoubleToString(sl,_Digits), DoubleToString(tp,_Digits), comment))
+         {
+            Print("MySQL交易记录保存失败");
+         }
+      }
+         
+         // 所有日志记录已通过MySQL数据库处理
    }
    
 private:
