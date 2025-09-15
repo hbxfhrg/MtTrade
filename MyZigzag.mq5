@@ -366,12 +366,81 @@ void ProcessTradeAnalysisAndInfoPanel()
 
   }
 
-//+------------------------------------------------------------------+
-//| Trade event handler                                              |
-//+------------------------------------------------------------------+
-void OnTrade()
-{
-   // 调用策略的交易事件处理
-   strategy.OnTrade();
-}
-//+------------------------------------------------------------------+
+  // 交易事务处理函数
+   void OnTradeTransaction(const MqlTradeTransaction &trans,
+                          const MqlTradeRequest &request,
+                          const MqlTradeResult &result)
+   {
+      // 处理所有交易事件类型
+      string eventType = "";
+      string logEntry = "";
+      ulong dealTicket = 0;
+      ENUM_DEAL_ENTRY entryType = 0;
+      string symbol = "";
+      double volume = 0.0;
+      double price = 0.0;
+      
+      switch(trans.type)
+      {
+         case TRADE_TRANSACTION_DEAL_ADD: // 订单成交
+            eventType = "订单成交";
+            dealTicket = trans.deal;
+            if(HistoryDealSelect(dealTicket))
+            {
+               entryType = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
+               symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
+               volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
+               price = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
+               logEntry = StringFormat("[交易日志] %s #%d 品种:%s 方向:%s 手数:%.2f 价格:%.5f",
+                     eventType, dealTicket, symbol, EnumToString(entryType), volume, price);
+            }
+            break;
+            
+         case TRADE_TRANSACTION_ORDER_ADD: // 挂单
+            eventType = "挂单";
+            logEntry = StringFormat("[交易日志] %s #%d 品种:%s 类型:%s 手数:%.2f 价格:%.5f",
+                  eventType, trans.order, request.symbol, EnumToString(request.type), request.volume, request.price);
+            break;
+            
+         case TRADE_TRANSACTION_ORDER_DELETE: // 取消订单
+            eventType = "取消订单";
+            logEntry = StringFormat("[交易日志] %s #%d", eventType, trans.order);
+            break;
+            
+         case TRADE_TRANSACTION_ORDER_UPDATE: // 修改订单
+            eventType = "修改订单";
+            logEntry = StringFormat("[交易日志] %s #%d 新价格:%.5f", 
+                  eventType, trans.order, request.price);
+            break;
+            
+         default:
+            return; // 不处理其他类型事件
+      }
+      
+      // 记录日志
+      if(logEntry != "")
+      {
+         Print(logEntry);
+         
+         // 写入日志文件
+         string logPath = "MtTradeLog.csv";
+         string fullPath = TerminalInfoString(TERMINAL_COMMONDATA_PATH) + "\\Files\\" + logPath;
+         Print("日志文件路径: ", fullPath);
+         
+         int fileHandle = FileOpen(logPath, FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON, ",");
+         if(fileHandle != INVALID_HANDLE)
+         {
+            FileSeek(fileHandle, 0, SEEK_END);
+            if(FileWrite(fileHandle, TimeToString(TimeCurrent()), logEntry) <= 0)
+            {
+               Print("写入日志文件失败: ", GetLastError());
+            }
+            FileClose(fileHandle);
+         }
+         else
+         {
+            Print("打开日志文件失败: ", GetLastError());
+         }
+      }
+   }
+   
