@@ -6,6 +6,7 @@
 #include <Trade/OrderInfo.mqh>
 #include <Trade/HistoryOrderInfo.mqh>
 #include <Trade/PositionInfo.mqh>
+#include "MySQLOrderLogger.mqh"
 
 class COrderMonitor
 {
@@ -13,35 +14,26 @@ private:
    ulong m_lastOrderTicket;
    datetime m_lastCheckTime;
    string m_eaName;
-   string m_filename;
    
-   // 文件句柄
-   int m_fileHandle;
+   // MySQL日志记录器
+   CMySQLOrderLogger m_mysqlLogger;
    
    // 补偿机制相关
    ulong m_lastCompensationCheckTime;
    uint m_compensationInterval; // 补偿检查间隔（秒）
    
 public:
-   COrderMonitor(string eaName, string filename = "", uint compensationInterval = 300)
-   : m_lastOrderTicket(0),
-     m_lastCheckTime(0),
-     m_eaName(eaName),
-     m_filename(filename == "" ? eaName + "_order_log.csv" : filename),
-     m_fileHandle(INVALID_HANDLE),
-     m_lastCompensationCheckTime(0),
-     m_compensationInterval(compensationInterval)
+   // 构造函数
+   COrderMonitor(string eaName, uint compensationInterval = 300)
    {
-      // 初始化CSV文件头
-      InitializeCSV();
-   }
-   
-   ~COrderMonitor()
-   {
-      if(m_fileHandle != INVALID_HANDLE)
-      {
-         FileClose(m_fileHandle);
-      }
+      m_lastOrderTicket = 0;
+      m_lastCheckTime = 0;
+      m_eaName = eaName;
+      m_lastCompensationCheckTime = 0;
+      m_compensationInterval = compensationInterval;
+      
+      // 初始化MySQL日志记录器
+      m_mysqlLogger.Initialize("rm-bp1dd16o34ktj6un0to.mysql.rds.aliyuncs.com", 3306, "pymt5", "Unic$!anb4agg1", "saas");
    }
    
    // EA初始化时调用，执行补偿检查
@@ -250,41 +242,13 @@ public:
    }
    
 private:
-   // 初始化CSV文件
-   void InitializeCSV()
-   {
-      // 检查文件是否存在，如果不存在则创建并写入表头
-      if(FileIsExist(m_filename, FILE_COMMON))
-         return;
-         
-      m_fileHandle = FileOpen(m_filename, FILE_WRITE|FILE_CSV|FILE_COMMON, ",");
-      if(m_fileHandle != INVALID_HANDLE)
-      {
-         FileWrite(m_fileHandle, "EventType", "Symbol", "OrderType", "Volume", "Price", 
-                  "StopLoss", "TakeProfit", "Expiration", "Ticket", "Comment", 
-                  "Result", "ErrorCode", "Timestamp");
-         FileClose(m_fileHandle);
-         m_fileHandle = INVALID_HANDLE;
-      }
-   }
-   
-   // 记录订单事件到CSV
+   // 记录订单事件到MySQL数据库
    void LogOrderEvent(string eventType, string symbol, string orderType, 
                      double volume, double price, double sl, double tp,
                      datetime expiration, ulong ticket, string comment, 
                      string result, int errorCode)
    {
-      m_fileHandle = FileOpen(m_filename, FILE_WRITE|FILE_READ|FILE_CSV|FILE_COMMON, ",");
-      if(m_fileHandle != INVALID_HANDLE)
-      {
-         FileSeek(m_fileHandle, 0, SEEK_END);
-         FileWrite(m_fileHandle, eventType, symbol, orderType, DoubleToString(volume, 2),
-                  DoubleToString(price, _Digits), DoubleToString(sl, _Digits),
-                  DoubleToString(tp, _Digits), TimeToString(expiration),
-                  IntegerToString(ticket), comment, result, IntegerToString(errorCode),
-                  TimeToString(TimeCurrent()));
-         FileClose(m_fileHandle);
-         m_fileHandle = INVALID_HANDLE;
-      }
+      m_mysqlLogger.LogOrderEvent(eventType, symbol, orderType, volume, price, 
+                                 sl, tp, expiration, ticket, comment, result, errorCode);
    }
 };

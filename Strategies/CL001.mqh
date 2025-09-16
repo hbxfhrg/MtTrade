@@ -267,7 +267,7 @@ public:
    void OnTrade()
    {
       // 使用数据库管理器记录交易
-      static CDatabaseManager dbManager("localhost", "root", "password", "mttrade", 3306);
+      static CDatabaseManager dbManager("rm-bp1dd16o34ktj6un0to.mysql.rds.aliyuncs.com", "pymt5", "Unic$!anb4agg1", "saas", 3306);
       
       // 记录OnTrade事件触发
       Print("OnTrade事件被触发");
