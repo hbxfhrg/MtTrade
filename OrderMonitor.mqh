@@ -6,7 +6,7 @@
 #include <Trade/OrderInfo.mqh>
 #include <Trade/HistoryOrderInfo.mqh>
 #include <Trade/PositionInfo.mqh>
-#include "MySQLOrderLogger.mqh"
+#include "Database/MySQLOrderLogger.mqh"
 
 class COrderMonitor
 {

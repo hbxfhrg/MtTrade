@@ -2,8 +2,8 @@
 //| DatabaseManager.mqh                                              |
 //| 数据库管理器（使用MySQL数据库存储）                              |
 //+------------------------------------------------------------------+
-#include "../MySQLOrderLogger.mqh"
-#include "../libmysql.mqh"
+#include "MySQLOrderLogger.mqh"
+#include "libmysql.mqh"
 
 class CDatabaseManager
 {

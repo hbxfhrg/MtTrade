@@ -10,7 +10,7 @@
 #include "ZigzagExtremumPoint.mqh"
 #include "ZigzagSegment.mqh"
 #include "CommonUtils.mqh"
-#include "LogUtil.mqh"
+#include "Logging\LogUtil.mqh"
 
 
 #include "TradeBasePoint.mqh"

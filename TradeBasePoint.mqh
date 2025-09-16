@@ -10,7 +10,7 @@
 #include "ZigzagSegment.mqh"
 #include "ZigzagSegmentManager.mqh"
 #include "CommonUtils.mqh"
-#include "LogUtil.mqh"
+#include "Logging\LogUtil.mqh"
 #include "EnumDefinitions.mqh"
 #include <Generic/HashMap.mqh>
 #include "KeyValueStore.mqh"

@@ -22,6 +22,7 @@
 #include "GlobalInstances.mqh"
 #include "ZigzagSegmentManager.mqh"
 #include "Strategies/CL001.mqh"
+#include "Database/DatabaseManager.mqh"
 
 //--- 输入参数（简化版本，专注于显示控制）
 input bool   InpShowLabels = true;        // 显示极值点标签
@@ -54,6 +55,9 @@ static bool       needRecalculateTradeAnalyzer = true;  // 是否需要重新计
 static int        lastMinute = -1;  // 上次检查的分钟数
 // 执行交易策略
 CStrategyCL001 strategy;
+
+//--- 数据库管理器
+CDatabaseManager dbManager;
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
@@ -422,24 +426,14 @@ void ProcessTradeAnalysisAndInfoPanel()
       {
          Print(logEntry);
          
-         // 写入日志文件
-         string logPath = "MtTradeLog.csv";
-         string fullPath = TerminalInfoString(TERMINAL_COMMONDATA_PATH) + "\\Files\\" + logPath;
-         Print("日志文件路径: ", fullPath);
-         
-         int fileHandle = FileOpen(logPath, FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON, ",");
-         if(fileHandle != INVALID_HANDLE)
+         // 保存到MySQL数据库
+         if(dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, eventType, volume, price, 0, 0, logEntry))
          {
-            FileSeek(fileHandle, 0, SEEK_END);
-            if(FileWrite(fileHandle, TimeToString(TimeCurrent()), logEntry) <= 0)
-            {
-               Print("写入日志文件失败: ", GetLastError());
-            }
-            FileClose(fileHandle);
+            Print("交易记录成功保存到MySQL数据库!");
          }
          else
          {
-            Print("打开日志文件失败: ", GetLastError());
+            Print("交易记录保存到数据库失败: ", dbManager.GetLastError());
          }
       }
    }

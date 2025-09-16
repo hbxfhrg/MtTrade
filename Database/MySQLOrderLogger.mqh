@@ -12,7 +12,17 @@ private:
    string m_database;
    string m_user;
    string m_password;
-   bool m_initialized;   
+   bool m_initialized;
+   
+   // 转义字符串中的特殊字符
+   string EscapeString(const string &str)
+   {
+      string result = str;
+      StringReplace(result, "'", "\\'");
+      StringReplace(result, "\"", "\\\"");
+      StringReplace(result, "\\", "\\\\");
+      return result;
+   }
    
 public:
    // 默认构造函数
@@ -92,9 +102,9 @@ public:
                                "entry_price, stop_loss, take_profit, expiry_time, order_ticket, " +
                                "comment, result, error_code) VALUES ('%s', '%s', '%s', %.2f, " +
                                "%.5f, %.5f, %.5f, FROM_UNIXTIME(%d), %d, '%s', '%s', %d)",
-                               eventType, symbol, orderType, volume,
+                               EscapeString(eventType), EscapeString(symbol), EscapeString(orderType), volume,
                                entryPrice, stopLoss, takeProfit, expiryTime, orderTicket,
-                             comment, result, errorCode);
+                               EscapeString(comment), EscapeString(result), errorCode);
       
       if(m_mysql.ExecSQL(sql) == STATUS_OK)
       {
