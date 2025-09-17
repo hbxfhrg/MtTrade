@@ -3,7 +3,6 @@
 //| 数据库管理器（使用MySQL数据库存储）                              |
 //+------------------------------------------------------------------+
 #include "MySQLOrderLogger.mqh"
-#include "libmysql.mqh"
 
 class CDatabaseManager
 {
@@ -12,16 +11,26 @@ private:
    string m_memoryLog;  // 内存日志存储
    
 public:
-   CDatabaseManager(string host = "rm-bp1dd16o34ktj6un0to.mysql.rds.aliyuncs.com", 
-                   string username = "saas", 
-                   string password = "Unic$!anb4agg1", 
+   CDatabaseManager(string host = "localhost", 
+                   string username = "root", 
+                   string password = "!Aa123456", 
                    string database = "pymt5", int port = 3306)
    {
       m_memoryLog = "";  // 初始化内存日志
+      // m_mysqlLogger.SetTrace(true); // 启用调试日志 (注释掉不存在的方法)
+      
       // 初始化MySQL连接
-      if(!m_mysqlLogger.Initialize(host, port, database, username, password))
+      if(!m_mysqlLogger.Initialize(host, (uint)port, database, username, password))
       {
-         Print("DatabaseManager: MySQL连接初始化失败");
+         Print("DatabaseManager: MySQL连接失败 - ", m_mysqlLogger.GetErrorDescription());
+      }
+      else
+      {
+         // 确保表存在
+         if(!EnsureTableExists())
+         {
+            Print("DatabaseManager: 无法确保表存在");
+         }
       }
    }
    
@@ -29,6 +38,58 @@ public:
    bool IsConnected() const
    {
       return m_mysqlLogger.IsInitialized();
+   }
+   
+   // 检查并维持连接
+   bool CheckConnection()
+   {
+      if(!IsConnected())
+      {
+         Print("尝试重新连接数据库...");
+         return m_mysqlLogger.Initialize();
+      }
+      return true;
+   }
+
+   // 确保表存在
+   bool EnsureTableExists()
+   {
+      if(!IsConnected()) 
+      {
+         Print("Database not connected");
+         return false;
+      }
+      
+      // 先检查表是否存在
+      if(m_mysqlLogger.CheckTableExists("order_logs")) 
+      {
+         Print("Table already exists");
+         return true;
+      }
+      
+      string createTableSQL = "CREATE TABLE IF NOT EXISTS order_logs (" +
+                             "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                             "event_time DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                             "event_type VARCHAR(20), " +
+                             "symbol VARCHAR(20), " +
+                             "order_type VARCHAR(20), " +
+                             "volume DOUBLE, " +
+                             "entry_price DOUBLE, " +
+                             "stop_loss DOUBLE, " +
+                             "take_profit DOUBLE, " +
+                             "expiry_time VARCHAR(50), " +
+                             "order_ticket BIGINT, " +
+                             "comment TEXT, " +
+                             "result TEXT, " +
+                             "error_code INT" +
+                             ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+      
+      bool result = m_mysqlLogger.CreateTable("order_logs", createTableSQL);
+      if(!result) 
+      {
+         Print("Create table failed: ", m_mysqlLogger.GetErrorDescription());
+      }
+      return result;
    }
    
    // 将交易记录保存到内存日志
@@ -56,7 +117,7 @@ public:
    
    // 将交易记录保存到MySQL数据库
    bool LogTradeToMySQL(int time, string symbol, string type, 
-                      double volume, double price, double sl, double tp, string comment)
+                      double volume, double price, double sl, double tp, ulong orderTicket, string comment)
    {
       string timeStr = TimeToString(time);
       
@@ -64,16 +125,10 @@ public:
       LogToMemory(timeStr, symbol, type, DoubleToString(volume), DoubleToString(price), 
                  DoubleToString(sl), DoubleToString(tp), comment);
       
-      // 转换数据类型
-      double dVolume = volume;
-      double dPrice = price;
-      double dSL = sl;
-      double dTP = tp;
-      
       // 记录到MySQL数据库
       bool success = m_mysqlLogger.LogOrderEvent(
-         "TRADE", symbol, type, dVolume, dPrice, dSL, dTP,
-         0, 0, comment, "Trade executed successfully", 0
+         "TRADE", symbol, type, volume, price, sl, tp,
+         time, orderTicket, comment, "Trade executed successfully", 0
       );
       
       // 输出内存日志
@@ -121,12 +176,12 @@ public:
    // 获取最后错误信息
    string GetLastError() const
    {
-      return m_mysqlLogger.GetLastError();
+      return m_mysqlLogger.GetErrorDescription();
    }
    
    // 获取最后错误代码
    int GetLastErrorCode() const
    {
-      return m_mysqlLogger.GetLastErrorCode();
+      return m_mysqlLogger.GetLastError();
    }
 };

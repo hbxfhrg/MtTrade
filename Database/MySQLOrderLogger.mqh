@@ -1,12 +1,13 @@
-﻿#property copyright "Copyright 2024"
 #property version   "1.00"
+#include "MQLMySQLClass.mqh"
 
-#include "libmysql.mqh"
+#define STATUS_OK 0
+#define STATUS_ERROR -1
 
 class CMySQLOrderLogger
 {
 private:
-   CMySQL_Connection m_mysql;
+   CMySQL m_mysql;
    string m_host;
    uint m_port;
    string m_database;
@@ -14,15 +15,7 @@ private:
    string m_password;
    bool m_initialized;
    
-   // 转义字符串中的特殊字符
-   string EscapeString(const string &str)
-   {
-      string result = str;
-      StringReplace(result, "'", "\\'");
-      StringReplace(result, "\"", "\\\"");
-      StringReplace(result, "\\", "\\\\");
-      return result;
-   }
+   
    
 public:
    // 默认构造函数
@@ -35,15 +28,10 @@ public:
    
    bool Initialize()
    {
-      if(!m_mysql.Init())
+      // 初始化MySQL连接
+      if(!m_mysql.Connect(m_host, m_user, m_password, m_database, (int)m_port, "", 0))
       {
-         Print("MySQLOrderLogger: 初始化失败 - ", m_mysql.GetErrorDescription());
-         return false;
-      }
-      
-      if(!m_mysql.Connect(m_host, m_port, m_database, m_user, m_password))
-      {
-         Print("MySQLOrderLogger: 连接失败 - ", m_mysql.GetErrorDescription(), " (错误码: ", m_mysql.GetLastError(), ")");
+         Print("MySQLOrderLogger: 连接失败 - ", m_mysql.LastErrorMessage(), " (错误码: ", m_mysql.LastError(), ")");
          return false;
       }
       
@@ -58,17 +46,23 @@ public:
                              "entry_price DOUBLE, " +
                              "stop_loss DOUBLE, " +
                              "take_profit DOUBLE, " +
-                             "expiry_time DATETIME, " +
+                             "expiry_time VARCHAR(50), " +
                              "order_ticket BIGINT, " +
                              "comment TEXT, " +
                              "result TEXT, " +
                              "error_code INT" +
                              ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
       
-      if(m_mysql.ExecSQL(createTableSQL) != STATUS_OK)
+      if(!m_mysql.Execute(createTableSQL))
       {
-         Print("MySQLOrderLogger: 创建表失败 - ", m_mysql.GetErrorDescription());
+         Print("MySQLOrderLogger: 创建表失败 - ", m_mysql.LastErrorMessage());
          return false;
+      }
+      
+      // 设置连接字符集为UTF8
+      if(!m_mysql.Execute("SET NAMES utf8mb4"))
+      {
+         Print("MySQLOrderLogger: 设置字符集失败 - ", m_mysql.LastErrorMessage());
       }
       
       m_initialized = true;
@@ -88,6 +82,8 @@ public:
       return Initialize();
    }
    
+
+   
    bool LogOrderEvent(string eventType, string symbol, string orderType, double volume,
                      double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
                      ulong orderTicket, string comment, string result, int errorCode)
@@ -97,22 +93,79 @@ public:
          Print("MySQLOrderLogger: 未初始化");
          return false;
       }
-      
-      string sql = StringFormat("INSERT INTO order_logs (event_type, symbol, order_type, volume, " +
-                               "entry_price, stop_loss, take_profit, expiry_time, order_ticket, " +
-                               "comment, result, error_code) VALUES ('%s', '%s', '%s', %.2f, " +
-                               "%.5f, %.5f, %.5f, FROM_UNIXTIME(%d), %d, '%s', '%s', %d)",
-                               EscapeString(eventType), EscapeString(symbol), EscapeString(orderType), volume,
-                               entryPrice, stopLoss, takeProfit, expiryTime, orderTicket,
-                               EscapeString(comment), EscapeString(result), errorCode);
-      
-      if(m_mysql.ExecSQL(sql) == STATUS_OK)
+
+      // 转义字符串参数以防止SQL注入
+      string escapedEventType = eventType;
+      string escapedSymbol = symbol;
+      string escapedOrderType = orderType;
+      string escapedComment = comment;
+      string escapedResult = result;
+
+      StringReplace(escapedEventType, "'", "''");
+      StringReplace(escapedSymbol, "'", "''");
+      StringReplace(escapedOrderType, "'", "''");
+      StringReplace(escapedComment, "'", "''");
+      StringReplace(escapedResult, "'", "''");
+
+      // 使用参数化查询防止SQL注入
+      string sql = StringFormat(
+         "INSERT INTO order_logs "
+         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, expiry_time, order_ticket, comment, result, error_code) "
+         "VALUES (" 
+         "'%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, '%s', %d, '%s', '%s', %d"
+         ")",
+         escapedEventType, escapedSymbol, escapedOrderType, volume,
+         entryPrice, stopLoss, takeProfit, 
+         TimeToString(expiryTime, TIME_DATE|TIME_MINUTES), 
+         orderTicket, escapedComment, escapedResult, errorCode
+      );
+                               
+      // 打印SQL语句用于核对
+      Print("即将执行的SQL语句: ", sql);
+
+      // 执行SQL并获取详细错误信息
+      if(m_mysql.Execute(sql))
       {
          return true;
       }
       else
       {
-         Print("MySQLOrderLogger: 记录事件失败 - ", m_mysql.GetErrorDescription(), " (错误码: ", m_mysql.GetLastError(), ")");
+         string errorDesc = m_mysql.LastErrorMessage();
+         int error = m_mysql.LastError();
+         
+         Print("MySQLOrderLogger: 记录事件失败 - ", errorDesc, " (错误码: ", error, ")");
+         Print("失败SQL语句: ", sql);
+         
+         // 特殊处理"Commands out of sync"错误
+         if(error == 2014)
+         {
+            Print("检测到Commands out of sync错误，尝试重新连接数据库...");
+            // 先关闭现有连接
+            Close();
+            // 尝试重新初始化连接
+            if(Initialize())
+            {
+               Print("重新连接成功，再次尝试执行SQL语句...");
+               if(m_mysql.Execute(sql))
+               {
+                  Print("重新执行SQL语句成功");
+                  return true;
+               }
+               else
+               {
+                  Print("重新执行SQL语句仍然失败: ", m_mysql.LastErrorMessage(), " (错误码: ", m_mysql.LastError(), ")");
+               }
+            }
+            else
+            {
+               Print("重新连接数据库失败: ", m_mysql.LastErrorMessage(), " (错误码: ", m_mysql.LastError(), ")");
+            }
+         }
+         // 如果是语法错误，打印更详细的信息
+         else if(error == 1064)
+         {
+            Print("请检查SQL语法，特别是字符串值和引号的使用");
+         }
          return false;
       }
    }
@@ -173,26 +226,78 @@ public:
    
    bool IsInitialized() const { return m_initialized; }
    
-   // 获取最后错误信息
-   string GetLastError() const
+   // 检查表是否存在
+   bool CheckTableExists(const string tableName)
    {
-      return m_mysql.GetErrorDescription();
+      if(!m_initialized) return false;
+      string sql = StringFormat("SELECT 1 FROM %s LIMIT 1", tableName);
+      return m_mysql.Execute(sql);
+   }
+   
+   // 创建表
+   bool CreateTable(const string tableName, const string createSQL)
+   {
+      if(!m_initialized) return false;
+      return m_mysql.Execute(createSQL);
+   }
+   
+   // 获取最后错误信息
+   string GetErrorDescription() const
+   {
+      return m_mysql.LastErrorMessage();
    }
    
    // 获取最后错误代码
-   int GetLastErrorCode() const
+   int GetLastError() const
    {
-      return m_mysql.GetLastError();
+      return m_mysql.LastError();
    }
-   
+
    void Close()
    {
-      m_mysql.Close();
+      m_mysql.Disconnect();
       m_initialized = false;
    }
    
    ~CMySQLOrderLogger()
    {
       Close();
+   }
+
+   // 数据库操作测试函数
+   static void TestDatabaseOperations()
+   {
+      Print("=== 开始数据库测试 ===");
+      
+      // 1. 测试连接
+      CMySQLOrderLogger tester;
+      if(!tester.Initialize("rm-bp1dd16o34ktj6un0to.mysql.rds.aliyuncs.com", 
+                      3306, "pymt5", "saas", "Unic$!anb4agg1"))
+      {
+         Print("测试失败: 无法连接数据库");
+         return;
+      }
+      Print("测试通过: 数据库连接成功");
+      
+      // 2. 测试插入操作
+      datetime testTime = TimeCurrent();
+      string testSymbol = "TEST" + IntegerToString(GetTickCount() % 1000);
+      bool insertResult = tester.LogOrderEvent(
+         "TEST", testSymbol, "TEST_ORDER", 1.0,
+         100.0, 99.0, 101.0, testTime, 
+         999999, "测试订单", "测试成功", 0
+      );
+      
+      if(!insertResult)
+      {
+         Print("测试失败: 插入操作失败 - ", tester.GetErrorDescription());
+         return;
+      }
+      Print("测试通过: 插入操作成功");
+      
+      // 3. 测试查询验证
+      // 这里可以添加查询验证代码，确认数据已插入
+      
+      Print("=== 数据库测试完成 ===");
    }
 };

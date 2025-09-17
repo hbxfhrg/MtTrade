@@ -264,11 +264,8 @@ public:
    }
    
    // 交易事件处理（应该在EA的OnTrade事件中调用）
-   void OnTrade()
+   void OnTrade(CDatabaseManager &dbManager)
    {
-      // 使用数据库管理器记录交易
-      static CDatabaseManager dbManager("rm-bp1dd16o34ktj6un0to.mysql.rds.aliyuncs.com", "pymt5", "Unic$!anb4agg1", "saas", 3306);
-      
       // 记录OnTrade事件触发
       Print("OnTrade事件被触发");
       
@@ -300,7 +297,7 @@ public:
             if(!dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, "ORDER_" + type, 
                DoubleToString(volume,2), DoubleToString(price,_Digits),
                DoubleToString(sl,_Digits), DoubleToString(tp,_Digits), 
-               comment + " (Order Update)"))
+               orderInfo.Ticket(), comment + " (Order Update)"))
             {
                Print("挂单记录保存失败: ", dbManager.GetLastError());
             }
@@ -332,7 +329,7 @@ public:
                if(!dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, "POSITION_" + type, 
                   DoubleToString(volume,2), DoubleToString(price,_Digits),
                   DoubleToString(sl,_Digits), DoubleToString(tp,_Digits), 
-                  comment + " (Position Update)"))
+                  positionInfo.Ticket(), comment + " (Position Update)"))
                {
                   Print("持仓记录保存失败: ", dbManager.GetLastError());
                }
@@ -346,7 +343,7 @@ public:
       {
          Print("没有检测到CL001策略相关的活动订单或持仓");
          if(!dbManager.LogTradeToMySQL((int)TimeCurrent(), Symbol(), "TRADE_EVENT", 
-            "0.00", "0.00000", "0.00000", "0.00000", "Trade event triggered - no active orders"))
+            "0.00", "0.00000", "0.00000", "0.00000", 0, "Trade event triggered - no active orders"))
          {
             Print("交易事件记录保存失败: ", dbManager.GetLastError());
          }

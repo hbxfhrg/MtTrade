@@ -375,46 +375,64 @@ void ProcessTradeAnalysisAndInfoPanel()
                           const MqlTradeRequest &request,
                           const MqlTradeResult &result)
    {
-      // 处理所有交易事件类型
+      // 处理所有交易事件类型 - 主要从trans参数获取实时数据
       string eventType = "";
       string logEntry = "";
-      ulong dealTicket = 0;
-      ENUM_DEAL_ENTRY entryType = 0;
       string symbol = "";
       double volume = 0.0;
       double price = 0.0;
+      ENUM_ORDER_TYPE orderType = 0;
+      ENUM_DEAL_ENTRY entryType = 0;
       
       switch(trans.type)
       {
          case TRADE_TRANSACTION_DEAL_ADD: // 订单成交
             eventType = "订单成交";
-            dealTicket = trans.deal;
-            if(HistoryDealSelect(dealTicket))
-            {
-               entryType = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
-               symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
-               volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
-               price = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
-               logEntry = StringFormat("[交易日志] %s #%d 品种:%s 方向:%s 手数:%.2f 价格:%.5f",
-                     eventType, dealTicket, symbol, EnumToString(entryType), volume, price);
-            }
+            // 从trans参数获取交易信息
+            symbol = trans.symbol;
+            price = trans.price;
+            volume = trans.volume;
+            // 根据deal_type判断交易方向
+            if(trans.deal_type == DEAL_TYPE_BUY)
+               entryType = DEAL_ENTRY_IN;
+            else if(trans.deal_type == DEAL_TYPE_SELL)
+               entryType = DEAL_ENTRY_OUT;
+            
+            logEntry = StringFormat("订单成交 %s #%d 品种:%s 方向:%s 手数:%.2f 价格:%.5f",
+                  eventType, trans.deal, symbol, EnumToString(entryType), volume, price);
             break;
             
          case TRADE_TRANSACTION_ORDER_ADD: // 挂单
             eventType = "挂单";
-            logEntry = StringFormat("[交易日志] %s #%d 品种:%s 类型:%s 手数:%.2f 价格:%.5f",
-                  eventType, trans.order, request.symbol, EnumToString(request.type), request.volume, request.price);
+            symbol = trans.symbol;
+            price = trans.price;
+            volume = trans.volume;
+            orderType = trans.order_type;
+            logEntry = StringFormat("挂单 %s #%d 品种:%s 类型:%s 手数:%.2f 价格:%.5f",
+                  eventType, trans.order, symbol, EnumToString(orderType), volume, price);
             break;
             
          case TRADE_TRANSACTION_ORDER_DELETE: // 取消订单
             eventType = "取消订单";
-            logEntry = StringFormat("[交易日志] %s #%d", eventType, trans.order);
+            symbol = trans.symbol;
+            logEntry = StringFormat("取消订单 %s #%d 品种:%s", eventType, trans.order, symbol);
             break;
             
          case TRADE_TRANSACTION_ORDER_UPDATE: // 修改订单
             eventType = "修改订单";
-            logEntry = StringFormat("[交易日志] %s #%d 新价格:%.5f", 
-                  eventType, trans.order, request.price);
+            symbol = trans.symbol;
+            price = trans.price;
+            logEntry = StringFormat("修改订单 %s #%d 品种:%s 新价格:%.5f", 
+                  eventType, trans.order, symbol, price);
+            break;
+            
+         case TRADE_TRANSACTION_HISTORY_ADD: // 历史记录添加
+            eventType = "历史记录";
+            symbol = trans.symbol;
+            price = trans.price;
+            volume = trans.volume;
+            logEntry = StringFormat("历史记录添加 %s #%d 品种:%s 手数:%.2f 价格:%.5f",
+                  eventType, trans.deal, symbol, volume, price);
             break;
             
          default:
@@ -427,13 +445,13 @@ void ProcessTradeAnalysisAndInfoPanel()
          Print(logEntry);
          
          // 保存到MySQL数据库
-         if(dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, eventType, volume, price, 0, 0, logEntry))
+         if(dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, eventType, volume, price, 0, 0, trans.order, ""))
          {
-            Print("交易记录成功保存到MySQL数据库!");
+            Print("实时交易记录成功保存到MySQL数据库!");
          }
          else
          {
-            Print("交易记录保存到数据库失败: ", dbManager.GetLastError());
+            Print("实时交易记录保存到数据库失败: ", dbManager.GetLastError());
          }
       }
    }
