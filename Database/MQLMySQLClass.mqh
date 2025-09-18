@@ -1,188 +1,203 @@
-#define MQLMYSQL_TRACER "TRACE: " // Prefix for tracer messages
+//+------------------------------------------------------------------+
+//| MQLMySQLClass.mqh                                                |
+//|                                                                  |
+//| 这个文件定义了用于连接和操作MySQL数据库的类                      |
+//|                                                                  |
+//+------------------------------------------------------------------+
+#define MQLMYSQL_TRACER "跟踪: " // 跟踪消息前缀
+
 #import "MQLMySQL.dll"
+    // 获取MySqlCursor.dll库的版本
+    string cMySqlVersion ();
+    
+    // 获取连接的最后错误编号
+    int    cGetMySqlErrorNumber(int pConnection);
+    
+    // 获取游标的最后错误编号
+    int    cGetCursorErrorNumber(int pCursorID);
+    
+    // 获取连接的最后错误描述
+    string cGetMySqlErrorDescription(int pConnection);
+    
+    // 获取游标的最后错误描述
+    string cGetCursorErrorDescription(int pCursorID);
+    
+    // 建立到MySQL数据库服务器的连接并返回连接标识符
+    int    cMySqlConnect(string pHost,       // 主机名
+                         string pUser,       // 用户名
+                         string pPassword,   // 密码
+                         string pDatabase,   // 数据库名
+                         int    pPort,       // 端口
+                         string pSocket,     // Unix套接字
+                         int    pClientFlag);// 客户端标志
+                         
+    // 关闭数据库连接
+    void   cMySqlDisconnect(int pConnection);   // pConnection - 数据库标识符（指向结构的指针）
+    
+    // 执行非SELECT语句
+    bool   cMySqlExecute(int    pConnection, // pConnection - 数据库标识符（指向结构的指针）
+                         string pQuery);     // pQuery      - 要执行的SQL查询
+                         
+    // 基于SELECT语句创建游标并返回游标标识符
+    int    cMySqlCursorOpen(int    pConnection, // pConnection - 数据库标识符（指向结构的指针）
+                            string pQuery);     // pQuery      - 要执行的SELECT语句
+                            
+    // 关闭已打开的游标
+    void   cMySqlCursorClose(int pCursorID);     // pCursorID  - 内部游标标识符
+    
+    // 返回游标选择的行数
+    int    cMySqlCursorRows(int pCursorID);     // pCursorID  - 内部游标标识符
+    
+    // 从游标获取下一行到当前行缓冲区
+    bool   cMySqlCursorFetchRow(int pCursorID);     // pCursorID  - 内部游标标识符
+    
+    // 从游标获取的当前行中检索值
+    string cMySqlGetRowField(int pCursorID,   // pCursorID  - 内部游标标识符
+                             int pField);     // pField     - SELECT子句中的字段编号（从0,1,2...开始）
+                             
+    // 返回上次DML操作（INSERT/UPDATE/DELETE）影响的行数
+    int cMySqlRowsAffected(int pConnection);
+    
+    // 从标准INI文件中读取并返回键值
+    string ReadIni(string pFileName,   // INI文件名
+                   string pSection,    // 节名称
+                   string pKey);       // 键名称
+#import
 
-// returns version of MySqlCursor.dll library
-string cMySqlVersion ();
-
-// number of last error of connection
-int    cGetMySqlErrorNumber(int pConnection);
-
-// number of last error of cursor
-int    cGetCursorErrorNumber(int pCursorID);
-
-// description of last error for connection
-string cGetMySqlErrorDescription(int pConnection);
-
-// description of last error for cursor
-string cGetCursorErrorDescription(int pCursorID);
-
-// establish connection to MySql database server
-// and return connection identifier
-int    cMySqlConnect       (string pHost,       // Host name
-                            string pUser,       // User
-                            string pPassword,   // Password
-                            string pDatabase,   // Database name
-                            int    pPort,       // Port
-                            string pSocket,     // Socket for Unix
-                            int    pClientFlag);// Client flag
-// closes connection to database
-void   cMySqlDisconnect    (int pConnection);   // pConnection - database identifier (pointer to structure)
-// executes non-SELECT statements
-bool   cMySqlExecute       (int    pConnection, // pConnection - database identifier (pointer to structure)
-                            string pQuery);     // pQuery      - SQL query for execution
-// creates an cursor based on SELECT statement
-// return valuse - cursor identifier
-int    cMySqlCursorOpen    (int    pConnection, // pConnection - database identifier (pointer to structure)
-                            string pQuery);     // pQuery      - SELECT statement for execution
-// closes opened cursor
-void   cMySqlCursorClose   (int pCursorID);     // pCursorID  - internal identifier of cursor
-// return number of rows was selected by cursor
-int    cMySqlCursorRows    (int pCursorID);     // pCursorID  - internal identifier of cursor
-// fetch next row from cursor into current row buffer
-// return true - if succeeded, otherwise - false
-bool   cMySqlCursorFetchRow(int pCursorID);     // pCursorID  - internal identifier of cursor
-// retrieves the value from current row was fetched by cursor
-string cMySqlGetRowField   (int    pCursorID,   // pCursorID  - internal identifier of cursor
-                            int    pField);     // pField     - number of field in SELECT clause (started from 0,1,2... e.t.c.)
-
-// return the number of rows affected by last DML operation (INSERT/UPDATE/DELETE)
-int cMySqlRowsAffected (int pConnection);      
-
-// Reads and returns the key value from standard INI-file
-string ReadIni             (string pFileName,   // INI-filename
-                            string pSection,    // name of section
-                            string pKey);       // name of key
-
+//+------------------------------------------------------------------+
+//| CMySQL类                                                         |
+//| 用于处理MySQL数据库连接和基本操作                                |
+//+------------------------------------------------------------------+
 class CMySQL
 {
- private:
-       bool     SQLTrace;
-       datetime MySqlLastConnect;
-       int      MySqlErrorNumber;       // recent MySQL error number
-       string   MySqlErrorDescription;  // recent MySQL error description
-       int      ConnectID;              // ID of database connection
-       // database internal credentials can be set by SetCredentials or loaded from INI file by LoadCredentials
-       bool     vCredentialsSet;
-       string   vHost;
-       string   vUser;
-       string   vPassword;
-       string   vDatabase;
-       int      vPort;
-       string   vSocket;
-       int      vClientFlag;
-       
-       // just to clear error buffer before any function started its functionality
-       void ClearErrors()
-       {
+private:
+    bool     SQLTrace;               // SQL跟踪开关
+    datetime MySqlLastConnect;       // 最后连接时间
+    int      MySqlErrorNumber;       // 最近的MySQL错误编号
+    string   MySqlErrorDescription;  // 最近的MySQL错误描述
+    int      ConnectID;              // 数据库连接ID
+    bool     vCredentialsSet;        // 数据库凭证是否已设置
+    string   vHost;                  // 主机
+    string   vUser;                  // 用户名
+    string   vPassword;              // 密码
+    string   vDatabase;              // 数据库名
+    int      vPort;                  // 端口
+    string   vSocket;                // 套接字
+    int      vClientFlag;            // 客户端标志
+    
+    // 在任何函数开始其功能之前清除错误缓冲区
+    void ClearErrors()
+    {
         MySqlErrorNumber = 0;
-        MySqlErrorDescription = "No errors.";
-       }
- public:
-       CMySQL(void)
-       {
-        // constructor
-        SQLTrace = false; // Trace is disabled by default
+        MySqlErrorDescription = "无错误。";
+    }
+    
+public:
+    // 构造函数
+    CMySQL(void)
+    {
+        SQLTrace = false;          // 默认禁用跟踪
         MySqlLastConnect = 0;
-        vCredentialsSet = false; // database credentials are not set by default
-        ConnectID = -1; // database is not connected by default
+        vCredentialsSet = false;   // 默认未设置数据库凭证
+        ConnectID = -1;            // 默认未连接数据库
         ClearErrors();
-       }
-       
-       ~CMySQL(void)
-       {
-        // destructor
-        SQLTrace = false; // Trace is disabled by default
+    }
+    
+    // 析构函数
+    ~CMySQL(void)
+    {
+        SQLTrace = false;          // 默认禁用跟踪
         MySqlLastConnect = 0;
-        vCredentialsSet = false; // database credentials are not set by default
-        if (ConnectID>=0) Disconnect();
+        vCredentialsSet = false;   // 默认未设置数据库凭证
+        if (ConnectID >= 0) Disconnect();
         ClearErrors();
-       }
-       
-       // Set tracing state
-       // pState = true for debug
-       //           false for release
-       void SetTrace(bool pState)
-       {
+    }
+    
+    // 设置跟踪状态
+    // pState = true 用于调试
+    //          false 用于发布
+    void SetTrace(bool pState)
+    {
         SQLTrace = pState;
-       }
-       
-       // Return the version of MQLMySQL library
-       string DllVersion()
-       {
+    }
+    
+    // 返回MQLMySQL库的版本
+    string DllVersion()
+    {
         return(cMySqlVersion());
-       }
-       
-       // Interface function Connect - make connection to MySQL database using parameter:
-       // pHost       - DNS name or IP-address
-       // pUser       - database user (f.e. root)
-       // pPassword   - password of user (f.e. Zok1LmVdx)
-       // pDatabase   - database name (f.e. metatrader)
-       // pPort       - TCP/IP port of database listener (f.e. 3306)
-       // pSocket     - unix socket (for sockets or named pipes using)
-       // pClientFlag - combination of the flags for features (usual 0)
-       // ------------------------------------------------------------------------------------
-       // RETURN      - database connection identifier
-       //               if return value = 0, check MySqlErrorNumber and MySqlErrorDescription
-       bool Connect(string pHost, string pUser, string pPassword, string pDatabase, int pPort, string pSocket, int pClientFlag)
-       {
+    }
+    
+    // 接口函数Connect - 使用参数连接到MySQL数据库：
+    // pHost       - DNS名称或IP地址
+    // pUser       - 数据库用户（例如root）
+    // pPassword   - 用户密码（例如Zok1LmVdx）
+    // pDatabase   - 数据库名称（例如metatrader）
+    // pPort       - 数据库监听器的TCP/IP端口（例如3306）
+    // pSocket     - unix套接字（用于套接字或命名管道）
+    // pClientFlag - 功能标志的组合（通常为0）
+    // ------------------------------------------------------------------------------------
+    // 返回值      - 数据库连接标识符
+    //               如果返回值为0，请检查MySqlErrorNumber和MySqlErrorDescription
+    bool Connect(string pHost, string pUser, string pPassword, string pDatabase, int pPort, string pSocket, int pClientFlag)
+    {
         SetCredentials(pHost, pUser, pPassword, pDatabase, pPort, pSocket, pClientFlag);
         return (Connect());
-       } // Connect
-       
-       // Interface function Connect - make connection to MySQL database using internal credentials (loaded or set)
-       bool Connect(void)
-       {
+    }
+    
+    // 接口函数Connect - 使用内部凭证（已加载或设置）连接到MySQL数据库
+    bool Connect(void)
+    {
         int connection;
         ClearErrors();
         
         if (!vCredentialsSet)
         {
-         MySqlErrorNumber = -8;
-         MySqlErrorDescription = "No database credentials.";
-         if (SQLTrace) Print (MQLMYSQL_TRACER, "Connection error #", MySqlErrorNumber, " ", MySqlErrorDescription);
-         return (false);
+            MySqlErrorNumber = -8;
+            MySqlErrorDescription = "未设置数据库凭证。";
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "连接错误 #", MySqlErrorNumber, " ", MySqlErrorDescription);
+            return (false);
         }
         
         if (ConnectID >= 0)
         {
-         // Connection is already exists
-         MySqlErrorNumber = -7;
-         MySqlErrorDescription = "Connection already exists.";
-         if (SQLTrace) Print (MQLMYSQL_TRACER, "Connection error #", MySqlErrorNumber, " ", MySqlErrorDescription);
-         return (false);
+            // 连接已存在
+            MySqlErrorNumber = -7;
+            MySqlErrorDescription = "连接已存在。";
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "连接错误 #", MySqlErrorNumber, " ", MySqlErrorDescription);
+            return (false);
         }
         
         connection = cMySqlConnect(vHost, vUser, vPassword, vDatabase, vPort, vSocket, vClientFlag);
 
-        if (SQLTrace) Print (MQLMYSQL_TRACER, "Connecting to Host=", vHost, ", User=", vUser, ", Database=", vDatabase, " DBID#", connection);
+        if (SQLTrace) Print(MQLMYSQL_TRACER, "正在连接到 主机=", vHost, ", 用户=", vUser, ", 数据库=", vDatabase, " 数据库ID#", connection);
 
         if (connection == -1)
         {
-         MySqlErrorNumber = cGetMySqlErrorNumber(-1);
-         MySqlErrorDescription = cGetMySqlErrorDescription(-1);
-         if (SQLTrace) Print (MQLMYSQL_TRACER, "Connection error #", MySqlErrorNumber, " ", MySqlErrorDescription);
-         return (false);
+            MySqlErrorNumber = cGetMySqlErrorNumber(-1);
+            MySqlErrorDescription = cGetMySqlErrorDescription(-1);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "连接错误 #", MySqlErrorNumber, " ", MySqlErrorDescription);
+            return (false);
         }
 
         MySqlLastConnect = TimeCurrent();
-        if (SQLTrace) Print (MQLMYSQL_TRACER, "Connected! DBID#", connection);
+        if (SQLTrace) Print(MQLMYSQL_TRACER, "已连接! 数据库ID#", connection);
         
         ConnectID = connection;
 
-        // SET UTF8 CHARSET FOR CONNECTION
+        // 为连接设置UTF8字符集
         if (!Execute("SET NAMES UTF8"))
         {
-         MySqlErrorNumber = cGetMySqlErrorNumber(-1);
-         MySqlErrorDescription = cGetMySqlErrorDescription(-1);
-         if (SQLTrace) Print (MQLMYSQL_TRACER, "'SET NAMES UTF8' error #", MySqlErrorNumber, " ", MySqlErrorDescription);
+            MySqlErrorNumber = cGetMySqlErrorNumber(-1);
+            MySqlErrorDescription = cGetMySqlErrorDescription(-1);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "'SET NAMES UTF8' 错误 #", MySqlErrorNumber, " ", MySqlErrorDescription);
         }
         
         return (true);
-       } // Connect
-
-       // Set database credentials for further connection
-       void SetCredentials(string pHost, string pUser, string pPassword, string pDatabase, int pPort, string pSocket, int pClientFlag)
-       {
+    }
+    
+    // 为后续连接设置数据库凭证
+    void SetCredentials(string pHost, string pUser, string pPassword, string pDatabase, int pPort, string pSocket, int pClientFlag)
+    {
         vHost = pHost;
         vUser = pUser;
         vPassword = pPassword;
@@ -191,14 +206,14 @@ class CMySQL
         vSocket = pSocket;
         vClientFlag = pClientFlag;
         vCredentialsSet = true;
-       } // SetCredentials
-
-       // Load database credentials for further connection from standard INI file
-       // INI file must have section MYSQL and keys Host, User, Password, Database, Port, Socket, ClientFlag
-       /*
-       void LoadCredentials(string p_ini_file)
-       {
-        // reading database credentials from INI file
+    }
+    
+    // 从标准INI文件加载数据库凭证用于后续连接
+    // INI文件必须有MYSQL节和键 Host, User, Password, Database, Port, Socket, ClientFlag
+    /*
+    void LoadCredentials(string p_ini_file)
+    {
+        // 从INI文件读取数据库凭证
         // vHost = ReadIni(p_ini_file, "MYSQL", "Host");
         // vUser = ReadIni(p_ini_file, "MYSQL", "User");
         // vPassword = ReadIni(p_ini_file, "MYSQL", "Password");
@@ -207,270 +222,274 @@ class CMySQL
         // vSocket   = ReadIni(p_ini_file, "MYSQL", "Socket");
         // vClientFlag = (int)StringToInteger(ReadIni(p_ini_file, "MYSQL", "ClientFlag"));  
 
-        // if (SQLTrace) Print (MQLMYSQL_TRACER, "Loaded '", p_ini_file, "'> Host: ", vHost, ", User: ", vUser, ", Database: ", vDatabase);
+        // if (SQLTrace) Print (MQLMYSQL_TRACER, "已加载 '", p_ini_file, "'> 主机: ", vHost, ", 用户: ", vUser, ", 数据库: ", vDatabase);
         // vCredentialsSet = true;
-       } // LoadCredentials
-       */
-
-       // Interface function Disconnect - closes connection to database
-       // When no connection was established - nothing happends
-       void Disconnect(void)
-       {
+    }
+    */
+    
+    // 接口函数Disconnect - 关闭数据库连接
+    // 如果未建立连接，则不执行任何操作
+    void Disconnect(void)
+    {
         ClearErrors();
         if (ConnectID != -1) 
         {
-         cMySqlDisconnect(ConnectID);
-         if (SQLTrace) Print (MQLMYSQL_TRACER, "DBID#", ConnectID, " disconnected");
-         ConnectID = -1;
+            cMySqlDisconnect(ConnectID);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "数据库ID#", ConnectID, " 已断开连接");
+            ConnectID = -1;
         }
-       } // Disconnect
-
-       // Interface function Execute - executes SQL query (DML/DDL/DCL operations, MySQL commands)
-       // pQuery      - SQL query
-       // ------------------------------------------------------
-       // RETURN      - true : when execution succeded
-       //             - false: when any error was raised (see MySqlErrorNumber, MySqlErrorDescription)
-       bool Execute(string pQuery)
-       {
+    }
+    
+    // 接口函数Execute - 执行SQL查询（DML/DDL/DCL操作，MySQL命令）
+    // pQuery      - SQL查询
+    // ------------------------------------------------------
+    // 返回值      - true : 执行成功
+    //             - false: 出现任何错误（请参见MySqlErrorNumber, MySqlErrorDescription）
+    bool Execute(string pQuery)
+    {
         ClearErrors();
-        if (SQLTrace) Print (MQLMYSQL_TRACER, "DBID#", ConnectID, ", CMD:", pQuery);
+        if (SQLTrace) Print(MQLMYSQL_TRACER, "数据库ID#", ConnectID, ", 命令:", pQuery);
         if (ConnectID == -1) 
         {
-         // no connection
-         MySqlErrorNumber = -2;
-         MySqlErrorDescription = "No connection to the database.";
-         if (SQLTrace) Print (MQLMYSQL_TRACER, "CMD>", MySqlErrorNumber, ": ", MySqlErrorDescription);
-         return (false);
+            // 无连接
+            MySqlErrorNumber = -2;
+            MySqlErrorDescription = "未连接到数据库。";
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "命令>", MySqlErrorNumber, ": ", MySqlErrorDescription);
+            return (false);
         }
 
         if (!cMySqlExecute(ConnectID, pQuery))
         {
-         MySqlErrorNumber = cGetMySqlErrorNumber(ConnectID);
-         MySqlErrorDescription = cGetMySqlErrorDescription(ConnectID);
-         if (SQLTrace) Print (MQLMYSQL_TRACER, "CMD>", MySqlErrorNumber, ": ", MySqlErrorDescription);
-         return (false);
+            MySqlErrorNumber = cGetMySqlErrorNumber(ConnectID);
+            MySqlErrorDescription = cGetMySqlErrorDescription(ConnectID);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "命令>", MySqlErrorNumber, ": ", MySqlErrorDescription);
+            return (false);
         }
         
         // 添加额外的错误检查，确保没有未处理的结果集
         int errorCode = cGetMySqlErrorNumber(ConnectID);
         if (errorCode != 0)
         {
-         MySqlErrorNumber = errorCode;
-         MySqlErrorDescription = cGetMySqlErrorDescription(ConnectID);
-         if (SQLTrace) Print (MQLMYSQL_TRACER, "CMD>", MySqlErrorNumber, ": ", MySqlErrorDescription);
-         // 如果是"Commands out of sync"错误(2014)，尝试重新连接
-         if (errorCode == 2014)
-         {
-          if (SQLTrace) Print (MQLMYSQL_TRACER, "Commands out of sync error detected, attempting to reconnect...");
-          Disconnect();
-          // 重置连接状态，确保可以重新连接
-          ConnectID = -1;
-          if (Connect())
-          {
-           // 重新连接成功后再次尝试执行查询
-           if (!cMySqlExecute(ConnectID, pQuery))
-           {
-            MySqlErrorNumber = cGetMySqlErrorNumber(ConnectID);
+            MySqlErrorNumber = errorCode;
             MySqlErrorDescription = cGetMySqlErrorDescription(ConnectID);
-            if (SQLTrace) Print (MQLMYSQL_TRACER, "CMD>", MySqlErrorNumber, ": ", MySqlErrorDescription);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "命令>", MySqlErrorNumber, ": ", MySqlErrorDescription);
+            // 如果是"Commands out of sync"错误(2014)，尝试重新连接
+            if (errorCode == 2014)
+            {
+                if (SQLTrace) Print(MQLMYSQL_TRACER, "检测到命令不同步错误，正在尝试重新连接...");
+                Disconnect();
+                // 重置连接状态，确保可以重新连接
+                ConnectID = -1;
+                if (Connect())
+                {
+                    // 重新连接成功后再次尝试执行查询
+                    if (!cMySqlExecute(ConnectID, pQuery))
+                    {
+                        MySqlErrorNumber = cGetMySqlErrorNumber(ConnectID);
+                        MySqlErrorDescription = cGetMySqlErrorDescription(ConnectID);
+                        if (SQLTrace) Print(MQLMYSQL_TRACER, "命令>", MySqlErrorNumber, ": ", MySqlErrorDescription);
+                        return (false);
+                    }
+                    return (true);
+                }
+            }
             return (false);
-           }
-           return (true);
-          }
-         }
-         return (false);
         }
         
         return (true);
-       } // Execute
-       
-       // return number of rows affected by last DML operation
-       int RowsAffected(void)
-       {
+    }
+    
+    // 返回上次DML操作影响的行数
+    int RowsAffected(void)
+    {
         return (cMySqlRowsAffected(ConnectID));
-       } // RowsAffected
-
-       // return internal connection identifier
-       int GetConnectID(void)
-       {
+    }
+    
+    // 返回内部连接标识符
+    int GetConnectID(void)
+    {
         return ConnectID;
-       } // GetConnectID
-       
-       bool GetTrace(void)
-       {
+    }
+    
+    bool GetTrace(void)
+    {
         return SQLTrace;
-       } // GetTrace
-       
-       int LastError(void) const
-       {
+    }
+    
+    int LastError(void) const
+    {
         return MySqlErrorNumber;
-       } // LastError
-       
-       string LastErrorMessage(void) const
-       {
+    }
+    
+    string LastErrorMessage(void) const
+    {
         return MySqlErrorDescription;
-       } // LastErrorMessage
-       
-}; // class CMySQL
+    }
+};
 
+//+------------------------------------------------------------------+
+//| CMySQLCursor类                                                   |
+//| 用于处理MySQL数据库游标操作                                      |
+//+------------------------------------------------------------------+
 class CMySQLCursor
 {
- private:
-       int CursorID;
-       int ConnectID;
-       int CursorErrorNumber;
-       string CursorErrorDescription;
-       bool SQLTrace; 
-       
-       // just to clear error buffer before any function started its functionality
-       void ClearErrors()
-       {
+private:
+    int    CursorID;              // 游标ID
+    int    ConnectID;             // 连接ID
+    int    CursorErrorNumber;     // 游标错误编号
+    string CursorErrorDescription;// 游标错误描述
+    bool   SQLTrace;              // SQL跟踪开关
+    
+    // 在任何函数开始其功能之前清除错误缓冲区
+    void ClearErrors()
+    {
         CursorErrorNumber = 0;
-        CursorErrorDescription = "No errors.";
-       } // ClearErrors
- public:
-       CMySQLCursor(void)
-       {
-        // constructor
+        CursorErrorDescription = "无错误。";
+    }
+    
+public:
+    // 构造函数
+    CMySQLCursor(void)
+    {
         ConnectID = -1;
         CursorID = -1;
         ClearErrors();
         SQLTrace = false;
-       }
-       
-       ~CMySQLCursor(void)
-       {
-        // destructor
-        if (CursorID>=0) Close();
+    }
+    
+    // 析构函数
+    ~CMySQLCursor(void)
+    {
+        // 析构函数
+        if (CursorID >= 0) Close();
         ClearErrors();
-       }
-
-      // creates an cursor based on SELECT statement
-      // return valuse - true on success
-      //                 false on fail, to get the error - call LastError() and/or LastErrorMessage()
-      bool Open(CMySQL *pConnection, string pQuery)
-      {
-       SQLTrace = pConnection.GetTrace();
-       ConnectID =  pConnection.GetConnectID();
-       if (SQLTrace) Print (MQLMYSQL_TRACER, "DBID#", ConnectID, ", QRY:", pQuery);
-       ClearErrors();
-       
-       CursorID = cMySqlCursorOpen(ConnectID, pQuery);
-       if (CursorID == -1)
-       {
-        CursorErrorNumber = cGetMySqlErrorNumber(ConnectID);
-        CursorErrorDescription = cGetMySqlErrorDescription(ConnectID);
-        if (SQLTrace) Print (MQLMYSQL_TRACER, "QRY>", CursorErrorNumber, ": ", CursorErrorDescription);
-        return (false);
-       }
-       return (true);
-      } // Open
-      
-      // closes opened cursor
-      void Close(void)
-      {
-       ClearErrors();
-       // if (CursorID == -1) return; // no active cursor
-       
-       cMySqlCursorClose(CursorID);
-       CursorErrorNumber = cGetCursorErrorNumber(CursorID);
-       CursorErrorDescription = cGetCursorErrorDescription(CursorID);
-       if (CursorErrorNumber != 0)
-       {
-        if (SQLTrace) Print (MQLMYSQL_TRACER, "Cursor #", CursorID, " closing error: ", CursorErrorNumber, ": ", CursorErrorDescription);
-       }
-       else 
-       {
-        if (SQLTrace) Print (MQLMYSQL_TRACER, "Cursor #", CursorID, " closed");
-        CursorID = -1;
-       } // if (CursorErrorNumber != 0)
-      } // Close
-      
-      // return number of rows was selected by cursor
-      int Rows(void)
-      {
-       int result;
-       result = cMySqlCursorRows(CursorID);
-       CursorErrorNumber = cGetCursorErrorNumber(CursorID);
-       CursorErrorDescription = cGetCursorErrorDescription(CursorID);
-       if (SQLTrace) Print (MQLMYSQL_TRACER, "Cursor #", CursorID, ", rows: ", result);
-       return (result);
-      } // Rows
-
-      // fetch next row from cursor into current row buffer
-      // return true - if succeeded, otherwise - false
-      bool Fetch(void)
-      {
-       bool result;
-       result = cMySqlCursorFetchRow(CursorID);
-       CursorErrorNumber = cGetCursorErrorNumber(CursorID);
-       CursorErrorDescription = cGetCursorErrorDescription(CursorID);
-       if (SQLTrace && CursorErrorNumber != 0)
-       {
-        Print (MQLMYSQL_TRACER, "Cursor #", CursorID, " fetching error: ", CursorErrorNumber, ": ", CursorErrorDescription);
-       }
-       return (result); 
-      } // Fetch
-
-      // retrieves the value from current row was fetched by cursor
-      // fields start from 0
-      string FieldAsString(int pField)
-      {
-       string result;
-       result = cMySqlGetRowField(CursorID, pField);
-       CursorErrorNumber = cGetCursorErrorNumber(CursorID);
-       CursorErrorDescription = cGetCursorErrorDescription(CursorID);
-       return (result);
-      } // FieldAsString
-
-      int FieldAsInt(int pField)
-      {
-       return ((int)StringToInteger(FieldAsString(pField)));
-      } // FieldAsInt
-      
-      double FieldAsDouble(int pField)
-      {
-       return (StringToDouble(FieldAsString(pField)));
-      } // FieldAsDouble
-
-      datetime FieldAsDatetime(int pField)
-      {
-       string x = FieldAsString(pField);
-       StringReplace(x, "-", ".");
-       return (StringToTime(x));
-      } // FieldAsDatetime
-      
-       int LastError(void)
-       {
+    }
+    
+    // 基于SELECT语句创建游标
+    // 返回值 - 成功时为true
+    //        - 失败时为false，要获取错误信息，请调用LastError()和/或LastErrorMessage()
+    bool Open(CMySQL *pConnection, string pQuery)
+    {
+        SQLTrace = pConnection.GetTrace();
+        ConnectID = pConnection.GetConnectID();
+        if (SQLTrace) Print(MQLMYSQL_TRACER, "数据库ID#", ConnectID, ", 查询:", pQuery);
+        ClearErrors();
+        
+        CursorID = cMySqlCursorOpen(ConnectID, pQuery);
+        if (CursorID == -1)
+        {
+            CursorErrorNumber = cGetMySqlErrorNumber(ConnectID);
+            CursorErrorDescription = cGetMySqlErrorDescription(ConnectID);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "查询>", CursorErrorNumber, ": ", CursorErrorDescription);
+            return (false);
+        }
+        return (true);
+    }
+    
+    // 关闭已打开的游标
+    void Close(void)
+    {
+        ClearErrors();
+        // if (CursorID == -1) return; // 无活动游标
+        
+        cMySqlCursorClose(CursorID);
+        CursorErrorNumber = cGetCursorErrorNumber(CursorID);
+        CursorErrorDescription = cGetCursorErrorDescription(CursorID);
+        if (CursorErrorNumber != 0)
+        {
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "游标 #", CursorID, " 关闭错误: ", CursorErrorNumber, ": ", CursorErrorDescription);
+        }
+        else 
+        {
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "游标 #", CursorID, " 已关闭");
+            CursorID = -1;
+        }
+    }
+    
+    // 返回游标选择的行数
+    int Rows(void)
+    {
+        int result;
+        result = cMySqlCursorRows(CursorID);
+        CursorErrorNumber = cGetCursorErrorNumber(CursorID);
+        CursorErrorDescription = cGetCursorErrorDescription(CursorID);
+        if (SQLTrace) Print(MQLMYSQL_TRACER, "游标 #", CursorID, ", 行数: ", result);
+        return (result);
+    }
+    
+    // 从游标获取下一行到当前行缓冲区
+    // 成功时返回true，否则返回false
+    bool Fetch(void)
+    {
+        bool result;
+        result = cMySqlCursorFetchRow(CursorID);
+        CursorErrorNumber = cGetCursorErrorNumber(CursorID);
+        CursorErrorDescription = cGetCursorErrorDescription(CursorID);
+        if (SQLTrace && CursorErrorNumber != 0)
+        {
+            Print(MQLMYSQL_TRACER, "游标 #", CursorID, " 获取错误: ", CursorErrorNumber, ": ", CursorErrorDescription);
+        }
+        return (result); 
+    }
+    
+    // 从游标获取的当前行中检索值
+    // 字段从0开始
+    string FieldAsString(int pField)
+    {
+        string result;
+        result = cMySqlGetRowField(CursorID, pField);
+        CursorErrorNumber = cGetCursorErrorNumber(CursorID);
+        CursorErrorDescription = cGetCursorErrorDescription(CursorID);
+        return (result);
+    }
+    
+    int FieldAsInt(int pField)
+    {
+        return ((int)StringToInteger(FieldAsString(pField)));
+    }
+    
+    double FieldAsDouble(int pField)
+    {
+        return (StringToDouble(FieldAsString(pField)));
+    }
+    
+    datetime FieldAsDatetime(int pField)
+    {
+        string x = FieldAsString(pField);
+        StringReplace(x, "-", ".");
+        return (StringToTime(x));
+    }
+    
+    int LastError(void)
+    {
         return CursorErrorNumber;
-       } // LastError
-       
-       string LastErrorMessage(void)
-       {
+    }
+    
+    string LastErrorMessage(void)
+    {
         return CursorErrorDescription;
-       } // LastErrorMessage
-}; // class CMQLCursor
+    }
+};
 
-
-/********************************************************************
- * MySQL standard definitions                                       *
- ********************************************************************/
-#define CLIENT_LONG_PASSWORD               1 /* new more secure passwords */
-#define CLIENT_FOUND_ROWS                  2 /* Found instead of affected rows */
-#define CLIENT_LONG_FLAG                   4 /* Get all column flags */
-#define CLIENT_CONNECT_WITH_DB             8 /* One can specify db on connect */
-#define CLIENT_NO_SCHEMA                  16 /* Don't allow database.table.column */
-#define CLIENT_COMPRESS                   32 /* Can use compression protocol */
-#define CLIENT_ODBC                       64 /* Odbc client */
-#define CLIENT_LOCAL_FILES               128 /* Can use LOAD DATA LOCAL */
-#define CLIENT_IGNORE_SPACE              256 /* Ignore spaces before '(' */
-#define CLIENT_PROTOCOL_41               512 /* New 4.1 protocol */
-#define CLIENT_INTERACTIVE              1024 /* This is an interactive client */
-#define CLIENT_SSL                      2048 /* Switch to SSL after handshake */
-#define CLIENT_IGNORE_SIGPIPE           4096 /* IGNORE sigpipes */
-#define CLIENT_TRANSACTIONS             8192 /* Client knows about transactions */
-#define CLIENT_RESERVED                16384 /* Old flag for 4.1 protocol  */
-#define CLIENT_SECURE_CONNECTION       32768 /* New 4.1 authentication */
-#define CLIENT_MULTI_STATEMENTS        65536 /* Enable/disable multi-stmt support */
-#define CLIENT_MULTI_RESULTS          131072 /* Enable/disable multi-results */
-#define CLIENT_PS_MULTI_RESULTS       262144 /* Multi-results in PS-protocol */
+//+------------------------------------------------------------------+
+//| MySQL标准定义                                                    |
+//+------------------------------------------------------------------+
+#define CLIENT_LONG_PASSWORD               1 /* 更安全的新密码 */
+#define CLIENT_FOUND_ROWS                  2 /* 找到的行而不是受影响的行 */
+#define CLIENT_LONG_FLAG                   4 /* 获取所有列标志 */
+#define CLIENT_CONNECT_WITH_DB             8 /* 可以在连接时指定数据库 */
+#define CLIENT_NO_SCHEMA                  16 /* 不允许database.table.column */
+#define CLIENT_COMPRESS                   32 /* 可以使用压缩协议 */
+#define CLIENT_ODBC                       64 /* Odbc客户端 */
+#define CLIENT_LOCAL_FILES               128 /* 可以使用LOAD DATA LOCAL */
+#define CLIENT_IGNORE_SPACE              256 /* 忽略'('之前的空格 */
+#define CLIENT_PROTOCOL_41               512 /* 新4.1协议 */
+#define CLIENT_INTERACTIVE              1024 /* 这是一个交互式客户端 */
+#define CLIENT_SSL                      2048 /* 握手后切换到SSL */
+#define CLIENT_IGNORE_SIGPIPE           4096 /* 忽略sigpipes */
+#define CLIENT_TRANSACTIONS             8192 /* 客户端知道事务 */
+#define CLIENT_RESERVED                16384 /* 4.1协议的旧标志 */
+#define CLIENT_SECURE_CONNECTION       32768 /* 新4.1认证 */
+#define CLIENT_MULTI_STATEMENTS        65536 /* 启用/禁用多语句支持 */
+#define CLIENT_MULTI_RESULTS          131072 /* 启用/禁用多结果 */
+#define CLIENT_PS_MULTI_RESULTS       262144 /* PS协议中的多结果 */
