@@ -115,7 +115,7 @@ public:
       }
    }
    
-   // 将交易记录保存到MySQL数据库
+   // 将交易记录保存到MySQL数据库（使用更新机制）
    bool LogTradeToMySQL(int time, string symbol, string type, 
                       double volume, double price, double sl, double tp, ulong orderTicket, string comment)
    {
@@ -125,8 +125,8 @@ public:
       LogToMemory(timeStr, symbol, type, DoubleToString(volume), DoubleToString(price), 
                  DoubleToString(sl), DoubleToString(tp), comment);
       
-      // 记录到MySQL数据库
-      bool success = m_mysqlLogger.LogOrderEvent(
+      // 使用更新机制记录到MySQL数据库（如果订单已存在则更新，否则插入）
+      bool success = m_mysqlLogger.UpdateOrderEvent(
          "TRADE", symbol, type, volume, price, sl, tp,
          time, orderTicket, comment, "Trade executed successfully", 0
       );

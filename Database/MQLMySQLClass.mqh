@@ -1,15 +1,6 @@
-/********************************************************************
- * MQLMySQL interface library "CLASSic Style"                       *
- ********************************************************************
- * This library uses MQLMySQL.DLL was developed as interface to con-*
- * nect to the MySQL database server.                               *
- * Note: Check expert advisor "Common" parameters to be sure that   *
- *       DLL imports are allowed.                                   *
- ********************************************************************/
-
 #define MQLMYSQL_TRACER "TRACE: " // Prefix for tracer messages
-
 #import "MQLMySQL.dll"
+
 // returns version of MySqlCursor.dll library
 string cMySqlVersion ();
 
@@ -61,8 +52,6 @@ int cMySqlRowsAffected (int pConnection);
 string ReadIni             (string pFileName,   // INI-filename
                             string pSection,    // name of section
                             string pKey);       // name of key
-#import
-
 
 class CMySQL
 {

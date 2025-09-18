@@ -1,9 +1,7 @@
-#property version   "1.00"
-#include "MQLMySQLClass.mqh"
+﻿#include "MQLMySQLClass.mqh"
 
 #define STATUS_OK 0
 #define STATUS_ERROR -1
-
 class CMySQLOrderLogger
 {
 private:
@@ -26,7 +24,7 @@ public:
       m_host(host), m_port(port), m_database(database), m_user(user), m_password(password), 
       m_initialized(false) {}
    
-   bool Initialize()
+   bool Initialize(bool isReconnect = false)
    {
       // 初始化MySQL连接
       if(!m_mysql.Connect(m_host, m_user, m_password, m_database, (int)m_port, "", 0))
@@ -35,34 +33,38 @@ public:
          return false;
       }
       
-      // 创建订单日志表
-      string createTableSQL = "CREATE TABLE IF NOT EXISTS order_logs (" +
-                             "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
-                             "event_time DATETIME DEFAULT CURRENT_TIMESTAMP, " +
-                             "event_type VARCHAR(20), " +
-                             "symbol VARCHAR(20), " +
-                             "order_type VARCHAR(20), " +
-                             "volume DOUBLE, " +
-                             "entry_price DOUBLE, " +
-                             "stop_loss DOUBLE, " +
-                             "take_profit DOUBLE, " +
-                             "expiry_time VARCHAR(50), " +
-                             "order_ticket BIGINT, " +
-                             "comment TEXT, " +
-                             "result TEXT, " +
-                             "error_code INT" +
-                             ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
-      
-      if(!m_mysql.Execute(createTableSQL))
+      // 如果不是重连操作，才创建表和设置字符集
+      if(!isReconnect)
       {
-         Print("MySQLOrderLogger: 创建表失败 - ", m_mysql.LastErrorMessage());
-         return false;
-      }
-      
-      // 设置连接字符集为UTF8
-      if(!m_mysql.Execute("SET NAMES utf8mb4"))
-      {
-         Print("MySQLOrderLogger: 设置字符集失败 - ", m_mysql.LastErrorMessage());
+         // 创建订单日志表
+         string createTableSQL = "CREATE TABLE IF NOT EXISTS order_logs (" +
+                                "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                                "event_time DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                                "event_type VARCHAR(20), " +
+                                "symbol VARCHAR(20), " +
+                                "order_type VARCHAR(20), " +
+                                "volume DOUBLE, " +
+                                "entry_price DOUBLE, " +
+                                "stop_loss DOUBLE, " +
+                                "take_profit DOUBLE, " +
+                                "expiry_time VARCHAR(50), " +
+                                "order_ticket BIGINT, " +
+                                "comment TEXT, " +
+                                "result TEXT, " +
+                                "error_code INT" +
+                                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+         
+         if(!m_mysql.Execute(createTableSQL))
+         {
+            Print("MySQLOrderLogger: 创建表失败 - ", m_mysql.LastErrorMessage());
+            return false;
+         }
+         
+         // 设置连接字符集为UTF8
+         if(!m_mysql.Execute("SET NAMES utf8mb4"))
+         {
+            Print("MySQLOrderLogger: 设置字符集失败 - ", m_mysql.LastErrorMessage());
+         }
       }
       
       m_initialized = true;
@@ -79,7 +81,7 @@ public:
       m_user = user;
       m_password = password;
       
-      return Initialize();
+      return Initialize(false);
    }
    
 
@@ -123,50 +125,86 @@ public:
       // 打印SQL语句用于核对
       Print("即将执行的SQL语句: ", sql);
 
-      // 执行SQL并获取详细错误信息
-      if(m_mysql.Execute(sql))
+      // 使用新的通用执行方法执行SQL
+      return ExecuteSQL(sql);
+   }
+   
+   // 更新订单事件（如果订单已存在则更新，否则插入）
+   bool UpdateOrderEvent(string eventType, string symbol, string orderType, double volume,
+                       double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
+                       ulong orderTicket, string comment, string result, int errorCode)
+   {
+      if(!m_initialized)
       {
-         return true;
+         Print("MySQLOrderLogger: 未初始化");
+         return false;
+      }
+
+      // 首先检查订单是否已存在
+      string checkSql = StringFormat("SELECT 1 FROM order_logs WHERE order_ticket = %d LIMIT 1", orderTicket);
+      bool orderExists = false;
+      
+      // 使用新的通用执行方法检查订单是否存在
+      CMySQL tempMysql;
+      
+      // 连接数据库
+      if(tempMysql.Connect(m_host, m_user, m_password, m_database, (int)m_port, "", 0))
+      {
+         // 设置连接字符集为UTF8
+         tempMysql.Execute("SET NAMES utf8mb4");
+         
+         // 执行检查SQL
+         if(tempMysql.Execute(checkSql))
+         {
+            orderExists = true;
+         }
+         
+         // 关闭连接
+         tempMysql.Disconnect();
+      }
+
+      if(orderExists)
+      {
+         // 订单存在，执行更新操作
+         string escapedEventType = eventType;
+         string escapedSymbol = symbol;
+         string escapedOrderType = orderType;
+         string escapedComment = comment;
+         string escapedResult = result;
+
+         StringReplace(escapedEventType, "'", "''");
+         StringReplace(escapedSymbol, "'", "''");
+         StringReplace(escapedOrderType, "'", "''");
+         StringReplace(escapedComment, "'", "''");
+         StringReplace(escapedResult, "'", "''");
+
+         string updateSql = StringFormat(
+            "UPDATE order_logs SET "
+            "event_type = '%s', symbol = '%s', order_type = '%s', volume = %.2f, "
+            "entry_price = %.5f, stop_loss = %.5f, take_profit = %.5f, expiry_time = '%s', "
+            "comment = '%s', result = '%s', error_code = %d, event_time = NOW() "
+            "WHERE order_ticket = %d",
+            escapedEventType, escapedSymbol, escapedOrderType, volume,
+            entryPrice, stopLoss, takeProfit, 
+            TimeToString(expiryTime, TIME_DATE|TIME_MINUTES),
+            escapedComment, escapedResult, errorCode, orderTicket
+         );
+         
+         Print("即将执行的更新SQL语句: ", updateSql);
+         
+         // 使用新的通用执行方法执行更新SQL
+         bool result = ExecuteSQL(updateSql);
+         if(result)
+         {
+            Print("订单 #", orderTicket, " 更新成功");
+         }
+         return result;
       }
       else
       {
-         string errorDesc = m_mysql.LastErrorMessage();
-         int error = m_mysql.LastError();
-         
-         Print("MySQLOrderLogger: 记录事件失败 - ", errorDesc, " (错误码: ", error, ")");
-         Print("失败SQL语句: ", sql);
-         
-         // 特殊处理"Commands out of sync"错误
-         if(error == 2014)
-         {
-            Print("检测到Commands out of sync错误，尝试重新连接数据库...");
-            // 先关闭现有连接
-            Close();
-            // 尝试重新初始化连接
-            if(Initialize())
-            {
-               Print("重新连接成功，再次尝试执行SQL语句...");
-               if(m_mysql.Execute(sql))
-               {
-                  Print("重新执行SQL语句成功");
-                  return true;
-               }
-               else
-               {
-                  Print("重新执行SQL语句仍然失败: ", m_mysql.LastErrorMessage(), " (错误码: ", m_mysql.LastError(), ")");
-               }
-            }
-            else
-            {
-               Print("重新连接数据库失败: ", m_mysql.LastErrorMessage(), " (错误码: ", m_mysql.LastError(), ")");
-            }
-         }
-         // 如果是语法错误，打印更详细的信息
-         else if(error == 1064)
-         {
-            Print("请检查SQL语法，特别是字符串值和引号的使用");
-         }
-         return false;
+         // 订单不存在，执行插入操作
+         return LogOrderEvent(eventType, symbol, orderType, volume, entryPrice, stopLoss, 
+                            takeProfit, expiryTime, orderTicket, comment, result, errorCode);
       }
    }
    
@@ -257,6 +295,37 @@ public:
    {
       m_mysql.Disconnect();
       m_initialized = false;
+   }
+   
+   // 通用数据库执行方法（每次执行都重新连接）
+   bool ExecuteSQL(const string sql)
+   {
+      // 每次执行SQL都重新建立连接
+      CMySQL tempMysql;
+      
+      // 连接数据库
+      if(!tempMysql.Connect(m_host, m_user, m_password, m_database, (int)m_port, "", 0))
+      {
+         Print("MySQLOrderLogger: 连接失败 - ", tempMysql.LastErrorMessage(), " (错误码: ", tempMysql.LastError(), ")");
+         return false;
+      }
+      
+      // 设置连接字符集为UTF8
+      tempMysql.Execute("SET NAMES utf8mb4");
+      
+      // 执行SQL
+      bool result = tempMysql.Execute(sql);
+      
+      // 关闭连接
+      tempMysql.Disconnect();
+      
+      if(!result)
+      {
+         Print("MySQLOrderLogger: SQL执行失败 - ", tempMysql.LastErrorMessage(), " (错误码: ", tempMysql.LastError(), ")");
+         Print("失败SQL语句: ", sql);
+      }
+      
+      return result;
    }
    
    ~CMySQLOrderLogger()

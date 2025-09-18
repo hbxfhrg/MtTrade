@@ -384,10 +384,17 @@ void ProcessTradeAnalysisAndInfoPanel()
       ENUM_ORDER_TYPE orderType = 0;
       ENUM_DEAL_ENTRY entryType = 0;
       
+      // 获取订单号（使用deal或order字段，取决于事件类型）
+      ulong orderTicket = 0;
+      if(trans.type == TRADE_TRANSACTION_DEAL_ADD || trans.type == TRADE_TRANSACTION_HISTORY_ADD)
+         orderTicket = trans.deal;
+      else
+         orderTicket = trans.order;
+      
       switch(trans.type)
       {
          case TRADE_TRANSACTION_DEAL_ADD: // 订单成交
-            eventType = "订单成交";
+            eventType = "FILLED";
             // 从trans参数获取交易信息
             symbol = trans.symbol;
             price = trans.price;
@@ -398,42 +405,37 @@ void ProcessTradeAnalysisAndInfoPanel()
             else if(trans.deal_type == DEAL_TYPE_SELL)
                entryType = DEAL_ENTRY_OUT;
             
-            logEntry = StringFormat("订单成交 %s #%d 品种:%s 方向:%s 手数:%.2f 价格:%.5f",
-                  eventType, trans.deal, symbol, EnumToString(entryType), volume, price);
+            logEntry = StringFormat("订单成交 #%d 品种:%s 方向:%s 手数:%.2f 价格:%.5f",
+                  orderTicket, symbol, EnumToString(entryType), volume, price);
             break;
             
          case TRADE_TRANSACTION_ORDER_ADD: // 挂单
-            eventType = "挂单";
+            eventType = "PENDING";
             symbol = trans.symbol;
             price = trans.price;
             volume = trans.volume;
             orderType = trans.order_type;
-            logEntry = StringFormat("挂单 %s #%d 品种:%s 类型:%s 手数:%.2f 价格:%.5f",
-                  eventType, trans.order, symbol, EnumToString(orderType), volume, price);
+            logEntry = StringFormat("挂单 #%d 品种:%s 类型:%s 手数:%.2f 价格:%.5f",
+                  orderTicket, symbol, EnumToString(orderType), volume, price);
             break;
             
          case TRADE_TRANSACTION_ORDER_DELETE: // 取消订单
-            eventType = "取消订单";
+            eventType = "CANCELLED";
             symbol = trans.symbol;
-            logEntry = StringFormat("取消订单 %s #%d 品种:%s", eventType, trans.order, symbol);
+            logEntry = StringFormat("取消订单 #%d 品种:%s", orderTicket, symbol);
             break;
             
          case TRADE_TRANSACTION_ORDER_UPDATE: // 修改订单
-            eventType = "修改订单";
+            eventType = "MODIFIED";
             symbol = trans.symbol;
             price = trans.price;
-            logEntry = StringFormat("修改订单 %s #%d 品种:%s 新价格:%.5f", 
-                  eventType, trans.order, symbol, price);
+            logEntry = StringFormat("修改订单 #%d 品种:%s 新价格:%.5f", 
+                  orderTicket, symbol, price);
             break;
             
          case TRADE_TRANSACTION_HISTORY_ADD: // 历史记录添加
-            eventType = "历史记录";
-            symbol = trans.symbol;
-            price = trans.price;
-            volume = trans.volume;
-            logEntry = StringFormat("历史记录添加 %s #%d 品种:%s 手数:%.2f 价格:%.5f",
-                  eventType, trans.deal, symbol, volume, price);
-            break;
+            // 跳过历史记录事件，避免重复记录
+            return;
             
          default:
             return; // 不处理其他类型事件
@@ -444,8 +446,8 @@ void ProcessTradeAnalysisAndInfoPanel()
       {
          Print(logEntry);
          
-         // 保存到MySQL数据库
-         if(dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, eventType, volume, price, 0, 0, trans.order, ""))
+         // 保存到MySQL数据库 - 使用统一的订单号
+         if(dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, eventType, volume, price, 0, 0, orderTicket, ""))
          {
             Print("实时交易记录成功保存到MySQL数据库!");
          }
