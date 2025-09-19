@@ -14,6 +14,7 @@
 #include "EnumDefinitions.mqh"
 #include <Generic/HashMap.mqh>
 #include "KeyValueStore.mqh"
+#include <Trade\Trade.mqh>  // 添加这一行以确保ENUM_TIMEFRAMES可用
 
 //+------------------------------------------------------------------+
 //| 动态交易点类 - 封装交易参考基准价格                                 |

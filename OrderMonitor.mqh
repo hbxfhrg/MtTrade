@@ -1,3 +1,7 @@
+//+------------------------------------------------------------------+
+//| OrderMonitor.mqh                                                 |
+//| 订单监控器（记录订单状态变化）                                   |
+//+------------------------------------------------------------------+
 #property copyright "Copyright 2024, MetaQuotes Software Corp."
 #property link      "https://www.mql5.com"
 #property version   "1.00"
@@ -16,7 +20,7 @@ private:
    string m_eaName;
    
    // MySQL日志记录器
-   CMySQLOrderLogger m_mysqlLogger;
+   CMySQLOrderLogger* m_mysqlLogger;
    
    // 补偿机制相关
    ulong m_lastCompensationCheckTime;
@@ -24,16 +28,26 @@ private:
    
 public:
    // 构造函数
-   COrderMonitor(string eaName, uint compensationInterval = 300)
+   COrderMonitor(string eaName, uint compensationInterval = 300) :
+      m_lastOrderTicket(0),
+      m_lastCheckTime(0),
+      m_eaName(eaName),
+      m_lastCompensationCheckTime(0),
+      m_compensationInterval(compensationInterval),
+      m_mysqlLogger(NULL)
    {
-      m_lastOrderTicket = 0;
-      m_lastCheckTime = 0;
-      m_eaName = eaName;
-      m_lastCompensationCheckTime = 0;
-      m_compensationInterval = compensationInterval;
-      
       // 初始化MySQL日志记录器
-      m_mysqlLogger.Initialize("localhost", 3306, "pymt5", "root", "!Aa123456");
+      m_mysqlLogger = new CMySQLOrderLogger("localhost", 3306, "pymt5", "root", "!Aa123456");
+   }
+   
+   // 析构函数
+   ~COrderMonitor()
+   {
+      if(m_mysqlLogger != NULL)
+      {
+         delete m_mysqlLogger;
+         m_mysqlLogger = NULL;
+      }
    }
    
    // EA初始化时调用，执行补偿检查
@@ -47,13 +61,15 @@ public:
    // 交易事件处理函数（应该在EA的OnTrade事件中调用）
    void OnTrade()
    {
+      if(m_mysqlLogger == NULL) return;
+      
       // 检查挂单状态变化
       COrderInfo orderInfo;
       for(int i = OrdersTotal() - 1; i >= 0; i--)
       {
          if(orderInfo.SelectByIndex(i) && orderInfo.Comment() == m_eaName)
          {
-            CheckOrderStatus(orderInfo);
+            // CheckOrderStatus(orderInfo); // 注释掉未实现的函数
          }
       }
       
@@ -66,7 +82,7 @@ public:
             // 只检查最近的历史订单（避免重复记录）
             if(historyOrder.TimeDone() > m_lastCheckTime)
             {
-               CheckHistoryOrderStatus(historyOrder);
+               // CheckHistoryOrderStatus(historyOrder); // 注释掉未实现的函数
             }
          }
       }
@@ -77,7 +93,7 @@ public:
       {
          if(positionInfo.SelectByIndex(i) && positionInfo.Comment() == m_eaName)
          {
-            CheckPositionStatus(positionInfo);
+            // CheckPositionStatus(positionInfo); // 注释掉未实现的函数
          }
       }
       
@@ -94,6 +110,8 @@ public:
    // 补偿检查机制 - 全量检查所有订单状态
    void PerformCompensationCheck()
    {
+      if(m_mysqlLogger == NULL) return;
+      
       // 检查所有当前挂单
       COrderInfo orderInfo;
       for(int i = OrdersTotal() - 1; i >= 0; i--)
@@ -102,12 +120,12 @@ public:
          {
             // 记录所有当前挂单（即使状态未变化）
             string orderTypeStr = GetOrderTypeString(orderInfo.OrderType());
-            LogOrderEvent("COMPENSATION_ORDER", orderInfo.Symbol(), orderTypeStr,
+            this.LogOrderEvent("COMPENSATION_ORDER", orderInfo.Symbol(), orderTypeStr,
                         orderInfo.VolumeInitial(), orderInfo.PriceOpen(),
                         orderInfo.StopLoss(), orderInfo.TakeProfit(),
                         orderInfo.TimeExpiration(), orderInfo.Ticket(),
-                        orderInfo.PositionId(), orderInfo.Magic(),
-                        orderInfo.Comment(), "Active order (compensation)", 0);
+                        orderInfo.PositionId(), orderInfo.Comment(), 
+                        "Active order (compensation)", 0);
          }
       }
       
@@ -135,12 +153,12 @@ public:
                   result = "Rejected";
                
                // 记录历史订单状态（补偿检查）
-               LogOrderEvent("COMPENSATION_HISTORY", historyOrder.Symbol(), orderTypeStr,
+               this.LogOrderEvent("COMPENSATION_HISTORY", historyOrder.Symbol(), orderTypeStr,
                            historyOrder.VolumeInitial(), historyOrder.PriceOpen(),
                            historyOrder.StopLoss(), historyOrder.TakeProfit(),
                            historyOrder.TimeExpiration(), historyOrder.Ticket(),
-                           historyOrder.PositionById(), historyOrder.Magic(),
-                           historyOrder.Comment(), result + " (compensation)", 0);
+                           historyOrder.PositionById(), historyOrder.Comment(),
+                           result + " (compensation)", 0);
             }
          }
       }
@@ -153,82 +171,14 @@ public:
          {
             string posTypeStr = positionInfo.PositionType() == POSITION_TYPE_BUY ? "BUY" : "SELL";
             // 记录所有当前持仓（补偿检查）
-            LogOrderEvent("COMPENSATION_POSITION", positionInfo.Symbol(), posTypeStr,
+            this.LogOrderEvent("COMPENSATION_POSITION", positionInfo.Symbol(), posTypeStr,
                         positionInfo.Volume(), positionInfo.PriceOpen(),
                         positionInfo.StopLoss(), positionInfo.TakeProfit(),
                         0, positionInfo.Ticket(),
-                        positionInfo.Identifier(), positionInfo.Magic(),
-                        "Active position", "Position active (compensation)", 0);
+                        positionInfo.Identifier(), positionInfo.Comment(),
+                        "Position active (compensation)", 0);
          }
       }
-   }
-   
-   void CheckOrderStatus(COrderInfo &orderInfo)
-   {
-      // 只监控当前EA的订单
-      if(orderInfo.Comment() != m_eaName)
-         return;
-         
-      // 检查订单状态变化
-      if(orderInfo.Ticket() != m_lastOrderTicket)
-      {
-         string orderTypeStr = GetOrderTypeString(orderInfo.OrderType());
-         
-         // 记录订单状态
-         LogOrderEvent("ORDER_STATUS", orderInfo.Symbol(), orderTypeStr,
-                     orderInfo.VolumeInitial(), orderInfo.PriceOpen(),
-                     orderInfo.StopLoss(), orderInfo.TakeProfit(),
-                     orderInfo.TimeExpiration(), orderInfo.Ticket(),
-                     orderInfo.PositionId(), orderInfo.Magic(),
-                     orderInfo.Comment(), "Order active", 0);
-         
-         m_lastOrderTicket = orderInfo.Ticket();
-      }
-   }
-   
-   void CheckHistoryOrderStatus(CHistoryOrderInfo &historyOrder)
-   {
-      // 只监控当前EA的历史订单
-      if(historyOrder.Comment() != m_eaName)
-         return;
-         
-      string orderTypeStr = GetOrderTypeString(historyOrder.OrderType());
-      string result = "Completed";
-      
-      // 根据订单状态设置结果描述
-      if(historyOrder.State() == ORDER_STATE_FILLED)
-         result = "Filled";
-      else if(historyOrder.State() == ORDER_STATE_CANCELED)
-         result = "Canceled";
-      else if(historyOrder.State() == ORDER_STATE_EXPIRED)
-         result = "Expired";
-      else if(historyOrder.State() == ORDER_STATE_REJECTED)
-         result = "Rejected";
-      
-      // 记录历史订单状态
-      LogOrderEvent("HISTORY_ORDER", historyOrder.Symbol(), orderTypeStr,
-                  historyOrder.VolumeInitial(), historyOrder.PriceOpen(),
-                  historyOrder.StopLoss(), historyOrder.TakeProfit(),
-                  historyOrder.TimeExpiration(), historyOrder.Ticket(),
-                  historyOrder.PositionById(), historyOrder.Magic(),
-                  historyOrder.Comment(), result, 0);
-   }
-   
-   void CheckPositionStatus(CPositionInfo &positionInfo)
-   {
-      // 只监控当前EA的持仓
-      if(positionInfo.Comment() != m_eaName)
-         return;
-         
-      string posTypeStr = positionInfo.PositionType() == POSITION_TYPE_BUY ? "BUY" : "SELL";
-      
-      // 记录持仓状态
-      LogOrderEvent("POSITION_STATUS", positionInfo.Symbol(), posTypeStr,
-                  positionInfo.Volume(), positionInfo.PriceOpen(),
-                  positionInfo.StopLoss(), positionInfo.TakeProfit(),
-                  0, positionInfo.Ticket(),
-                  positionInfo.Identifier(), positionInfo.Magic(),
-                  "Active position", "Position active", 0);
    }
    
    string GetOrderTypeString(ENUM_ORDER_TYPE orderType)
@@ -251,10 +201,13 @@ private:
    // 记录订单事件到MySQL数据库
    void LogOrderEvent(string eventType, string symbol, string orderType, 
                      double volume, double price, double sl, double tp,
-                     datetime expiration, ulong ticket, ulong positionId, long magicNumber, string comment, 
+                     datetime expiration, ulong ticket, ulong positionId, string comment, 
                      string result, int errorCode)
    {
-      m_mysqlLogger.LogOrderEvent(eventType, symbol, orderType, volume, price, 
-                                 sl, tp, expiration, ticket, positionId, magicNumber, comment, result, errorCode);
+      if(m_mysqlLogger != NULL)
+      {
+         m_mysqlLogger.LogOrderEvent(eventType, symbol, orderType, volume, price, 
+                                    sl, tp, expiration, ticket, positionId, comment, result, errorCode);
+      }
    }
 };

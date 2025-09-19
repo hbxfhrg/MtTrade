@@ -125,69 +125,21 @@ int OnInit()
       Print("数据库管理器初始化成功（按需连接模式）");
       
       // 检查并创建必要的数据库表
-      if(!dbManager.CheckAndCreateTables())
-      {
-         Print("警告: 数据库表检查或创建失败");
-      }
-      else
-      {
-         Print("数据库表检查完成");
-      }
+      // if(!dbManager.CheckAndCreateTables())
+      // {
+      //    Print("警告: 数据库表检查或创建失败");
+      // }
+      // else
+      // {
+      //    Print("数据库表检查完成");
+      // }
    }
    else
    {
       Print("数据库管理器初始化失败");
-   }
-   
+   }   
 
 
-   // 输出最近一天的历史数据
-   Print("=== 最近一天的历史交易数据 ===");
-   datetime oneDayAgo = TimeCurrent() - 86400; // 24小时前
-   if(HistorySelect(oneDayAgo, TimeCurrent()))
-   {
-      int totalDeals = HistoryDealsTotal();
-      int totalOrders = HistoryOrdersTotal();
-      Print("历史成交总数: ", totalDeals);
-      Print("历史订单总数: ", totalOrders);
-      
-      // 输出历史成交详情
-      for(int i = 0; i < totalDeals; i++)
-      {
-         ulong dealTicket = HistoryDealGetTicket(i);
-         if(dealTicket > 0)
-         {
-            string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
-            double volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
-            double price = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
-            double sl = HistoryDealGetDouble(dealTicket, DEAL_SL);
-            double tp = HistoryDealGetDouble(dealTicket, DEAL_TP);
-            ENUM_DEAL_TYPE dealType = (ENUM_DEAL_TYPE)HistoryDealGetInteger(dealTicket, DEAL_TYPE);
-            string typeStr = (dealType == DEAL_TYPE_BUY) ? "BUY" : "SELL";
-            datetime time = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
-            long orderTicket = HistoryDealGetInteger(dealTicket, DEAL_ORDER);
-            double profit = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
-            
-            Print("成交 #", i + 1, ":");
-            Print("  成交单号: ", dealTicket);
-            Print("  订单号: ", orderTicket);
-            Print("  品种: ", symbol);
-            Print("  类型: ", typeStr);
-            Print("  数量: ", DoubleToString(volume, 2));
-            Print("  价格: ", DoubleToString(price, _Digits));
-            Print("  止损: ", DoubleToString(sl, _Digits));
-            Print("  止盈: ", DoubleToString(tp, _Digits));
-            Print("  盈亏: ", DoubleToString(profit, 2));
-            Print("  时间: ", TimeToString(time));
-            Print("  --------------------");
-         }
-      }
-   }
-   else
-   {
-      Print("无法获取历史数据");
-   }
-   Print("==============================");
 
    return(INIT_SUCCEEDED);
   }
@@ -232,19 +184,23 @@ void OnTick()
    CheckTradeAnalyzerRecalculation();
 
    if(needRecalculateTradeAnalyzer)
-   {// 执行交易分析
+   {
+      // 执行交易分析
       InitializeTradeAnalyzer(points4H);
       strategy.Execute(g_tradeAnalyzer.m_tradeBasePoint);      
 
-   // 更新图形显示
-   ProcessTradeAnalyzerLabelDrawing(points4H);
-   ProcessTradeAnalysisAndInfoPanel();
+      // 更新图形显示
+      ProcessTradeAnalyzerLabelDrawing(points4H);
+      ProcessTradeAnalysisAndInfoPanel();
+      
+      // 同步交易历史
+      if(dbManager != NULL)
+      {
+         dbManager.SyncTradeHistory(dbManager.GetLastSyncTime());
+      }
+      
       needRecalculateTradeAnalyzer = false;
    }
-
-  
-   
-
   }
 
 //+------------------------------------------------------------------+
@@ -317,7 +273,19 @@ void InitializeTradeAnalyzer(SZigzagExtremumPoint &inputFourHourPoints[])
                Print("-**************"); 
                // 左侧线段：只输出每周期第一个线段
                CZigzagSegment* leftSegArray[];
-               if(g_tradeAnalyzer.m_tradeBasePoint.m_leftSegmentsStore.GetArray(timeframeIndices[i], leftSegArray) && ArraySize(leftSegArray) > 0)
+               CZigzagSegment* rightSegArray[];
+               // 将整数索引转换为对应的ENUM_TIMEFRAMES枚举值
+               ENUM_TIMEFRAMES currentTimeframe;
+               switch(timeframeIndices[i])
+               {
+                  case 0: currentTimeframe = PERIOD_M5; break;
+                  case 1: currentTimeframe = PERIOD_M15; break;
+                  case 2: currentTimeframe = PERIOD_M30; break;
+                  case 3: currentTimeframe = PERIOD_H1; break;
+                  default: continue; // 跳过无效索引
+               }
+               
+               if(g_tradeAnalyzer.m_tradeBasePoint.GetTimeframeSegments(currentTimeframe, leftSegArray, rightSegArray) && ArraySize(leftSegArray) > 0)
                {
                   double leftStartPrice = leftSegArray[0].m_start_point.value;
                   double leftEndPrice = leftSegArray[0].m_end_point.value;
@@ -325,8 +293,7 @@ void InitializeTradeAnalyzer(SZigzagExtremumPoint &inputFourHourPoints[])
                   Print(timeframeNames[i], "周期左侧线段[0]: ", leftStartPrice, " -> ", leftEndPrice, " ", leftDirection);
                }
                 Print("-------------");              // 右侧线段：输出最多5个线段
-               CZigzagSegment* rightSegArray[];
-               if(g_tradeAnalyzer.m_tradeBasePoint.m_rightSegmentsStore.GetArray(timeframeIndices[i], rightSegArray) && ArraySize(rightSegArray) > 0)
+               if(ArraySize(rightSegArray) > 0)
                {
                   int count = MathMin(ArraySize(rightSegArray), 5);
                   for(int j = 0; j < count; j++)
@@ -458,93 +425,6 @@ void ProcessTradeAnalysisAndInfoPanel()
                           const MqlTradeRequest &request,
                           const MqlTradeResult &result)
    {
-      // 处理订单成交事件，使用历史记录数据
-      if(trans.type == TRADE_TRANSACTION_HISTORY_ADD)
-      {
-         // 从历史记录获取数据
-         string symbol = "";
-         double volume = 0.0;
-         double entryPrice = 0.0;
-         double stopLoss = 0.0;
-         double takeProfit = 0.0;
-         string orderTypeStr = "";
-         datetime timeDone = 0;
-         string comment = StringFormat("历史订单成交: %s", EnumToString(trans.type));
-         
-         // 获取订单号
-         ulong orderTicket = trans.deal;
-         if(orderTicket == 0) orderTicket = trans.order;
-         if(orderTicket == 0) orderTicket = request.order;
-         if(orderTicket == 0) orderTicket = result.order;
-         
-         // 从历史记录中读取订单详细信息（获取最近1天的历史数据）
-         datetime oneDayAgo = TimeCurrent() - 86400; // 24小时前
-         if(orderTicket > 0 && HistorySelect(oneDayAgo, TimeCurrent()))
-         {
-            int totalDeals = HistoryDealsTotal();
-            Print("历史成交总数: ", totalDeals);
-            
-            for(int i = 0; i < totalDeals; i++)
-            {
-               ulong histDealTicket = HistoryDealGetTicket(i);
-               if(histDealTicket == orderTicket)
-               {
-                  // 获取成交详细信息
-                  symbol = HistoryDealGetString(histDealTicket, DEAL_SYMBOL);
-                  volume = HistoryDealGetDouble(histDealTicket, DEAL_VOLUME);
-                  entryPrice = HistoryDealGetDouble(histDealTicket, DEAL_PRICE);
-                  stopLoss = HistoryDealGetDouble(histDealTicket, DEAL_SL);
-                  takeProfit = HistoryDealGetDouble(histDealTicket, DEAL_TP);
-                  
-                  ENUM_DEAL_TYPE dealType = (ENUM_DEAL_TYPE)HistoryDealGetInteger(histDealTicket, DEAL_TYPE);
-                  orderTypeStr = (dealType == DEAL_TYPE_BUY) ? "ORDER_TYPE_BUY" : "ORDER_TYPE_SELL";
-                  timeDone = (datetime)HistoryDealGetInteger(histDealTicket, DEAL_TIME);
-                  
-                  // 输出详细的调试信息
-                  Print("找到历史成交 #", orderTicket, " 详细信息:");
-                  Print("  品种: ", symbol);
-                  Print("  数量: ", DoubleToString(volume, 2));
-                  Print("  入场价: ", DoubleToString(entryPrice, _Digits));
-                  Print("  止损: ", DoubleToString(stopLoss, _Digits));
-                  Print("  止盈: ", DoubleToString(takeProfit, _Digits));
-                  Print("  成交类型: ", orderTypeStr);
-                  Print("  成交时间: ", TimeToString(timeDone));
-                  
-                  break;
-               }
-            }
-         }
-         
-         if(orderTicket > 0)
-         {
-            // 保存历史数据到MySQL数据库
-            if(dbManager != NULL && dbManager.LogTradeToMySQL((int)timeDone, symbol, orderTypeStr, volume, entryPrice, stopLoss, takeProfit, orderTicket, comment))
-            {
-               Print("历史订单记录成功保存到MySQL数据库! 订单极值点: ", orderTicket);
-               
-               // 根据订单类型更新持仓信息
-               string positionType = (orderTypeStr == "ORDER_TYPE_BUY") ? "BUY" : "SELL";
-               
-               // 更新持仓（开仓或加仓）
-               if(dbManager.UpdatePosition(symbol, positionType, volume, entryPrice, stopLoss, takeProfit, orderTicket, comment))
-               {
-                  Print("持仓信息更新成功! 订单号: ", orderTicket);
-               }
-               else
-               {
-                  Print("持仓信息更新失败! 订单号: ", orderTicket);
-               }
-            }
-            else
-            {
-               Print("保存历史订单记录到MySQL数据库失败! 订单号: ", orderTicket);
-            }
-         }
-      }
-      else
-      {
-         // 跳过其他类型的交易事件
-         Print("跳过非成交交易事件: ", EnumToString(trans.type));
-      }      
+      
    }
 //+------------------------------------------------------------------+
