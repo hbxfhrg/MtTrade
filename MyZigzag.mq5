@@ -123,6 +123,16 @@ int OnInit()
    if(dbManager != NULL)
    {
       Print("数据库管理器初始化成功（按需连接模式）");
+      
+      // 检查并创建必要的数据库表
+      if(!dbManager.CheckAndCreateTables())
+      {
+         Print("警告: 数据库表检查或创建失败");
+      }
+      else
+      {
+         Print("数据库表检查完成");
+      }
    }
    else
    {
@@ -239,7 +249,7 @@ void OnTick()
 
 //+------------------------------------------------------------------+
 //| 检查是否需要重新计算交易分析器                                   |
-//+--                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn----------------------------------------------------------------+
+//+------------------------------------------------------------------+
 void CheckTradeAnalyzerRecalculation()
   {
 // 获取当前时间
@@ -537,4 +547,4 @@ void ProcessTradeAnalysisAndInfoPanel()
          Print("跳过非成交交易事件: ", EnumToString(trans.type));
       }      
    }
-   
+//+------------------------------------------------------------------+

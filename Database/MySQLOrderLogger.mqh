@@ -48,6 +48,8 @@ public:
                                 "take_profit DOUBLE, " +
                                 "expiry_time VARCHAR(50), " +
                                 "order_ticket BIGINT, " +
+                                "position_id BIGINT, " +
+                                "magic_number BIGINT, " +
                                 "comment TEXT, " +
                                 "result TEXT, " +
                                 "error_code INT" +
@@ -88,7 +90,7 @@ public:
    
    bool LogOrderEvent(string eventType, string symbol, string orderType, double volume,
                      double entryPrice, double stopLoss, double takeProfit, datetime eventTime,
-                     ulong orderTicket, string comment, string result, int errorCode)
+                     ulong orderTicket, ulong positionId, long magicNumber, string comment, string result, int errorCode)
    {
       // 按需连接模式下不需要检查初始化状态，ExecuteSQL会处理连接
 
@@ -108,13 +110,13 @@ public:
       // 使用参数化查询防止SQL注入
       string sql = StringFormat(
          "INSERT INTO order_logs "
-         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, event_time, order_ticket, comment, result, error_code) "
+         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, event_time, order_ticket, position_id, magic_number, comment, result, error_code) "
          "VALUES (" 
-         "'%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, FROM_UNIXTIME(%d), %d, '%s', '%s', %d"
+         "'%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, FROM_UNIXTIME(%d), %d, %d, %d, '%s', '%s', %d"
          ")",
          escapedEventType, escapedSymbol, escapedOrderType, volume,
          entryPrice, stopLoss, takeProfit, 
-         (int)eventTime, orderTicket, escapedComment, escapedResult, errorCode
+         (int)eventTime, orderTicket, positionId, magicNumber, escapedComment, escapedResult, errorCode
       );
                                
       // 打印SQL语句用于核对
@@ -127,7 +129,7 @@ public:
    // 更新订单事件（如果订单已存在则更新，否则插入）
    bool UpdateOrderEvent(string eventType, string symbol, string orderType, double volume,
                        double entryPrice, double stopLoss, double takeProfit, datetime eventTime,
-                       ulong orderTicket, string comment, string result, int errorCode)
+                       ulong orderTicket, ulong positionId, long magicNumber, string comment, string result, int errorCode)
    {
       // 按需连接模式下不需要检查初始化状态，ExecuteSQL会处理连接
 
@@ -173,10 +175,12 @@ public:
             "UPDATE order_logs SET "
             "event_type = '%s', symbol = '%s', order_type = '%s', volume = %.2f, "
             "entry_price = %.5f, stop_loss = %.5f, take_profit = %.5f, "
+            "position_id = %d, magic_number = %d, "
             "comment = '%s', result = '%s', error_code = %d, event_time = FROM_UNIXTIME(%d) "
             "WHERE order_ticket = %d",
             escapedEventType, escapedSymbol, escapedOrderType, volume,
             entryPrice, stopLoss, takeProfit, 
+            positionId, magicNumber,
             escapedComment, escapedResult, errorCode, (int)eventTime, orderTicket
          );
          
@@ -194,62 +198,62 @@ public:
       {
          // 订单不存在，执行插入操作
          return LogOrderEvent(eventType, symbol, orderType, volume, entryPrice, stopLoss, 
-                            takeProfit, eventTime, orderTicket, comment, result, errorCode);
+                            takeProfit, eventTime, orderTicket, positionId, magicNumber, comment, result, errorCode);
       }
    }
    
    // 记录订单超时未成交
-   void LogOrderTimeout(ulong orderTicket, string symbol, string orderType, double volume,
+   void LogOrderTimeout(ulong orderTicket, ulong positionId, long magicNumber, string symbol, string orderType, double volume,
                        double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
                        string comment = "")
    {
       LogOrderEvent("TIMEOUT", symbol, orderType, volume, entryPrice, stopLoss, takeProfit,
-                   expiryTime, orderTicket, comment, "Order expired without execution", 0);
+                   expiryTime, orderTicket, positionId, magicNumber, comment, "Order expired without execution", 0);
    }
    
    // 记录订单成交
-   void LogOrderFilled(ulong orderTicket, string symbol, string orderType, double volume,
+   void LogOrderFilled(ulong orderTicket, ulong positionId, long magicNumber, string symbol, string orderType, double volume,
                       double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
                       string comment = "")
    {
       LogOrderEvent("FILLED", symbol, orderType, volume, entryPrice, stopLoss, takeProfit,
-                   expiryTime, orderTicket, comment, "Order filled successfully", 0);
+                   expiryTime, orderTicket, positionId, magicNumber, comment, "Order filled successfully", 0);
    }
    
    // 记录订单取消
-   void LogOrderCancelled(ulong orderTicket, string symbol, string orderType, double volume,
+   void LogOrderCancelled(ulong orderTicket, ulong positionId, long magicNumber, string symbol, string orderType, double volume,
                         double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
                         string comment = "")
    {
       LogOrderEvent("CANCELLED", symbol, orderType, volume, entryPrice, stopLoss, takeProfit,
-                   expiryTime, orderTicket, comment, "Order cancelled", 0);
+                   expiryTime, orderTicket, positionId, magicNumber, comment, "Order cancelled", 0);
    }
    
    // 记录订单错误
-   void LogOrderError(ulong orderTicket, string symbol, string orderType, double volume,
+   void LogOrderError(ulong orderTicket, ulong positionId, long magicNumber, string symbol, string orderType, double volume,
                     double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
                     string comment, int errorCode)
    {
       LogOrderEvent("ERROR", symbol, orderType, volume, entryPrice, stopLoss, takeProfit,
-                   expiryTime, orderTicket, comment, "Order error occurred", errorCode);
+                   expiryTime, orderTicket, positionId, magicNumber, comment, "Order error occurred", errorCode);
    }
    
    // 记录订单止盈
-   void LogOrderTakeProfit(ulong orderTicket, string symbol, string orderType, double volume,
+   void LogOrderTakeProfit(ulong orderTicket, ulong positionId, long magicNumber, string symbol, string orderType, double volume,
                          double entryPrice, double stopLoss, double takeProfit,
                          string comment = "")
    {
       LogOrderEvent("TAKE_PROFIT", symbol, orderType, volume, entryPrice, stopLoss, takeProfit,
-                   0, orderTicket, comment, "Order take profit triggered", 0);
+                   0, orderTicket, positionId, magicNumber, comment, "Order take profit triggered", 0);
    }
    
    // 记录订单止损
-   void LogOrderStopLoss(ulong orderTicket, string symbol, string orderType, double volume,
+   void LogOrderStopLoss(ulong orderTicket, ulong positionId, long magicNumber, string symbol, string orderType, double volume,
                        double entryPrice, double stopLoss, double takeProfit,
                        string comment = "")
    {
       LogOrderEvent("STOP_LOSS", symbol, orderType, volume, entryPrice, stopLoss, takeProfit,
-                   0, orderTicket, comment, "Order stop loss triggered", 0);
+                   0, orderTicket, positionId, magicNumber, comment, "Order stop loss triggered", 0);
    }
    
    bool IsInitialized() const { return true; } // 按需连接模式下总是返回true
@@ -257,16 +261,27 @@ public:
    // 检查表是否存在
    bool CheckTableExists(const string tableName)
    {
-      if(!m_initialized) return false;
-      string sql = StringFormat("SELECT 1 FROM %s LIMIT 1", tableName);
-      return m_mysql.Execute(sql);
-   }
-   
-   // 创建表
-   bool CreateTable(const string tableName, const string createSQL)
-   {
-      if(!m_initialized) return false;
-      return m_mysql.Execute(createSQL);
+      string sql = StringFormat("SELECT 1 FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s' LIMIT 1", 
+                               m_database, tableName);
+      CMySQL tempMysql;
+      
+      // 连接数据库
+      if(!tempMysql.Connect(m_host, m_user, m_password, m_database, (int)m_port, "", 0))
+      {
+         Print("MySQLOrderLogger: 连接失败 - ", tempMysql.LastErrorMessage(), " (错误码: ", tempMysql.LastError(), ")");
+         return false;
+      }
+      
+      // 设置连接字符集为UTF8
+      tempMysql.Execute("SET NAMES utf8mb4");
+      
+      // 执行检查SQL
+      bool exists = tempMysql.Execute(sql);
+      
+      // 关闭连接
+      tempMysql.Disconnect();
+      
+      return exists;
    }
    
    // 获取最后错误信息
@@ -344,7 +359,7 @@ public:
       bool insertResult = tester.LogOrderEvent(
          "TEST", testSymbol, "TEST_ORDER", 1.0,
          100.0, 99.0, 101.0, testTime, 
-         999999, "测试订单", "测试成功", 0
+         999999, 123456, 987654, "测试订单", "测试成功", 0
       );
       
       if(!insertResult)
@@ -362,7 +377,7 @@ public:
    
    // 更新持仓信息（开仓或加仓）
    bool UpdatePosition(string symbol, string positionType, double volume, double entryPrice, 
-                      double stopLoss, double takeProfit, ulong orderTicket, string comment = "")
+                      double stopLoss, double takeProfit, ulong orderTicket, ulong positionId, long magicNumber, string comment = "")
    {
       string escapedSymbol = symbol;
       string escapedPositionType = positionType;
@@ -374,22 +389,29 @@ public:
       
       // 使用INSERT ... ON DUPLICATE KEY UPDATE语法
       string sql = StringFormat(
-         "INSERT INTO positions (symbol, position_type, volume, entry_price, stop_loss, take_profit, order_ticket, comment) "
-         "VALUES ('%s', '%s', %.2f, %.5f, %.5f, %.5f, %d, '%s') "
+         "INSERT INTO positions (symbol, position_type, volume, entry_price, stop_loss, take_profit, order_ticket, position_id, magic_number, comment) "
+         "VALUES ('%s', '%s', %.2f, %.5f, %.5f, %.5f, %d, %d, %d, '%s') "
          "ON DUPLICATE KEY UPDATE "
          "volume = volume + VALUES(volume), "
          "entry_price = (entry_price * volume + VALUES(entry_price) * VALUES(volume)) / (volume + VALUES(volume)), "
          "stop_loss = VALUES(stop_loss), "
          "take_profit = VALUES(take_profit), "
          "comment = CONCAT_WS('; ', comment, VALUES(comment))",
-         escapedSymbol, escapedPositionType, volume, entryPrice, stopLoss, takeProfit, orderTicket, escapedComment
+         escapedSymbol, escapedPositionType, volume, entryPrice, stopLoss, takeProfit, orderTicket, positionId, magicNumber, escapedComment
       );
       
       return ExecuteSQL(sql);
    }
    
+   // 向后兼容的UpdatePosition函数
+   bool UpdatePosition(string symbol, string positionType, double volume, double entryPrice, 
+                      double stopLoss, double takeProfit, ulong orderTicket, string comment = "")
+   {
+      return UpdatePosition(symbol, positionType, volume, entryPrice, stopLoss, takeProfit, orderTicket, 0, 0, comment);
+   }
+   
    // 关闭持仓（平仓）
-   bool ClosePosition(string symbol, string positionType, double exitPrice, ulong orderTicket, string comment = "")
+   bool ClosePosition(string symbol, string positionType, double exitPrice, ulong orderTicket, ulong positionId, long magicNumber, string comment = "")
    {
       string escapedSymbol = symbol;
       string escapedPositionType = positionType;
@@ -406,12 +428,85 @@ public:
          "exit_time = NOW(), "
          "exit_price = %.5f, "
          "profit = (%.5f - entry_price) * volume * %s, " // 根据买卖类型计算盈亏
+         "position_id = %d, "
+         "magic_number = %d, "
          "comment = CONCAT_WS('; ', comment, '%s') "
          "WHERE symbol = '%s' AND position_type = '%s' AND status = 'OPEN'",
-         exitPrice, exitPrice, (positionType == "BUY" ? "1" : "-1"), escapedComment, escapedSymbol, escapedPositionType
+         exitPrice, exitPrice, (positionType == "BUY" ? "1" : "-1"), positionId, magicNumber, escapedComment, escapedSymbol, escapedPositionType
       );
       
       return ExecuteSQL(sql);
    }
    
+   // 向后兼容的ClosePosition函数
+   bool ClosePosition(string symbol, string positionType, double exitPrice, ulong orderTicket, string comment = "")
+   {
+      return ClosePosition(symbol, positionType, exitPrice, orderTicket, 0, 0, comment);
+   }
+   
+   // 向后兼容的LogOrderEvent函数
+   bool LogOrderEvent(string eventType, string symbol, string orderType, double volume,
+                     double entryPrice, double stopLoss, double takeProfit, datetime eventTime,
+                     ulong orderTicket, string comment, string result, int errorCode)
+   {
+      return LogOrderEvent(eventType, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, 
+                          eventTime, orderTicket, 0, 0, comment, result, errorCode);
+   }
+   
+   // 向后兼容的UpdateOrderEvent函数
+   bool UpdateOrderEvent(string eventType, string symbol, string orderType, double volume,
+                       double entryPrice, double stopLoss, double takeProfit, datetime eventTime,
+                       ulong orderTicket, string comment, string result, int errorCode)
+   {
+      return UpdateOrderEvent(eventType, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, 
+                             eventTime, orderTicket, 0, 0, comment, result, errorCode);
+   }
+   
+   // 向后兼容的LogOrderTimeout函数
+   void LogOrderTimeout(ulong orderTicket, string symbol, string orderType, double volume,
+                       double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
+                       string comment = "")
+   {
+      LogOrderTimeout(orderTicket, 0, 0, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, expiryTime, comment);
+   }
+   
+   // 向后兼容的LogOrderFilled函数
+   void LogOrderFilled(ulong orderTicket, string symbol, string orderType, double volume,
+                      double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
+                      string comment = "")
+   {
+      LogOrderFilled(orderTicket, 0, 0, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, expiryTime, comment);
+   }
+   
+   // 向后兼容的LogOrderCancelled函数
+   void LogOrderCancelled(ulong orderTicket, string symbol, string orderType, double volume,
+                        double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
+                        string comment = "")
+   {
+      LogOrderCancelled(orderTicket, 0, 0, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, expiryTime, comment);
+   }
+   
+   // 向后兼容的LogOrderError函数
+   void LogOrderError(ulong orderTicket, string symbol, string orderType, double volume,
+                    double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
+                    string comment, int errorCode)
+   {
+      LogOrderError(orderTicket, 0, 0, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, expiryTime, comment, errorCode);
+   }
+   
+   // 向后兼容的LogOrderTakeProfit函数
+   void LogOrderTakeProfit(ulong orderTicket, string symbol, string orderType, double volume,
+                         double entryPrice, double stopLoss, double takeProfit,
+                         string comment = "")
+   {
+      LogOrderTakeProfit(orderTicket, 0, 0, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, comment);
+   }
+   
+   // 向后兼容的LogOrderStopLoss函数
+   void LogOrderStopLoss(ulong orderTicket, string symbol, string orderType, double volume,
+                       double entryPrice, double stopLoss, double takeProfit,
+                       string comment = "")
+   {
+      LogOrderStopLoss(orderTicket, 0, 0, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, comment);
+   }
 };
