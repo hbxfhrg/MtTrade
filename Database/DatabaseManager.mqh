@@ -11,86 +11,37 @@ private:
    string m_memoryLog;  // 内存日志存储
    
 public:
-   CDatabaseManager(string host = "localhost", 
-                   string username = "root", 
-                   string password = "!Aa123456", 
-                   string database = "pymt5", int port = 3306)
+   CDatabaseManager(string host, string username, string password, string database, int port)
    {
       m_memoryLog = "";  // 初始化内存日志
-      // m_mysqlLogger.SetTrace(true); // 启用调试日志 (注释掉不存在的方法)
       
-      // 初始化MySQL连接
-      if(!m_mysqlLogger.Initialize(host, (uint)port, database, username, password))
+      // 创建MySQLOrderLogger实例并保存连接参数
+      m_mysqlLogger = CMySQLOrderLogger(host, (uint)port, database, username, password);
+      
+      // 初始化MySQLOrderLogger（创建表结构）
+      if(!m_mysqlLogger.Initialize())
       {
-         Print("DatabaseManager: MySQL连接失败 - ", m_mysqlLogger.GetErrorDescription());
+         Print("DatabaseManager: MySQL表结构初始化失败 - ", m_mysqlLogger.GetErrorDescription());
       }
       else
       {
-         // 确保表存在
-         if(!EnsureTableExists())
-         {
-            Print("DatabaseManager: 无法确保表存在");
-         }
+         Print("DatabaseManager: 初始化完成（按需连接模式）");
       }
    }
    
-   // 检查MySQL连接状态
+   // 检查MySQL连接状态（按需连接模式下总是返回true）
    bool IsConnected() const
    {
-      return m_mysqlLogger.IsInitialized();
+      return true; // 按需连接模式下不需要检查连接状态
    }
    
-   // 检查并维持连接
+   // 检查并维持连接（按需连接模式下不需要）
    bool CheckConnection()
    {
-      if(!IsConnected())
-      {
-         Print("尝试重新连接数据库...");
-         return m_mysqlLogger.Initialize();
-      }
-      return true;
+      return true; // 按需连接模式下不需要维持连接
    }
 
-   // 确保表存在
-   bool EnsureTableExists()
-   {
-      if(!IsConnected()) 
-      {
-         Print("Database not connected");
-         return false;
-      }
-      
-      // 先检查表是否存在
-      if(m_mysqlLogger.CheckTableExists("order_logs")) 
-      {
-         Print("Table already exists");
-         return true;
-      }
-      
-      string createTableSQL = "CREATE TABLE IF NOT EXISTS order_logs (" +
-                             "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
-                             "event_time DATETIME DEFAULT CURRENT_TIMESTAMP, " +
-                             "event_type VARCHAR(20), " +
-                             "symbol VARCHAR(20), " +
-                             "order_type VARCHAR(20), " +
-                             "volume DOUBLE, " +
-                             "entry_price DOUBLE, " +
-                             "stop_loss DOUBLE, " +
-                             "take_profit DOUBLE, " +
-                             "expiry_time VARCHAR(50), " +
-                             "order_ticket BIGINT, " +
-                             "comment TEXT, " +
-                             "result TEXT, " +
-                             "error_code INT" +
-                             ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
-      
-      bool result = m_mysqlLogger.CreateTable("order_logs", createTableSQL);
-      if(!result) 
-      {
-         Print("Create table failed: ", m_mysqlLogger.GetErrorDescription());
-      }
-      return result;
-   }
+
    
    // 将交易记录保存到内存日志
    void LogToMemory(string time, string symbol, string type, 
@@ -128,7 +79,7 @@ public:
       // 使用更新机制记录到MySQL数据库（如果订单已存在则更新，否则插入）
       bool success = m_mysqlLogger.UpdateOrderEvent(
          "TRADE", symbol, type, volume, price, sl, tp,
-         time, orderTicket, comment, "Trade executed successfully", 0
+         (datetime)time, orderTicket, comment, "Trade executed successfully", 0
       );
       
       // 输出内存日志
@@ -184,4 +135,20 @@ public:
    {
       return m_mysqlLogger.GetLastError();
    }
+   
+   // 更新持仓信息（开仓或加仓）
+   bool UpdatePosition(string symbol, string positionType, double volume, double entryPrice, 
+                      double stopLoss, double takeProfit, ulong orderTicket, string comment = "")
+   {
+      return m_mysqlLogger.UpdatePosition(symbol, positionType, volume, entryPrice, 
+                                         stopLoss, takeProfit, orderTicket, comment);
+   }
+   
+   // 关闭持仓（平仓）
+   bool ClosePosition(string symbol, string positionType, double exitPrice, ulong orderTicket, string comment = "")
+   {
+      return m_mysqlLogger.ClosePosition(symbol, positionType, exitPrice, orderTicket, comment);
+   }
+   
+  
 };

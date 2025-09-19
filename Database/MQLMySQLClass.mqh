@@ -5,7 +5,6 @@
 //|                                                                  |
 //+------------------------------------------------------------------+
 #define MQLMYSQL_TRACER "跟踪: " // 跟踪消息前缀
-
 #import "MQLMySQL.dll"
     // 获取MySqlCursor.dll库的版本
     string cMySqlVersion ();

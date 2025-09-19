@@ -33,6 +33,13 @@ input color  InpInfoPanelColor = clrWhite; // 信息面板文字颜色
 input color  InpInfoPanelBgColor = clrNavy; // 信息面板背景颜色
 input bool   InpShowPenetratedPoints = false; // 显示已失效的价格点
 
+//--- 数据库连接参数
+input string InpDBHost = "localhost";        // 数据库主机
+input int    InpDBPort = 3306;              // 数据库端口
+input string InpDBName = "pymt5";           // 数据库名称
+input string InpDBUser = "root";             // 数据库用户名
+input string InpDBPassword = "!Aa123456";    // 数据库密码
+
 //--- 声明交易分析器（核心数据源）
 // 移除独立的ZigZag计算器，完全依赖TradeAnalyzer
 
@@ -57,7 +64,7 @@ static int        lastMinute = -1;  // 上次检查的分钟数
 CStrategyCL001 strategy;
 
 //--- 数据库管理器
-CDatabaseManager dbManager;
+CDatabaseManager* dbManager = NULL;
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
@@ -111,7 +118,66 @@ int OnInit()
    ChartSetInteger(0, CHART_SHOW_TRADE_LEVELS, false);
    ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
    
+   // 初始化数据库管理器（按需连接模式）
+   dbManager = new CDatabaseManager(InpDBHost, InpDBUser, InpDBPassword, InpDBName, InpDBPort);
+   if(dbManager != NULL)
+   {
+      Print("数据库管理器初始化成功（按需连接模式）");
+   }
+   else
+   {
+      Print("数据库管理器初始化失败");
+   }
    
+
+
+   // 输出最近一天的历史数据
+   Print("=== 最近一天的历史交易数据 ===");
+   datetime oneDayAgo = TimeCurrent() - 86400; // 24小时前
+   if(HistorySelect(oneDayAgo, TimeCurrent()))
+   {
+      int totalDeals = HistoryDealsTotal();
+      int totalOrders = HistoryOrdersTotal();
+      Print("历史成交总数: ", totalDeals);
+      Print("历史订单总数: ", totalOrders);
+      
+      // 输出历史成交详情
+      for(int i = 0; i < totalDeals; i++)
+      {
+         ulong dealTicket = HistoryDealGetTicket(i);
+         if(dealTicket > 0)
+         {
+            string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
+            double volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
+            double price = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
+            double sl = HistoryDealGetDouble(dealTicket, DEAL_SL);
+            double tp = HistoryDealGetDouble(dealTicket, DEAL_TP);
+            ENUM_DEAL_TYPE dealType = (ENUM_DEAL_TYPE)HistoryDealGetInteger(dealTicket, DEAL_TYPE);
+            string typeStr = (dealType == DEAL_TYPE_BUY) ? "BUY" : "SELL";
+            datetime time = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
+            long orderTicket = HistoryDealGetInteger(dealTicket, DEAL_ORDER);
+            double profit = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
+            
+            Print("成交 #", i + 1, ":");
+            Print("  成交单号: ", dealTicket);
+            Print("  订单号: ", orderTicket);
+            Print("  品种: ", symbol);
+            Print("  类型: ", typeStr);
+            Print("  数量: ", DoubleToString(volume, 2));
+            Print("  价格: ", DoubleToString(price, _Digits));
+            Print("  止损: ", DoubleToString(sl, _Digits));
+            Print("  止盈: ", DoubleToString(tp, _Digits));
+            Print("  盈亏: ", DoubleToString(profit, 2));
+            Print("  时间: ", TimeToString(time));
+            Print("  --------------------");
+         }
+      }
+   }
+   else
+   {
+      Print("无法获取历史数据");
+   }
+   Print("==============================");
 
    return(INIT_SUCCEEDED);
   }
@@ -134,6 +200,13 @@ void OnDeinit(const int reason)
    ObjectsDeleteAll(0, "ZigzagLabel4H_");
    ObjectsDeleteAll(0, "ZigzagLine_");
    ObjectsDeleteAll(0, "ZigzagLine4H_");
+   
+   // 清理数据库管理器
+   if(dbManager != NULL)
+   {
+      delete dbManager;
+      dbManager = NULL;
+   }
    ObjectsDeleteAll(0, "SR_Line_");
    ObjectsDeleteAll(0, "SR_Rect_");
    ObjectsDeleteAll(0, "SR_Label_");
@@ -375,86 +448,93 @@ void ProcessTradeAnalysisAndInfoPanel()
                           const MqlTradeRequest &request,
                           const MqlTradeResult &result)
    {
-      // 处理所有交易事件类型 - 主要从trans参数获取实时数据
-      string eventType = "";
-      string logEntry = "";
-      string symbol = "";
-      double volume = 0.0;
-      double price = 0.0;
-      ENUM_ORDER_TYPE orderType = 0;
-      ENUM_DEAL_ENTRY entryType = 0;
-      
-      // 获取订单号（使用deal或order字段，取决于事件类型）
-      ulong orderTicket = 0;
-      if(trans.type == TRADE_TRANSACTION_DEAL_ADD || trans.type == TRADE_TRANSACTION_HISTORY_ADD)
-         orderTicket = trans.deal;
-      else
-         orderTicket = trans.order;
-      
-      switch(trans.type)
+      // 处理订单成交事件，使用历史记录数据
+      if(trans.type == TRADE_TRANSACTION_HISTORY_ADD)
       {
-         case TRADE_TRANSACTION_DEAL_ADD: // 订单成交
-            eventType = "FILLED";
-            // 从trans参数获取交易信息
-            symbol = trans.symbol;
-            price = trans.price;
-            volume = trans.volume;
-            // 根据deal_type判断交易方向
-            if(trans.deal_type == DEAL_TYPE_BUY)
-               entryType = DEAL_ENTRY_IN;
-            else if(trans.deal_type == DEAL_TYPE_SELL)
-               entryType = DEAL_ENTRY_OUT;
-            
-            logEntry = StringFormat("订单成交 #%d 品种:%s 方向:%s 手数:%.2f 价格:%.5f",
-                  orderTicket, symbol, EnumToString(entryType), volume, price);
-            break;
-            
-         case TRADE_TRANSACTION_ORDER_ADD: // 挂单
-            eventType = "PENDING";
-            symbol = trans.symbol;
-            price = trans.price;
-            volume = trans.volume;
-            orderType = trans.order_type;
-            logEntry = StringFormat("挂单 #%d 品种:%s 类型:%s 手数:%.2f 价格:%.5f",
-                  orderTicket, symbol, EnumToString(orderType), volume, price);
-            break;
-            
-         case TRADE_TRANSACTION_ORDER_DELETE: // 取消订单
-            eventType = "CANCELLED";
-            symbol = trans.symbol;
-            logEntry = StringFormat("取消订单 #%d 品种:%s", orderTicket, symbol);
-            break;
-            
-         case TRADE_TRANSACTION_ORDER_UPDATE: // 修改订单
-            eventType = "MODIFIED";
-            symbol = trans.symbol;
-            price = trans.price;
-            logEntry = StringFormat("修改订单 #%d 品种:%s 新价格:%.5f", 
-                  orderTicket, symbol, price);
-            break;
-            
-         case TRADE_TRANSACTION_HISTORY_ADD: // 历史记录添加
-            // 跳过历史记录事件，避免重复记录
-            return;
-            
-         default:
-            return; // 不处理其他类型事件
-      }
-      
-      // 记录日志
-      if(logEntry != "")
-      {
-         Print(logEntry);
+         // 从历史记录获取数据
+         string symbol = "";
+         double volume = 0.0;
+         double entryPrice = 0.0;
+         double stopLoss = 0.0;
+         double takeProfit = 0.0;
+         string orderTypeStr = "";
+         datetime timeDone = 0;
+         string comment = StringFormat("历史订单成交: %s", EnumToString(trans.type));
          
-         // 保存到MySQL数据库 - 使用统一的订单号
-         if(dbManager.LogTradeToMySQL((int)TimeCurrent(), symbol, eventType, volume, price, 0, 0, orderTicket, ""))
+         // 获取订单号
+         ulong orderTicket = trans.deal;
+         if(orderTicket == 0) orderTicket = trans.order;
+         if(orderTicket == 0) orderTicket = request.order;
+         if(orderTicket == 0) orderTicket = result.order;
+         
+         // 从历史记录中读取订单详细信息（获取最近1天的历史数据）
+         datetime oneDayAgo = TimeCurrent() - 86400; // 24小时前
+         if(orderTicket > 0 && HistorySelect(oneDayAgo, TimeCurrent()))
          {
-            Print("实时交易记录成功保存到MySQL数据库!");
+            int totalDeals = HistoryDealsTotal();
+            Print("历史成交总数: ", totalDeals);
+            
+            for(int i = 0; i < totalDeals; i++)
+            {
+               ulong histDealTicket = HistoryDealGetTicket(i);
+               if(histDealTicket == orderTicket)
+               {
+                  // 获取成交详细信息
+                  symbol = HistoryDealGetString(histDealTicket, DEAL_SYMBOL);
+                  volume = HistoryDealGetDouble(histDealTicket, DEAL_VOLUME);
+                  entryPrice = HistoryDealGetDouble(histDealTicket, DEAL_PRICE);
+                  stopLoss = HistoryDealGetDouble(histDealTicket, DEAL_SL);
+                  takeProfit = HistoryDealGetDouble(histDealTicket, DEAL_TP);
+                  
+                  ENUM_DEAL_TYPE dealType = (ENUM_DEAL_TYPE)HistoryDealGetInteger(histDealTicket, DEAL_TYPE);
+                  orderTypeStr = (dealType == DEAL_TYPE_BUY) ? "ORDER_TYPE_BUY" : "ORDER_TYPE_SELL";
+                  timeDone = (datetime)HistoryDealGetInteger(histDealTicket, DEAL_TIME);
+                  
+                  // 输出详细的调试信息
+                  Print("找到历史成交 #", orderTicket, " 详细信息:");
+                  Print("  品种: ", symbol);
+                  Print("  数量: ", DoubleToString(volume, 2));
+                  Print("  入场价: ", DoubleToString(entryPrice, _Digits));
+                  Print("  止损: ", DoubleToString(stopLoss, _Digits));
+                  Print("  止盈: ", DoubleToString(takeProfit, _Digits));
+                  Print("  成交类型: ", orderTypeStr);
+                  Print("  成交时间: ", TimeToString(timeDone));
+                  
+                  break;
+               }
+            }
          }
-         else
+         
+         if(orderTicket > 0)
          {
-            Print("实时交易记录保存到数据库失败: ", dbManager.GetLastError());
+            // 保存历史数据到MySQL数据库
+            if(dbManager != NULL && dbManager.LogTradeToMySQL((int)timeDone, symbol, orderTypeStr, volume, entryPrice, stopLoss, takeProfit, orderTicket, comment))
+            {
+               Print("历史订单记录成功保存到MySQL数据库! 订单极值点: ", orderTicket);
+               
+               // 根据订单类型更新持仓信息
+               string positionType = (orderTypeStr == "ORDER_TYPE_BUY") ? "BUY" : "SELL";
+               
+               // 更新持仓（开仓或加仓）
+               if(dbManager.UpdatePosition(symbol, positionType, volume, entryPrice, stopLoss, takeProfit, orderTicket, comment))
+               {
+                  Print("持仓信息更新成功! 订单号: ", orderTicket);
+               }
+               else
+               {
+                  Print("持仓信息更新失败! 订单号: ", orderTicket);
+               }
+            }
+            else
+            {
+               Print("保存历史订单记录到MySQL数据库失败! 订单号: ", orderTicket);
+            }
          }
       }
+      else
+      {
+         // 跳过其他类型的交易事件
+         Print("跳过非成交交易事件: ", EnumToString(trans.type));
+      }      
    }
    

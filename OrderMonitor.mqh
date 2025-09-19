@@ -33,7 +33,7 @@ public:
       m_compensationInterval = compensationInterval;
       
       // 初始化MySQL日志记录器
-      m_mysqlLogger.Initialize("rm-bp1dd16o34ktj6un0to.mysql.rds.aliyuncs.com", 3306, "pymt5", "Unic$!anb4agg1", "saas");
+      m_mysqlLogger.Initialize("localhost", 3306, "pymt5", "root", "!Aa123456");
    }
    
    // EA初始化时调用，执行补偿检查

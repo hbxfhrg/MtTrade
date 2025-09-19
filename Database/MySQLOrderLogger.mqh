@@ -1,7 +1,6 @@
-﻿#include "MQLMySQLClass.mqh"
-
-#define STATUS_OK 0
+﻿#define STATUS_OK 0
 #define STATUS_ERROR -1
+#include "MQLMySQLClass.mqh"
 class CMySQLOrderLogger
 {
 private:
@@ -67,8 +66,9 @@ public:
          }
       }
       
-      m_initialized = true;
-      Print("MySQLOrderLogger: 初始化成功");
+      // 在按需连接模式下，初始化完成后断开连接
+      m_mysql.Disconnect();
+      Print("MySQLOrderLogger: 表结构初始化成功（按需连接模式）");
       return true;
    }
    
@@ -87,14 +87,10 @@ public:
 
    
    bool LogOrderEvent(string eventType, string symbol, string orderType, double volume,
-                     double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
+                     double entryPrice, double stopLoss, double takeProfit, datetime eventTime,
                      ulong orderTicket, string comment, string result, int errorCode)
    {
-      if(!m_initialized)
-      {
-         Print("MySQLOrderLogger: 未初始化");
-         return false;
-      }
+      // 按需连接模式下不需要检查初始化状态，ExecuteSQL会处理连接
 
       // 转义字符串参数以防止SQL注入
       string escapedEventType = eventType;
@@ -112,14 +108,13 @@ public:
       // 使用参数化查询防止SQL注入
       string sql = StringFormat(
          "INSERT INTO order_logs "
-         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, expiry_time, order_ticket, comment, result, error_code) "
+         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, event_time, order_ticket, comment, result, error_code) "
          "VALUES (" 
-         "'%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, '%s', %d, '%s', '%s', %d"
+         "'%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, FROM_UNIXTIME(%d), %d, '%s', '%s', %d"
          ")",
          escapedEventType, escapedSymbol, escapedOrderType, volume,
          entryPrice, stopLoss, takeProfit, 
-         TimeToString(expiryTime, TIME_DATE|TIME_MINUTES), 
-         orderTicket, escapedComment, escapedResult, errorCode
+         (int)eventTime, orderTicket, escapedComment, escapedResult, errorCode
       );
                                
       // 打印SQL语句用于核对
@@ -131,14 +126,10 @@ public:
    
    // 更新订单事件（如果订单已存在则更新，否则插入）
    bool UpdateOrderEvent(string eventType, string symbol, string orderType, double volume,
-                       double entryPrice, double stopLoss, double takeProfit, datetime expiryTime,
+                       double entryPrice, double stopLoss, double takeProfit, datetime eventTime,
                        ulong orderTicket, string comment, string result, int errorCode)
    {
-      if(!m_initialized)
-      {
-         Print("MySQLOrderLogger: 未初始化");
-         return false;
-      }
+      // 按需连接模式下不需要检查初始化状态，ExecuteSQL会处理连接
 
       // 首先检查订单是否已存在
       string checkSql = StringFormat("SELECT 1 FROM order_logs WHERE order_ticket = %d LIMIT 1", orderTicket);
@@ -181,13 +172,12 @@ public:
          string updateSql = StringFormat(
             "UPDATE order_logs SET "
             "event_type = '%s', symbol = '%s', order_type = '%s', volume = %.2f, "
-            "entry_price = %.5f, stop_loss = %.5f, take_profit = %.5f, expiry_time = '%s', "
-            "comment = '%s', result = '%s', error_code = %d, event_time = NOW() "
+            "entry_price = %.5f, stop_loss = %.5f, take_profit = %.5f, "
+            "comment = '%s', result = '%s', error_code = %d, event_time = FROM_UNIXTIME(%d) "
             "WHERE order_ticket = %d",
             escapedEventType, escapedSymbol, escapedOrderType, volume,
             entryPrice, stopLoss, takeProfit, 
-            TimeToString(expiryTime, TIME_DATE|TIME_MINUTES),
-            escapedComment, escapedResult, errorCode, orderTicket
+            escapedComment, escapedResult, errorCode, (int)eventTime, orderTicket
          );
          
          Print("即将执行的更新SQL语句: ", updateSql);
@@ -204,7 +194,7 @@ public:
       {
          // 订单不存在，执行插入操作
          return LogOrderEvent(eventType, symbol, orderType, volume, entryPrice, stopLoss, 
-                            takeProfit, expiryTime, orderTicket, comment, result, errorCode);
+                            takeProfit, eventTime, orderTicket, comment, result, errorCode);
       }
    }
    
@@ -262,7 +252,7 @@ public:
                    0, orderTicket, comment, "Order stop loss triggered", 0);
    }
    
-   bool IsInitialized() const { return m_initialized; }
+   bool IsInitialized() const { return true; } // 按需连接模式下总是返回true
    
    // 检查表是否存在
    bool CheckTableExists(const string tableName)
@@ -340,8 +330,8 @@ public:
       
       // 1. 测试连接
       CMySQLOrderLogger tester;
-      if(!tester.Initialize("rm-bp1dd16o34ktj6un0to.mysql.rds.aliyuncs.com", 
-                      3306, "pymt5", "saas", "Unic$!anb4agg1"))
+      if(!tester.Initialize("localhost", 
+                      3306, "pymt5", "root", "!Aa123456"))
       {
          Print("测试失败: 无法连接数据库");
          return;
@@ -369,4 +359,59 @@ public:
       
       Print("=== 数据库测试完成 ===");
    }
+   
+   // 更新持仓信息（开仓或加仓）
+   bool UpdatePosition(string symbol, string positionType, double volume, double entryPrice, 
+                      double stopLoss, double takeProfit, ulong orderTicket, string comment = "")
+   {
+      string escapedSymbol = symbol;
+      string escapedPositionType = positionType;
+      string escapedComment = comment;
+      
+      StringReplace(escapedSymbol, "'", "''");
+      StringReplace(escapedPositionType, "'", "''");
+      StringReplace(escapedComment, "'", "''");
+      
+      // 使用INSERT ... ON DUPLICATE KEY UPDATE语法
+      string sql = StringFormat(
+         "INSERT INTO positions (symbol, position_type, volume, entry_price, stop_loss, take_profit, order_ticket, comment) "
+         "VALUES ('%s', '%s', %.2f, %.5f, %.5f, %.5f, %d, '%s') "
+         "ON DUPLICATE KEY UPDATE "
+         "volume = volume + VALUES(volume), "
+         "entry_price = (entry_price * volume + VALUES(entry_price) * VALUES(volume)) / (volume + VALUES(volume)), "
+         "stop_loss = VALUES(stop_loss), "
+         "take_profit = VALUES(take_profit), "
+         "comment = CONCAT_WS('; ', comment, VALUES(comment))",
+         escapedSymbol, escapedPositionType, volume, entryPrice, stopLoss, takeProfit, orderTicket, escapedComment
+      );
+      
+      return ExecuteSQL(sql);
+   }
+   
+   // 关闭持仓（平仓）
+   bool ClosePosition(string symbol, string positionType, double exitPrice, ulong orderTicket, string comment = "")
+   {
+      string escapedSymbol = symbol;
+      string escapedPositionType = positionType;
+      string escapedComment = comment;
+      
+      StringReplace(escapedSymbol, "'", "''");
+      StringReplace(escapedPositionType, "'", "''");
+      StringReplace(escapedComment, "'", "''");
+      
+      // 计算盈亏并更新持仓状态
+      string sql = StringFormat(
+         "UPDATE positions SET "
+         "status = 'CLOSED', "
+         "exit_time = NOW(), "
+         "exit_price = %.5f, "
+         "profit = (%.5f - entry_price) * volume * %s, " // 根据买卖类型计算盈亏
+         "comment = CONCAT_WS('; ', comment, '%s') "
+         "WHERE symbol = '%s' AND position_type = '%s' AND status = 'OPEN'",
+         exitPrice, exitPrice, (positionType == "BUY" ? "1" : "-1"), escapedComment, escapedSymbol, escapedPositionType
+      );
+      
+      return ExecuteSQL(sql);
+   }
+   
 };
