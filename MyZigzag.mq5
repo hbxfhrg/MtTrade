@@ -65,8 +65,8 @@ static int        lastMinute = -1;  // 上次检查的分钟数
 CStrategyCL001 strategy;
 
 //--- 数据库管理器
-CDatabaseManager* dbManagerCore = NULL;
-CMySQLOrderLogger* dbManager = NULL;
+CDatabaseManager* db = NULL;
+CMySQLOrderLogger* dblog = NULL;
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
@@ -121,13 +121,22 @@ int OnInit()
    ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
    
    // 初始化数据库管理器（按需连接模式）
-   dbManagerCore = new CDatabaseManager(InpDBHost, InpDBUser, InpDBPassword, InpDBName, InpDBPort);
-   if(dbManagerCore != NULL)
+   db = new CDatabaseManager(InpDBHost, InpDBUser, InpDBPassword, InpDBName, InpDBPort);
+   if(db != NULL)
    {
-      dbManager = new CMySQLOrderLogger(dbManagerCore);
-      if(dbManager != NULL)
+      dblog = new CMySQLOrderLogger(db);
+      if(dblog != NULL)
       {
          Print("MySQL订单日志记录器初始化成功（按需连接模式）");
+         // 确保订单日志表存在
+         if(!dblog.CreateOrderLogsTable())
+         {
+            Print("创建订单日志表失败: ", db.GetLastError());
+         }
+         else
+         {
+            Print("订单日志表已准备就绪");
+         }
       }
       else
       {
@@ -164,16 +173,16 @@ void OnDeinit(const int reason)
    ObjectsDeleteAll(0, "ZigzagLine4H_");
    
    // 清理数据库管理器
-   if(dbManager != NULL)
+   if(dblog != NULL)
    {
-      delete dbManager;
-      dbManager = NULL;
+      delete dblog;
+      dblog = NULL;
    }
    
-   if(dbManagerCore != NULL)
+   if(db != NULL)
    {
-      delete dbManagerCore;
-      dbManagerCore = NULL;
+      delete db;
+      db = NULL;
    }
    
    ObjectsDeleteAll(0, "SR_Line_");
@@ -201,9 +210,9 @@ void OnTick()
       ProcessTradeAnalysisAndInfoPanel();
       
       // 同步交易历史
-      if(dbManager != NULL)
+      if(dblog != NULL)
       {
-         dbManager.SyncTradeHistory(dbManager.GetLastSyncTime());
+         dblog.SyncTradeHistory();
       }
       
       needRecalculateTradeAnalyzer = false;
@@ -432,68 +441,6 @@ void ProcessTradeAnalysisAndInfoPanel()
                           const MqlTradeRequest &request,
                           const MqlTradeResult &result)
    {
-      // 只处理特定类型的交易事件，避免重复记录
-      // TRADE_TRANSACTION_DEAL_ADD: 添加交易
-      // TRADE_TRANSACTION_ORDER_ADD: 添加订单
-      // TRADE_TRANSACTION_POSITION: 更改持仓
-      
-      static ulong lastDealTicket = 0;  // 记录上一次处理的交易单号
-      static ulong lastOrderTicket = 0; // 记录上一次处理的订单单号
-      static ulong lastPositionId = 0;  // 记录上一次处理的持仓ID
-      
-      // 根据交易事件类型进行处理
-      switch(trans.type)
-      {
-         // 添加交易记录
-         case TRADE_TRANSACTION_DEAL_ADD:
-            {
-               ulong dealTicket = trans.deal;
-               
-               // 检查是否已经处理过该交易
-               if(dealTicket != lastDealTicket)
-               {
-                  // 获取交易详情
-                  HistorySelect(0, TimeCurrent());
-                  if(HistoryDealSelect(dealTicket))
-                  {
-                     string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
-                     double volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
-                     double price = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
-                     double profit = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
-                     datetime dealTime = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
-                     long positionId = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
-                     long magicNumber = HistoryDealGetInteger(dealTicket, DEAL_MAGIC);
-                     string comment = HistoryDealGetString(dealTicket, DEAL_COMMENT);
-                     string dealType = (HistoryDealGetInteger(dealTicket, DEAL_TYPE) == DEAL_TYPE_BUY) ? "BUY" : "SELL";
-                     
-                     // 获取止损和止盈价格
-                     double sl = 0, tp = 0;
-                     if(PositionSelectByTicket(positionId))
-                     {
-                        sl = PositionGetDouble(POSITION_SL);
-                        tp = PositionGetDouble(POSITION_TP);
-                     }
-                     
-                     // 记录到数据库
-                     if(dbManager != NULL)
-                     {
-                        dbManager.LogTradeToMySQL((int)dealTime, symbol, dealType, volume, price, sl, tp, dealTicket, positionId, comment);
-                        Print("记录交易: ", dealType, " ", symbol, " ", volume, " @ ", price, " SL:", sl, " TP:", tp, " 利润:", profit);
-                     }
-                     
-                     // 更新上次处理的交易单号
-                     lastDealTicket = dealTicket;
-                  }
-               }
-            }
-            break;
-            
-         // 其他类型的交易事件可以根据需要添加处理逻辑
-         // 例如，如果需要跟踪订单状态变化或持仓变化
-         
-         default:
-            // 不处理其他类型的交易事件
-            break;
-      }
+     
    }
 //+------------------------------------------------------------------+

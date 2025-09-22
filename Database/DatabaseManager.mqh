@@ -3,6 +3,7 @@
 //| 数据库管理器（使用MySQL数据库存储）                              |
 //+------------------------------------------------------------------+
 #include "CMySQL.mqh"
+#include "CMySQLCursor.mqh"
 
 class CDatabaseManager
 {
@@ -107,29 +108,36 @@ public:
       return result;
    }
 
-   // 查询类SQL语句（SELECT等）
-   // 注意：这个方法需要配合游标使用，这里提供一个简单的示例
-   bool Query(string query)
+   // 查询类SQL语句（SELECT等）并返回结果
+   string QuerySingleValue(string query)
    {
       // 打开连接
       if (!Initialize())
       {
          Print("数据库连接失败");
-         return false;
+         return "";
       }
       
-      bool result = true;
-      // 对于查询操作，我们通常需要返回结果集
-      // 这里简单返回执行状态，实际使用时可能需要更复杂的处理
-      if (!m_mysql.Execute(query))
+      // 创建游标对象
+      CMySQLCursor cursor;
+      
+      // 打开游标执行查询
+      if (!cursor.Open(&m_mysql, query))
       {
-         Print("执行查询语句失败: ", m_mysql.LastErrorMessage());
-         result = false;
+         Print("执行查询语句失败: ", cursor.LastErrorMessage());
+         Disconnect();
+         return "";
       }
-      else
+      
+      string result = "";
+      // 获取查询结果
+      if (cursor.Rows() > 0 && cursor.Fetch())
       {
-         result = true;
+         result = cursor.FieldAsString(0);
       }
+      
+      // 关闭游标
+      cursor.Close();
       
       // 执行完成后关闭连接
       Disconnect();

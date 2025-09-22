@@ -1,8 +1,3 @@
-//+------------------------------------------------------------------+
-//| MySQLOrderLogger.mqh                                             |
-//| 数据库管理器（使用MySQL数据库存储）                              |
-//+------------------------------------------------------------------+
-#define STATUS_OK 0
 #define STATUS_ERROR -1
 #include "DatabaseManager.mqh"
 
@@ -11,18 +6,12 @@ class CMySQLOrderLogger
 private:
    CDatabaseManager* m_dbManager;
    bool m_initialized;
-   string m_memoryLog;
-   ulong m_lastSyncedDeal;
-   datetime m_lastSyncTime;
 
 public:
    // 带参数的构造函数
    CMySQLOrderLogger(CDatabaseManager* dbManager) : 
       m_dbManager(dbManager),
-      m_initialized(false),
-      m_memoryLog(""),
-      m_lastSyncedDeal(0),
-      m_lastSyncTime(0)
+      m_initialized(false)
    {
       if (m_dbManager != NULL)
       {
@@ -94,11 +83,6 @@ public:
          return false;
       }
       
-      // 记录到内存日志
-      m_memoryLog += StringFormat("[%s] %s %s %.2f @ %.5f (SL:%.5f TP:%.5f) #%d PosID:%d %s\n",
-                                TimeToString(eventTime), symbol, orderType, 
-                                volume, entryPrice, stopLoss, takeProfit, orderTicket, positionId, comment);
-      
       // 使用DatabaseManager记录订单事件
       string query = StringFormat(
          "INSERT INTO order_logs " +
@@ -123,11 +107,6 @@ public:
          return false;
       }
       
-      // 记录到内存日志
-      m_memoryLog += StringFormat("[%s] %s %s %.2f @ %.5f (SL:%.5f TP:%.5f) #%d PosID:%d %s\n",
-                                TimeToString((datetime)time), symbol, type, 
-                                volume, price, sl, tp, orderTicket, positionId, comment);
-      
       // 直接使用数据库管理器记录交易
       string query = StringFormat(
          "INSERT INTO order_logs " +
@@ -142,7 +121,7 @@ public:
    }
 
    // 增量同步历史交易
-   bool SyncTradeHistory(datetime fromTime)
+   bool SyncTradeHistory()
    {
       if (m_dbManager == NULL)
       {
@@ -150,7 +129,28 @@ public:
          return false;
       }
       
-      if(!HistorySelect(fromTime, TimeCurrent()))
+      // 查询数据库中最大的事件时间
+      datetime lastSyncTime = 0;
+      
+      // 使用DatabaseManager的查询功能获取最大时间
+      string query = "SELECT MAX(UNIX_TIMESTAMP(event_time)) as max_time FROM order_logs";
+      string result = m_dbManager.QuerySingleValue(query);
+      
+      if (result != "" && StringToInteger(result) > 0)
+      {
+         // 如果查询成功且有结果，使用查询到的时间作为同步起点
+         lastSyncTime = (datetime)StringToInteger(result);
+         Print("从数据库获取的最后同步时间: ", TimeToString(lastSyncTime));
+      }
+      else
+      {
+         // 如果查询失败或没有记录，从100小时前开始同步
+         lastSyncTime = TimeCurrent() - 360000;
+         Print("使用默认同步时间: ", TimeToString(lastSyncTime));
+      }
+      
+      // 获取从最后同步时间到当前时间的交易历史
+      if(!HistorySelect(lastSyncTime, TimeCurrent()))
       {
          Print("获取历史数据失败");
          return false;
@@ -159,58 +159,34 @@ public:
       int totalDeals = HistoryDealsTotal();
       bool success = true;
       
-      for(int i = 0; i < totalDeals; i++)
+      for(int i = 1; i < totalDeals; i++)
       {
          ulong dealTicket = HistoryDealGetTicket(i);
-         if(dealTicket > m_lastSyncedDeal)
+         string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
+         double volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
+         double price = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
+         long positionId = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
+         datetime dealTime = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
+         
+         string dealType = (HistoryDealGetInteger(dealTicket, DEAL_TYPE) == DEAL_TYPE_BUY) ? "BUY" : "SELL";
+         
+         string query = StringFormat(
+            "INSERT INTO order_logs " +
+            "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, event_time, " +
+            "order_ticket, position_id, magic_number, profit, comment, result, error_code) " +
+            "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, FROM_UNIXTIME(%d), %d, %d, %d, %.2f, '%s', '%s', %d)",
+            "TRADE", symbol, dealType, volume, price, 0.0, 0.0, 
+            (int)dealTime, dealTicket, positionId, 0, 0.0, "增量同步", "Trade executed successfully", 0
+         );
+         
+         if(!m_dbManager.Execute(query))
          {
-            string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
-            double volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
-            double price = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
-            long positionId = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
-            datetime dealTime = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
-            
-            string dealType = (HistoryDealGetInteger(dealTicket, DEAL_TYPE) == DEAL_TYPE_BUY) ? "BUY" : "SELL";
-            
-            string query = StringFormat(
-               "INSERT INTO order_logs " +
-               "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, event_time, " +
-               "order_ticket, position_id, magic_number, profit, comment, result, error_code) " +
-               "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, FROM_UNIXTIME(%d), %d, %d, %d, %.2f, '%s', '%s', %d)",
-               "TRADE", symbol, dealType, volume, price, 0.0, 0.0, 
-               (int)dealTime, dealTicket, positionId, 0, 0.0, "增量同步", "Trade executed successfully", 0
-            );
-            
-            if(!m_dbManager.Execute(query))
-            {
-               success = false;
-            }
-            else
-            {
-               m_lastSyncedDeal = dealTicket;
-            }
+            success = false;
          }
       }
       
-      m_lastSyncTime = TimeCurrent();
       return success;
    }
    
-   // 获取内存日志
-   string GetMemoryLog() const
-   {
-      return m_memoryLog;
-   }
-
-   // 获取最后同步时间
-   datetime GetLastSyncTime() const
-   {
-      return m_lastSyncTime;
-   }
-
-   // 获取最后同步的成交单号
-   ulong GetLastSyncedDeal() const
-   {
-      return m_lastSyncedDeal;
-   }
+  
 };
