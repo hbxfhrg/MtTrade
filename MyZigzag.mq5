@@ -64,7 +64,7 @@ static int        lastMinute = -1;  // 上次检查的分钟数
 CStrategyCL001 strategy;
 
 //--- 数据库管理器
-CDatabaseManager* dbManager = NULL;
+CMySQLOrderLogger* dbManager = NULL;
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
@@ -119,24 +119,14 @@ int OnInit()
    ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
    
    // 初始化数据库管理器（按需连接模式）
-   dbManager = new CDatabaseManager(InpDBHost, InpDBUser, InpDBPassword, InpDBName, InpDBPort);
+   dbManager = new CMySQLOrderLogger(InpDBHost, InpDBPort, InpDBName, InpDBUser, InpDBPassword);
    if(dbManager != NULL)
    {
-      Print("数据库管理器初始化成功（按需连接模式）");
-      
-      //检查并创建必要的数据库表
-      // if(!dbManager.CheckAndCreateTables())
-      // {
-      //    Print("警告: 数据库表检查或创建失败");
-      // }
-      // else
-      // {
-      //    Print("数据库表检查完成");
-      // }
+      Print("MySQL订单日志记录器初始化成功（按需连接模式）");
    }
    else
    {
-      Print("数据库管理器初始化失败");
+      Print("MySQL订单日志记录器初始化失败");
    }   
 
 

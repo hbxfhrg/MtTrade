@@ -2,116 +2,150 @@
 //| DatabaseManager.mqh                                              |
 //| 数据库管理器（使用MySQL数据库存储）                              |
 //+------------------------------------------------------------------+
-#include "MySQLOrderLogger.mqh"
+#include "CMySQL.mqh"
 
 class CDatabaseManager
 {
 private:
-   CMySQLOrderLogger m_mysqlLogger;
-   string m_memoryLog;
-   ulong m_lastSyncedDeal;
-   datetime m_lastSyncTime;
+   CMySQL m_mysql;
+   string m_host;
+   int m_port;
+   string m_database;
+   string m_user;
+   string m_password;
+   bool m_initialized;
 
 public:
    // 带参数的构造函数
    CDatabaseManager(string host, string username, string password, string database, int port) :
-      m_mysqlLogger(host, (uint)port, database, username, password),
-      m_memoryLog(""),
-      m_lastSyncedDeal(0),
-      m_lastSyncTime(0)
+      m_host(host), m_port(port), m_database(database), m_user(username), m_password(password),
+      m_initialized(false)
    {
-      // 初始化数据库连接
-      if (!m_mysqlLogger.Initialize())
-      {
-         Print("数据库连接初始化失败");
-      }
-      else
-      {
-         // 创建订单日志表
-         if (!m_mysqlLogger.CreateOrderLogsTable())
-         {
-            Print("创建订单日志表失败");
-         }
-      }
-      
-      Print("数据库管理器初始化完成");
+      // 只进行连接参数的赋值，不立即调用连接动作
+      Print("数据库管理器初始化完成（连接参数已设置）");
    }
 
-   // 记录交易到MySQL数据库
-   bool LogTradeToMySQL(int time, string symbol, string type, 
-                      double volume, double price, double sl, double tp,
-                      ulong orderTicket, long positionId, string comment)
+   // 初始化数据库连接
+   bool Initialize(bool isReconnect = false)
    {
-      // 记录到内存日志
-      m_memoryLog += StringFormat("[%s] %s %s %.2f @ %.5f (SL:%.5f TP:%.5f) #%d PosID:%d %s\n",
-                                TimeToString((datetime)time), symbol, type, 
-                                volume, price, sl, tp, orderTicket, positionId, comment);
-      
-      // 调用MySQLOrderLogger记录交易
-      return m_mysqlLogger.LogOrderEvent(
-         "TRADE", symbol, type, volume, price, sl, tp,
-         (datetime)time, orderTicket, positionId, 0, comment, 
-         "Trade executed successfully", 0
-      );
-   }
-
-   // 增量同步历史交易
-   bool SyncTradeHistory(datetime fromTime)
-   {
-      if(!HistorySelect(fromTime, TimeCurrent()))
+      // 如果已经连接且不是重新连接，则直接返回true
+      if (m_initialized && !isReconnect)
       {
-         Print("获取历史数据失败");
+         return true;
+      }
+      
+      if(!m_mysql.Connect(m_host, m_user, m_password, m_database, m_port, "", 0))
+      {
+         Print("MySQL连接失败: ", m_mysql.LastErrorMessage());
          return false;
       }
-
-      int totalDeals = HistoryDealsTotal();
-      bool success = true;
       
-      for(int i = 0; i < totalDeals; i++)
+      m_initialized = true;
+      return true;
+   }
+   
+   // 断开数据库连接
+   void Disconnect()
+   {
+      if (m_initialized)
       {
-         ulong dealTicket = HistoryDealGetTicket(i);
-         if(dealTicket > m_lastSyncedDeal)
+         m_mysql.Disconnect();
+         m_initialized = false;
+      }
+   }
+   
+   // 执行类SQL语句（INSERT, UPDATE, DELETE等）
+   bool Execute(string query)
+   {
+      // 打开连接
+      if (!Initialize())
+      {
+         Print("数据库连接失败");
+         return false;
+      }
+      
+      bool result = true;
+      if (!m_mysql.Execute(query))
+      {
+         Print("执行SQL语句失败: ", m_mysql.LastErrorMessage());
+         // 检查是否是"Commands out of sync"错误(2014)
+         if (m_mysql.LastError() == 2014)
          {
-            string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
-            double volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
-            double price = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
-            long positionId = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
-            datetime dealTime = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
-            
-            if(!LogTradeToMySQL(
-               (int)dealTime, symbol,
-               (HistoryDealGetInteger(dealTicket, DEAL_TYPE) == DEAL_TYPE_BUY) ? "BUY" : "SELL",
-               volume, price, 0, 0, dealTicket, positionId, "增量同步"
-            ))
+            Print("检测到命令不同步错误，正在尝试重新连接...");
+            Disconnect();
+            if (Initialize(true))
             {
-               success = false;
+               // 重新连接成功后再次尝试执行查询
+               if (!m_mysql.Execute(query))
+               {
+                  Print("重新执行查询失败: ", m_mysql.LastErrorMessage());
+                  result = false;
+               }
+               else
+               {
+                  result = true;
+               }
             }
             else
             {
-               m_lastSyncedDeal = dealTicket;
+               result = false;
             }
          }
+         else
+         {
+            result = false;
+         }
+      }
+      else
+      {
+         result = true;
       }
       
-      m_lastSyncTime = TimeCurrent();
-      return success;
+      // 执行完成后关闭连接
+      Disconnect();
+      
+      return result;
    }
 
-   // 获取内存日志
-   string GetMemoryLog() const
+   // 查询类SQL语句（SELECT等）
+   // 注意：这个方法需要配合游标使用，这里提供一个简单的示例
+   bool Query(string query)
    {
-      return m_memoryLog;
+      // 打开连接
+      if (!Initialize())
+      {
+         Print("数据库连接失败");
+         return false;
+      }
+      
+      bool result = true;
+      // 对于查询操作，我们通常需要返回结果集
+      // 这里简单返回执行状态，实际使用时可能需要更复杂的处理
+      if (!m_mysql.Execute(query))
+      {
+         Print("执行查询语句失败: ", m_mysql.LastErrorMessage());
+         result = false;
+      }
+      else
+      {
+         result = true;
+      }
+      
+      // 执行完成后关闭连接
+      Disconnect();
+      
+      return result;
    }
-
-   // 获取最后同步时间
-   datetime GetLastSyncTime() const
+   
+   // 获取最后错误信息
+   string GetLastError() const
    {
-      return m_lastSyncTime;
+      return m_mysql.LastErrorMessage();
    }
-
-   // 获取最后同步的成交单号
-   ulong GetLastSyncedDeal() const
+   
+   // 获取最后错误代码
+   int LastError() const
    {
-      return m_lastSyncedDeal;
+      return m_mysql.LastError();
    }
 };
