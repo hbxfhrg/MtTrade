@@ -124,7 +124,7 @@ public:
                         orderInfo.VolumeInitial(), orderInfo.PriceOpen(),
                         orderInfo.StopLoss(), orderInfo.TakeProfit(),
                         orderInfo.TimeExpiration(), orderInfo.Ticket(),
-                        orderInfo.PositionId(), orderInfo.Comment(), 
+                        orderInfo.PositionId(), orderInfo.Magic(), orderInfo.Comment(), 
                         "Active order (compensation)", 0);
          }
       }
@@ -157,7 +157,7 @@ public:
                            historyOrder.VolumeInitial(), historyOrder.PriceOpen(),
                            historyOrder.StopLoss(), historyOrder.TakeProfit(),
                            historyOrder.TimeExpiration(), historyOrder.Ticket(),
-                           historyOrder.PositionById(), historyOrder.Comment(),
+                           historyOrder.PositionById(), historyOrder.Magic(), historyOrder.Comment(),
                            result + " (compensation)", 0);
             }
          }
@@ -175,7 +175,7 @@ public:
                         positionInfo.Volume(), positionInfo.PriceOpen(),
                         positionInfo.StopLoss(), positionInfo.TakeProfit(),
                         0, positionInfo.Ticket(),
-                        positionInfo.Identifier(), positionInfo.Comment(),
+                        positionInfo.Identifier(), positionInfo.Magic(), positionInfo.Comment(),
                         "Position active (compensation)", 0);
          }
       }
@@ -201,13 +201,13 @@ private:
    // 记录订单事件到MySQL数据库
    void LogOrderEvent(string eventType, string symbol, string orderType, 
                      double volume, double price, double sl, double tp,
-                     datetime expiration, ulong ticket, ulong positionId, string comment, 
+                     datetime expiration, ulong ticket, ulong positionId, long magicNumber, string comment, 
                      string result, int errorCode)
    {
       if(m_mysqlLogger != NULL)
       {
          m_mysqlLogger.LogOrderEvent(eventType, symbol, orderType, volume, price, 
-                                    sl, tp, expiration, ticket, positionId, comment, result, errorCode);
+                                    sl, tp, expiration, ticket, positionId, magicNumber, comment, result, errorCode);
       }
    }
 };

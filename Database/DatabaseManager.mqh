@@ -20,6 +20,20 @@ public:
       m_lastSyncedDeal(0),
       m_lastSyncTime(0)
    {
+      // 初始化数据库连接
+      if (!m_mysqlLogger.Initialize())
+      {
+         Print("数据库连接初始化失败");
+      }
+      else
+      {
+         // 创建订单日志表
+         if (!m_mysqlLogger.CreateOrderLogsTable())
+         {
+            Print("创建订单日志表失败");
+         }
+      }
+      
       Print("数据库管理器初始化完成");
    }
 
@@ -36,7 +50,7 @@ public:
       // 调用MySQLOrderLogger记录交易
       return m_mysqlLogger.LogOrderEvent(
          "TRADE", symbol, type, volume, price, sl, tp,
-         (datetime)time, orderTicket, positionId, comment, 
+         (datetime)time, orderTicket, positionId, 0, comment, 
          "Trade executed successfully", 0
       );
    }
