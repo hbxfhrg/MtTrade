@@ -10,11 +10,6 @@ class CMySQLOrderLogger
 {
 private:
    CDatabaseManager* m_dbManager;
-   string m_host;
-   int m_port;
-   string m_database;
-   string m_user;
-   string m_password;
    bool m_initialized;
    string m_memoryLog;
    ulong m_lastSyncedDeal;
@@ -22,32 +17,26 @@ private:
 
 public:
    // 带参数的构造函数
-   CMySQLOrderLogger(string host, int port, string database, string user, string password) : 
-      m_host(host), m_port(port), m_database(database), m_user(user), m_password(password),
-      m_dbManager(NULL),
+   CMySQLOrderLogger(CDatabaseManager* dbManager) : 
+      m_dbManager(dbManager),
       m_initialized(false),
       m_memoryLog(""),
       m_lastSyncedDeal(0),
       m_lastSyncTime(0)
    {
-      // 初始化数据库管理器
-      m_dbManager = new CDatabaseManager(host, user, password, database, port);
       if (m_dbManager != NULL)
       {
          m_initialized = true;
       }
       
-      Print("MySQL订单日志记录器初始化完成（连接参数已设置）");
+      Print("MySQL订单日志记录器初始化完成");
    }
    
    // 析构函数
    ~CMySQLOrderLogger()
    {
-      if (m_dbManager != NULL)
-      {
-         delete m_dbManager;
-         m_dbManager = NULL;
-      }
+      // 注意：这里不再删除m_dbManager，因为它是外部传入的
+      m_dbManager = NULL;
    }
 
    bool Initialize(bool isReconnect = false)

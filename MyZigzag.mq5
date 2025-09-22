@@ -23,6 +23,7 @@
 #include "ZigzagSegmentManager.mqh"
 #include "Strategies/CL001.mqh"
 #include "Database/DatabaseManager.mqh"
+#include "Database/MySQLOrderLogger.mqh"
 
 //--- 输入参数（简化版本，专注于显示控制）
 input bool   InpShowLabels = true;        // 显示极值点标签
@@ -64,6 +65,7 @@ static int        lastMinute = -1;  // 上次检查的分钟数
 CStrategyCL001 strategy;
 
 //--- 数据库管理器
+CDatabaseManager* dbManagerCore = NULL;
 CMySQLOrderLogger* dbManager = NULL;
 
 //+------------------------------------------------------------------+
@@ -119,14 +121,22 @@ int OnInit()
    ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
    
    // 初始化数据库管理器（按需连接模式）
-   dbManager = new CMySQLOrderLogger(InpDBHost, InpDBPort, InpDBName, InpDBUser, InpDBPassword);
-   if(dbManager != NULL)
+   dbManagerCore = new CDatabaseManager(InpDBHost, InpDBUser, InpDBPassword, InpDBName, InpDBPort);
+   if(dbManagerCore != NULL)
    {
-      Print("MySQL订单日志记录器初始化成功（按需连接模式）");
+      dbManager = new CMySQLOrderLogger(dbManagerCore);
+      if(dbManager != NULL)
+      {
+         Print("MySQL订单日志记录器初始化成功（按需连接模式）");
+      }
+      else
+      {
+         Print("MySQL订单日志记录器初始化失败");
+      }
    }
    else
    {
-      Print("MySQL订单日志记录器初始化失败");
+      Print("数据库核心管理器初始化失败");
    }   
 
 
@@ -159,6 +169,13 @@ void OnDeinit(const int reason)
       delete dbManager;
       dbManager = NULL;
    }
+   
+   if(dbManagerCore != NULL)
+   {
+      delete dbManagerCore;
+      dbManagerCore = NULL;
+   }
+   
    ObjectsDeleteAll(0, "SR_Line_");
    ObjectsDeleteAll(0, "SR_Rect_");
    ObjectsDeleteAll(0, "SR_Label_");

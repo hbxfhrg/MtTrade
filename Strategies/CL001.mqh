@@ -32,14 +32,12 @@ input int OrderExpiryHours = 24;   // 挂单有效时间(小时，默认24小时
 #include <Trade/Trade.mqh>
 #include <Trade/OrderInfo.mqh>
 #include <Trade/PositionInfo.mqh>
-#include "../OrderMonitor.mqh"
 #include "../Database/DatabaseManager.mqh"
 
 class CStrategyCL001
 {
 protected:  // 修改为protected以允许子类访问
-   CTrade m_trade;
-   COrderMonitor m_orderMonitor;
+   CTrade m_trade; 
    ulong m_orderTicket;
    ulong m_secondaryOrderTicket;
    ulong m_positionTicket;
@@ -51,8 +49,7 @@ public:
                      m_secondaryOrderTicket(0),
                      m_positionTicket(0),
                      m_referencePrice(0),
-                     m_secondaryReferencePrice(0),
-                     m_orderMonitor("CL001") {}
+                     m_secondaryReferencePrice(0) {}
    
    string GetStrategyName() const { return "CL001"; }
    string GetStrategyDescription() const { return "新突破行情5分钟追方向策略"; }
