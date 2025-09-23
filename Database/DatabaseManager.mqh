@@ -35,6 +35,12 @@ public:
          return true;
       }
       
+      // 在策略测试器中直接返回true，不实际连接数据库
+#ifdef __MQL5__
+      Print("在策略测试器中运行，跳过数据库连接");
+      m_initialized = true;
+      return true;
+#else
       if(!m_mysql.Connect(m_host, m_user, m_password, m_database, m_port, "", 0))
       {
          Print("MySQL连接失败: ", m_mysql.LastErrorMessage());
@@ -43,21 +49,31 @@ public:
       
       m_initialized = true;
       return true;
+#endif
    }
    
    // 断开数据库连接
    void Disconnect()
    {
+#ifndef __MQL5__
       if (m_initialized)
       {
          m_mysql.Disconnect();
          m_initialized = false;
       }
+#else
+      m_initialized = false;
+#endif
    }
    
    // 执行类SQL语句（INSERT, UPDATE, DELETE等）
    bool Execute(string query)
    {
+#ifdef __MQL5__
+      // 在策略测试器中直接返回true，不实际执行查询
+      Print("在策略测试器中运行，跳过SQL执行: ", query);
+      return true;
+#else
       // 打开连接
       if (!Initialize())
       {
@@ -106,11 +122,17 @@ public:
       Disconnect();
       
       return result;
+#endif
    }
 
    // 查询类SQL语句（SELECT等）并返回结果
    string QuerySingleValue(string query)
    {
+#ifdef __MQL5__
+      // 在策略测试器中直接返回空字符串，不实际执行查询
+      Print("在策略测试器中运行，跳过SQL查询: ", query);
+      return "";
+#else
       // 打开连接
       if (!Initialize())
       {
@@ -143,17 +165,26 @@ public:
       Disconnect();
       
       return result;
+#endif
    }
    
    // 获取最后错误信息
    string GetLastError() const
    {
+#ifndef __MQL5__
       return m_mysql.LastErrorMessage();
+#else
+      return "在策略测试器中运行，无实际错误";
+#endif
    }
    
    // 获取最后错误代码
    int LastError() const
    {
+#ifndef __MQL5__
       return m_mysql.LastError();
+#else
+      return 0;
+#endif
    }
 };

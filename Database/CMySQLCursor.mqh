@@ -4,6 +4,7 @@
 //| 这个文件定义了用于处理MySQL数据库游标操作的CMySQLCursor类        |
 //|                                                                  |
 //+------------------------------------------------------------------+
+#ifndef __MQL5__
 #import "MQLMySQL.dll"
     // 获取MySqlCursor.dll库的版本
     string cMySqlVersion ();
@@ -61,6 +62,7 @@
                    string pSection,    // 节名称
                    string pKey);       // 键名称
 #import
+#endif
 
 //+------------------------------------------------------------------+
 //| CMySQLCursor类                                                   |
@@ -105,6 +107,7 @@ public:
     //        - 失败时为false，要获取错误信息，请调用LastError()和/或LastErrorMessage()
     bool Open(CMySQL *pConnection, string pQuery)
     {
+#ifndef __MQL5__
         SQLTrace = pConnection.GetTrace();
         ConnectID = pConnection.GetConnectID();
         if (SQLTrace) Print(MQLMYSQL_TRACER, "数据库ID#", ConnectID, ", 查询:", pQuery);
@@ -119,11 +122,18 @@ public:
             return (false);
         }
         return (true);
+#else
+        // 在策略测试器中返回false，因为DLL不可用
+        CursorErrorNumber = -9;
+        CursorErrorDescription = "DLL在策略测试器中不可用。";
+        return (false);
+#endif
     }
     
     // 关闭已打开的游标
     void Close(void)
     {
+#ifndef __MQL5__
         ClearErrors();
         // if (CursorID == -1) return; // 无活动游标
         
@@ -139,23 +149,34 @@ public:
             if (SQLTrace) Print(MQLMYSQL_TRACER, "游标 #", CursorID, " 已关闭");
             CursorID = -1;
         }
+#else
+        CursorID = -1;
+        ClearErrors();
+#endif
     }
     
     // 返回游标选择的行数
     int Rows(void)
     {
+#ifndef __MQL5__
         int result;
         result = cMySqlCursorRows(CursorID);
         CursorErrorNumber = cGetCursorErrorNumber(CursorID);
         CursorErrorDescription = cGetCursorErrorDescription(CursorID);
         if (SQLTrace) Print(MQLMYSQL_TRACER, "游标 #", CursorID, ", 行数: ", result);
         return (result);
+#else
+        CursorErrorNumber = -9;
+        CursorErrorDescription = "DLL在策略测试器中不可用。";
+        return (0);
+#endif
     }
     
     // 从游标获取下一行到当前行缓冲区
     // 成功时返回true，否则返回false
     bool Fetch(void)
     {
+#ifndef __MQL5__
         bool result;
         result = cMySqlCursorFetchRow(CursorID);
         CursorErrorNumber = cGetCursorErrorNumber(CursorID);
@@ -165,17 +186,28 @@ public:
             Print(MQLMYSQL_TRACER, "游标 #", CursorID, " 获取错误: ", CursorErrorNumber, ": ", CursorErrorDescription);
         }
         return (result); 
+#else
+        CursorErrorNumber = -9;
+        CursorErrorDescription = "DLL在策略测试器中不可用。";
+        return (false);
+#endif
     }
     
     // 从游标获取的当前行中检索值
     // 字段从0开始
     string FieldAsString(int pField)
     {
+#ifndef __MQL5__
         string result;
         result = cMySqlGetRowField(CursorID, pField);
         CursorErrorNumber = cGetCursorErrorNumber(CursorID);
         CursorErrorDescription = cGetCursorErrorDescription(CursorID);
         return (result);
+#else
+        CursorErrorNumber = -9;
+        CursorErrorDescription = "DLL在策略测试器中不可用。";
+        return ("");
+#endif
     }
     
     int FieldAsInt(int pField)

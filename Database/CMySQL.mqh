@@ -4,7 +4,10 @@
 //| 这个文件定义了用于连接和操作MySQL数据库的CMySQL类                |
 //|                                                                  |
 //+------------------------------------------------------------------+
-#define MQLMYSQL_TRACER "跟踪: " // 跟踪消息前缀
+// 注意：在策略测试器中不支持DLL导入，因此我们使用条件编译来避免错误
+
+#ifndef __MQL5__
+// 只在非测试环境中导入DLL
 #import "MQLMySQL.dll"
     // 获取MySqlCursor.dll库的版本
     string cMySqlVersion ();
@@ -62,6 +65,7 @@
                    string pSection,    // 节名称
                    string pKey);       // 键名称
 #import
+#endif
 
 //+------------------------------------------------------------------+
 //| CMySQL类                                                         |
@@ -123,7 +127,11 @@ public:
     // 返回MQLMySQL库的版本
     string DllVersion()
     {
+#ifndef __MQL5__
         return(cMySqlVersion());
+#else
+        return("DLL not available in strategy tester");
+#endif
     }
     
     // 接口函数Connect - 使用参数连接到MySQL数据库：
@@ -146,6 +154,7 @@ public:
     // 接口函数Connect - 使用内部凭证（已加载或设置）连接到MySQL数据库
     bool Connect(void)
     {
+#ifndef __MQL5__
         int connection;
         ClearErrors();
         
@@ -192,6 +201,12 @@ public:
         }
         
         return (true);
+#else
+        // 在策略测试器中返回false，因为DLL不可用
+        MySqlErrorNumber = -9;
+        MySqlErrorDescription = "DLL在策略测试器中不可用。";
+        return (false);
+#endif
     }
     
     // 为后续连接设置数据库凭证
@@ -226,102 +241,66 @@ public:
     }
     */
     
-    // 接口函数Disconnect - 关闭数据库连接
-    // 如果未建立连接，则不执行任何操作
-    void Disconnect(void)
-    {
-        ClearErrors();
-        if (ConnectID != -1) 
-        {
-            cMySqlDisconnect(ConnectID);
-            if (SQLTrace) Print(MQLMYSQL_TRACER, "数据库ID#", ConnectID, " 已断开连接");
-            ConnectID = -1;
-        }
-    }
-    
-    // 接口函数Execute - 执行SQL查询（DML/DDL/DCL操作，MySQL命令）
-    // pQuery      - SQL查询
-    // ------------------------------------------------------
-    // 返回值      - true : 执行成功
-    //             - false: 出现任何错误（请参见MySqlErrorNumber, MySqlErrorDescription）
+    // 执行非SELECT语句
     bool Execute(string pQuery)
     {
+#ifndef __MQL5__
+        bool result;
         ClearErrors();
-        if (SQLTrace) Print(MQLMYSQL_TRACER, "数据库ID#", ConnectID, ", 命令:", pQuery);
-        if (ConnectID == -1) 
+        
+        if (ConnectID < 0)
         {
-            // 无连接
-            MySqlErrorNumber = -2;
+            MySqlErrorNumber = -1;
             MySqlErrorDescription = "未连接到数据库。";
-            if (SQLTrace) Print(MQLMYSQL_TRACER, "命令>", MySqlErrorNumber, ": ", MySqlErrorDescription);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "执行错误 #", MySqlErrorNumber, " ", MySqlErrorDescription);
             return (false);
         }
-
-        if (!cMySqlExecute(ConnectID, pQuery))
+        
+        result = cMySqlExecute(ConnectID, pQuery);
+        if (!result)
         {
             MySqlErrorNumber = cGetMySqlErrorNumber(ConnectID);
             MySqlErrorDescription = cGetMySqlErrorDescription(ConnectID);
-            if (SQLTrace) Print(MQLMYSQL_TRACER, "命令>", MySqlErrorNumber, ": ", MySqlErrorDescription);
-            return (false);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "执行错误 #", MySqlErrorNumber, " ", MySqlErrorDescription, " 查询: ", pQuery);
         }
-        
-        // 添加额外的错误检查，确保没有未处理的结果集
-        int errorCode = cGetMySqlErrorNumber(ConnectID);
-        if (errorCode != 0)
+        else
         {
-            MySqlErrorNumber = errorCode;
-            MySqlErrorDescription = cGetMySqlErrorDescription(ConnectID);
-            if (SQLTrace) Print(MQLMYSQL_TRACER, "命令>", MySqlErrorNumber, ": ", MySqlErrorDescription);
-            // 如果是"Commands out of sync"错误(2014)，尝试重新连接
-            if (errorCode == 2014)
-            {
-                if (SQLTrace) Print(MQLMYSQL_TRACER, "检测到命令不同步错误，正在尝试重新连接...");
-                Disconnect();
-                // 重置连接状态，确保可以重新连接
-                ConnectID = -1;
-                if (Connect())
-                {
-                    // 重新连接成功后再次尝试执行查询
-                    if (!cMySqlExecute(ConnectID, pQuery))
-                    {
-                        MySqlErrorNumber = cGetMySqlErrorNumber(ConnectID);
-                        MySqlErrorDescription = cGetMySqlErrorDescription(ConnectID);
-                        if (SQLTrace) Print(MQLMYSQL_TRACER, "命令>", MySqlErrorNumber, ": ", MySqlErrorDescription);
-                        return (false);
-                    }
-                    return (true);
-                }
-            }
-            return (false);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "查询执行成功: ", pQuery);
         }
         
-        return (true);
+        return (result);
+#else
+        // 在策略测试器中返回false，因为DLL不可用
+        MySqlErrorNumber = -9;
+        MySqlErrorDescription = "DLL在策略测试器中不可用。";
+        return (false);
+#endif
     }
     
-    // 返回上次DML操作影响的行数
-    int RowsAffected(void)
+    // 断开数据库连接
+    void Disconnect(void)
     {
-        return (cMySqlRowsAffected(ConnectID));
+#ifndef __MQL5__
+        if (ConnectID >= 0)
+        {
+            cMySqlDisconnect(ConnectID);
+            if (SQLTrace) Print(MQLMYSQL_TRACER, "断开数据库连接。数据库ID#", ConnectID);
+            ConnectID = -1;
+        }
+#else
+        ConnectID = -1;
+#endif
     }
     
-    // 返回内部连接标识符
-    int GetConnectID(void)
+    // 获取最后错误编号
+    int LastError(void)
     {
-        return ConnectID;
+        return (MySqlErrorNumber);
     }
     
-    bool GetTrace(void)
+    // 获取最后错误描述
+    string LastErrorMessage(void)
     {
-        return SQLTrace;
-    }
-    
-    int LastError(void) const
-    {
-        return MySqlErrorNumber;
-    }
-    
-    string LastErrorMessage(void) const
-    {
-        return MySqlErrorDescription;
+        return (MySqlErrorDescription);
     }
 };

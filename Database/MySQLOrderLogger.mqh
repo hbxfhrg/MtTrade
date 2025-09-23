@@ -86,31 +86,48 @@ public:
          return false;
       }
       
-      // 根据deal_entry值决定写入哪个时间字段
-      string timeField = "";
-      string timeValue = "";
+      // 根据deal_entry值决定操作类型
       if(dealEntry == "IN")
       {
-         timeField = "entry_time";
-         timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)eventTime);
+         // 进场交易执行INSERT操作
+         // 根据deal_entry值决定写入哪个时间字段
+         string timeField = "";
+         string timeValue = "";
+         if(dealEntry == "IN")
+         {
+            timeField = "entry_time";
+            timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)eventTime);
+         }
+         
+         // 使用DatabaseManager记录订单事件
+         string query = StringFormat(
+            "INSERT INTO order_logs " +
+            "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
+            "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
+            "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
+            timeField, eventType, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, exitPrice, actualProfit,
+            timeValue, orderTicket, positionId, magicNumber, comment, result, errorCode, dealEntry
+         );
+         
+         return m_dbManager.Execute(query);
       }
       else if(dealEntry == "OUT" || dealEntry == "OUT_BY")
       {
-         timeField = "exit_time";
-         timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)eventTime);
+         // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
+         string query = StringFormat(
+            "UPDATE order_logs SET " +
+            "exit_time = FROM_UNIXTIME(%d), " +
+            "exit_price = %.5f, " +
+            "profit = %.2f, " +
+            "deal_entry = '%s' " +
+            "WHERE position_id = %d",
+            (int)eventTime, exitPrice, actualProfit, dealEntry, positionId
+         );
+         
+         return m_dbManager.Execute(query);
       }
       
-      // 使用DatabaseManager记录订单事件
-      string query = StringFormat(
-         "INSERT INTO order_logs " +
-         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
-         "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
-         "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
-         timeField, eventType, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, exitPrice, actualProfit,
-         timeValue, orderTicket, positionId, magicNumber, comment, result, errorCode, dealEntry
-      );
-      
-      return m_dbManager.Execute(query);
+      return false;
    }
    
    // 记录交易到MySQL数据库
@@ -219,16 +236,51 @@ public:
          long dealEntry = HistoryDealGetInteger(dealTicket, DEAL_ENTRY); // 获取deal_entry值
          
          string dealType = (HistoryDealGetInteger(dealTicket, DEAL_TYPE) == DEAL_TYPE_BUY) ? "BUY" : "SELL";
-            // 获取止损和止盈价格 - 直接从交易记录中获取预设值
-         double sl = HistoryDealGetDouble(dealTicket, DEAL_SL);
-         double tp = HistoryDealGetDouble(dealTicket, DEAL_TP);
+         
          // 获取实际出场价（对于入场交易为0，对于出场交易为实际价格）
          double exitPrice = 0.0;
          if (dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
          {
             exitPrice = price;
-         } 
-              
+         }
+         
+         // 获取止损和止盈价格 - 直接从交易记录中获取预设值
+         double sl = HistoryDealGetDouble(dealTicket, DEAL_SL);
+         double tp = HistoryDealGetDouble(dealTicket, DEAL_TP);
+         
+         // 如果无法从交易记录中获取，则尝试其他方式
+         if(sl == 0 && tp == 0)
+         {
+            // 根据dealEntry类型获取止损和止盈价格
+            if(dealEntry == DEAL_ENTRY_IN || dealEntry == DEAL_ENTRY_INOUT)
+            {
+               // 进场交易和反转交易使用原始订单中的止损和止盈值
+               long orderTicket = HistoryDealGetInteger(dealTicket, DEAL_ORDER);
+               if(orderTicket > 0 && OrderSelect(orderTicket))
+               {
+                  sl = OrderGetDouble(ORDER_SL);
+                  tp = OrderGetDouble(ORDER_TP);
+               }
+            }
+            else if(dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
+            {
+               // 出场交易使用平仓时持仓的止损和止盈值
+               if(positionId > 0 && PositionSelectByTicket(positionId))
+               {
+                  sl = PositionGetDouble(POSITION_SL);
+                  tp = PositionGetDouble(POSITION_TP);
+               }
+               else
+               {
+                  // 如果通过positionId无法获取，尝试通过symbol获取
+                  if(PositionSelect(symbol))
+                  {
+                     sl = PositionGetDouble(POSITION_SL);
+                     tp = PositionGetDouble(POSITION_TP);
+                  }
+               }
+            }
+         }
          
          // 将deal_entry值转换为字符串
          string dealEntryStr = "";
