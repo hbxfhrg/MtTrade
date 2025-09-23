@@ -1,16 +1,19 @@
 #define STATUS_ERROR -1
 #include "DatabaseManager.mqh"
+#include "..\Logging\SimpleCSVLogger.mqh"
 
 class CMySQLOrderLogger
 {
 private:
    CDatabaseManager* m_dbManager;
+   CSimpleCSVLogger* m_csvLogger;  // 使用简化版CSV日志记录器
    bool m_initialized;
 
 public:
    // 带参数的构造函数
    CMySQLOrderLogger(CDatabaseManager* dbManager) : 
       m_dbManager(dbManager),
+      m_csvLogger(new CSimpleCSVLogger("trade_orders.csv")),  // 初始化简化版CSV日志记录器
       m_initialized(false)
    {
       if (m_dbManager != NULL)
@@ -26,6 +29,13 @@ public:
    {
       // 注意：这里不再删除m_dbManager，因为它是外部传入的
       m_dbManager = NULL;
+      
+      // 删除CSV日志记录器
+      if(m_csvLogger != NULL)
+      {
+         delete m_csvLogger;
+         m_csvLogger = NULL;
+      }
    }
 
    bool Initialize(bool isReconnect = false)
@@ -62,7 +72,6 @@ public:
                     "take_profit DOUBLE, " +
                     "exit_price DOUBLE, " +  // 添加出场价字段
                     "profit DOUBLE, " +      // 实际利润字段
-                    "expiry_time VARCHAR(50), " +
                     "order_ticket BIGINT, " +
                     "position_id BIGINT, " +
                     "magic_number BIGINT, " +
@@ -74,7 +83,7 @@ public:
       
       return m_dbManager.Execute(query);
    }
-
+   
    bool LogOrderEvent(string eventType, string symbol, string orderType, double volume,
                      double entryPrice, double stopLoss, double takeProfit, double exitPrice, double actualProfit,
                      datetime eventTime, ulong orderTicket, long positionId, long magicNumber, string comment, 
@@ -89,15 +98,17 @@ public:
       // 根据deal_entry值决定操作类型
       if(dealEntry == "IN")
       {
-         // 进场交易执行INSERT操作
-         // 根据deal_entry值决定写入哪个时间字段
-         string timeField = "";
-         string timeValue = "";
-         if(dealEntry == "IN")
+         // 同时记录到CSV文件（记录入场交易）
+         if(m_csvLogger != NULL)
          {
-            timeField = "entry_time";
-            timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)eventTime);
+            m_csvLogger.LogEntry(eventType, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, 
+                               eventTime, orderTicket, positionId, magicNumber, 
+                               comment, result, errorCode, dealEntry);
          }
+      
+         // 进场交易执行INSERT操作
+         string timeField = "entry_time";
+         string timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)eventTime);
          
          // 使用DatabaseManager记录订单事件
          string query = StringFormat(
@@ -113,6 +124,12 @@ public:
       }
       else if(dealEntry == "OUT" || dealEntry == "OUT_BY")
       {
+         // 同时更新CSV文件中的记录
+         if(m_csvLogger != NULL)
+         {
+            m_csvLogger.LogExit(positionId, exitPrice, actualProfit, eventTime, dealEntry, comment);
+         }
+         
          // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
          string query = StringFormat(
             "UPDATE order_logs SET " +
@@ -141,18 +158,22 @@ public:
          return false;
       }
       
+      datetime eventTime = (datetime)time;
+      
       // 根据deal_entry值决定操作类型
       if(dealEntry == "IN")
       {
-         // 进场交易执行INSERT操作
-         // 根据deal_entry值决定写入哪个时间字段
-         string timeField = "";
-         string timeValue = "";
-         if(dealEntry == "IN")
+         // 同时记录到CSV文件（记录入场交易）
+         if(m_csvLogger != NULL)
          {
-            timeField = "entry_time";
-            timeValue = StringFormat("FROM_UNIXTIME(%d)", time);
+            m_csvLogger.LogEntry("TRADE", symbol, type, volume, price, sl, tp, 
+                               eventTime, orderTicket, positionId, 0, 
+                               comment, "Trade executed successfully", 0, dealEntry);
          }
+      
+         // 进场交易执行INSERT操作
+         string timeField = "entry_time";
+         string timeValue = StringFormat("FROM_UNIXTIME(%d)", time);
          
          // 直接使用数据库管理器记录交易
          string query = StringFormat(
@@ -168,6 +189,12 @@ public:
       }
       else if(dealEntry == "OUT" || dealEntry == "OUT_BY")
       {
+         // 同时更新CSV文件中的记录
+         if(m_csvLogger != NULL)
+         {
+            m_csvLogger.LogExit(positionId, exitPrice, actualProfit, eventTime, dealEntry, comment);
+         }
+         
          // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
          string query = StringFormat(
             "UPDATE order_logs SET " +
@@ -196,22 +223,39 @@ public:
       
       // 查询数据库中最大的事件时间
       datetime lastSyncTime = 0;
+      datetime dbLastSyncTime = 0;
+      datetime csvLastSyncTime = 0;
       
-      // 使用DatabaseManager的查询功能获取最大时间
+      // 使用DatabaseManager的查询功能获取数据库最大时间
       string query = "SELECT GREATEST(MAX(UNIX_TIMESTAMP(entry_time)), MAX(UNIX_TIMESTAMP(exit_time))) as max_time FROM order_logs";
       string result = m_dbManager.QuerySingleValue(query);
       
       if (result != "" && StringToInteger(result) > 0)
       {
          // 如果查询成功且有结果，使用查询到的时间作为同步起点
-         lastSyncTime = (datetime)StringToInteger(result);
-         Print("从数据库获取的最后同步时间: ", TimeToString(lastSyncTime));
+         dbLastSyncTime = (datetime)StringToInteger(result);
+         Print("从数据库获取的最后同步时间: ", TimeToString(dbLastSyncTime));
+      }
+      
+      // 获取CSV文件中的最大时间
+      if(m_csvLogger != NULL)
+      {
+         csvLastSyncTime = m_csvLogger.GetLastSyncTime();
+         Print("从CSV文件获取的最后同步时间: ", TimeToString(csvLastSyncTime));
+      }
+      
+      // 使用两个时间中的较新者作为同步起点
+      lastSyncTime = MathMax(dbLastSyncTime, csvLastSyncTime);
+      
+      if (lastSyncTime == 0)
+      {
+         // 如果都没有记录，从100小时前开始同步
+         lastSyncTime = TimeCurrent() - 360000;
+         Print("使用默认同步时间: ", TimeToString(lastSyncTime));
       }
       else
       {
-         // 如果查询失败或没有记录，从100小时前开始同步
-         lastSyncTime = TimeCurrent() - 360000;
-         Print("使用默认同步时间: ", TimeToString(lastSyncTime));
+         Print("使用最后同步时间: ", TimeToString(lastSyncTime));
       }
       
       // 获取从最后同步时间到当前时间的交易历史
@@ -224,6 +268,7 @@ public:
       int totalDeals = HistoryDealsTotal();
       bool success = true;
       
+      Print("开始处理历史交易，总交易数: ", totalDeals);
       for(int i = 1; i < totalDeals; i++)
       {
          ulong dealTicket = HistoryDealGetTicket(i);
@@ -235,6 +280,8 @@ public:
          datetime dealTime = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
          long dealEntry = HistoryDealGetInteger(dealTicket, DEAL_ENTRY); // 获取deal_entry值
          
+         Print("处理交易 - 索引: ", i, ", DealTicket: ", dealTicket, ", PositionId: ", positionId, ", DealEntry: ", dealEntry);
+         
          string dealType = (HistoryDealGetInteger(dealTicket, DEAL_TYPE) == DEAL_TYPE_BUY) ? "BUY" : "SELL";
          
          // 获取实际出场价（对于入场交易为0，对于出场交易为实际价格）
@@ -242,6 +289,10 @@ public:
          if (dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
          {
             exitPrice = price;
+         }
+         else
+         {
+            exitPrice = 0.0; // 确保入场交易的出场价为0
          }
          
          // 获取止损和止盈价格 - 直接从交易记录中获取预设值
@@ -269,18 +320,23 @@ public:
                break;
          }
          
+         // 添加调试信息
+         Print("处理历史交易 - PositionId: ", positionId, ", DealEntry: ", dealEntry, ", DealEntryStr: ", dealEntryStr);
+         
          // 根据deal_entry值决定操作类型
-         if(dealEntryStr == "IN")
+         if(dealEntry == DEAL_ENTRY_IN)
          {
-            // 进场交易执行INSERT操作
-            // 根据deal_entry值决定写入哪个时间字段
-            string timeField = "";
-            string timeValue = "";
-            if(dealEntryStr == "IN")
+            // 同时记录到CSV文件（记录入场交易）
+            if(m_csvLogger != NULL)
             {
-               timeField = "entry_time";
-               timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)dealTime);
+               m_csvLogger.LogEntry("TRADE", symbol, dealType, volume, price, sl, tp, 
+                                  dealTime, dealTicket, positionId, 0, 
+                                  "增量同步", "Trade executed successfully", 0, dealEntryStr);
             }
+         
+            // 进场交易执行INSERT操作
+            string timeField = "entry_time";
+            string timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)dealTime);
             
             string query = StringFormat(
                "INSERT INTO order_logs " +
@@ -296,8 +352,18 @@ public:
                success = false;
             }
          }
-         else if(dealEntryStr == "OUT" || dealEntryStr == "OUT_BY")
+         else if(dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
          {
+            // 同时更新CSV文件中的记录
+            if(m_csvLogger != NULL)
+            {
+               if(!m_csvLogger.LogExit(positionId, exitPrice, profit, dealTime, dealEntryStr, "增量同步"))
+               {
+                  Print("CSVLogger: 更新记录失败 - trade_orders.csv, 错误: ", GetLastError());
+                  success = false;
+               }
+            }
+         
             // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
             string query = StringFormat(
                "UPDATE order_logs SET " +
@@ -313,6 +379,11 @@ public:
             {
                success = false;
             }
+         }
+         else
+         {
+            // 对于其他类型的交易，记录警告信息
+            Print("未知的deal_entry类型: ", dealEntry, " PositionId: ", positionId);
          }
       }
       
