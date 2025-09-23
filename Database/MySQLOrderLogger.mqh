@@ -124,31 +124,48 @@ public:
          return false;
       }
       
-      // 根据deal_entry值决定写入哪个时间字段
-      string timeField = "";
-      string timeValue = "";
+      // 根据deal_entry值决定操作类型
       if(dealEntry == "IN")
       {
-         timeField = "entry_time";
-         timeValue = StringFormat("FROM_UNIXTIME(%d)", time);
+         // 进场交易执行INSERT操作
+         // 根据deal_entry值决定写入哪个时间字段
+         string timeField = "";
+         string timeValue = "";
+         if(dealEntry == "IN")
+         {
+            timeField = "entry_time";
+            timeValue = StringFormat("FROM_UNIXTIME(%d)", time);
+         }
+         
+         // 直接使用数据库管理器记录交易
+         string query = StringFormat(
+            "INSERT INTO order_logs " +
+            "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
+            "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
+            "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
+            timeField, "TRADE", symbol, type, volume, price, sl, tp, exitPrice, actualProfit,
+            timeValue, orderTicket, positionId, 0, comment, "Trade executed successfully", 0, dealEntry
+         );
+         
+         return m_dbManager.Execute(query);
       }
       else if(dealEntry == "OUT" || dealEntry == "OUT_BY")
       {
-         timeField = "exit_time";
-         timeValue = StringFormat("FROM_UNIXTIME(%d)", time);
+         // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
+         string query = StringFormat(
+            "UPDATE order_logs SET " +
+            "exit_time = FROM_UNIXTIME(%d), " +
+            "exit_price = %.5f, " +
+            "profit = %.2f, " +
+            "deal_entry = '%s' " +
+            "WHERE position_id = %d",
+            time, exitPrice, actualProfit, dealEntry, positionId
+         );
+         
+         return m_dbManager.Execute(query);
       }
       
-      // 直接使用数据库管理器记录交易
-      string query = StringFormat(
-         "INSERT INTO order_logs " +
-         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
-         "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
-         "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
-         timeField, "TRADE", symbol, type, volume, price, sl, tp, exitPrice, actualProfit,
-         timeValue, orderTicket, positionId, 0, comment, "Trade executed successfully", 0, dealEntry
-      );
-      
-      return m_dbManager.Execute(query);
+      return false;
    }
 
    // 增量同步历史交易
@@ -234,32 +251,50 @@ public:
                break;
          }
          
-         // 根据deal_entry值决定写入哪个时间字段
-         string timeField = "";
-         string timeValue = "";
+         // 根据deal_entry值决定操作类型
          if(dealEntryStr == "IN")
          {
-            timeField = "entry_time";
-            timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)dealTime);
+            // 进场交易执行INSERT操作
+            // 根据deal_entry值决定写入哪个时间字段
+            string timeField = "";
+            string timeValue = "";
+            if(dealEntryStr == "IN")
+            {
+               timeField = "entry_time";
+               timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)dealTime);
+            }
+            
+            string query = StringFormat(
+               "INSERT INTO order_logs " +
+               "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
+               "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
+               "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
+               timeField, "TRADE", symbol, dealType, volume, price, sl, tp, exitPrice, profit,
+               timeValue, dealTicket, positionId, 0, "增量同步", "Trade executed successfully", 0, dealEntryStr
+            );
+            
+            if(!m_dbManager.Execute(query))
+            {
+               success = false;
+            }
          }
          else if(dealEntryStr == "OUT" || dealEntryStr == "OUT_BY")
          {
-            timeField = "exit_time";
-            timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)dealTime);
-         }
-         
-         string query = StringFormat(
-            "INSERT INTO order_logs " +
-            "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
-            "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
-            "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
-            timeField, "TRADE", symbol, dealType, volume, price, sl, tp, exitPrice, profit,
-            timeValue, dealTicket, positionId, 0, "增量同步", "Trade executed successfully", 0, dealEntryStr
-         );
-         
-         if(!m_dbManager.Execute(query))
-         {
-            success = false;
+            // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
+            string query = StringFormat(
+               "UPDATE order_logs SET " +
+               "exit_time = FROM_UNIXTIME(%d), " +
+               "exit_price = %.5f, " +
+               "profit = %.2f, " +
+               "deal_entry = '%s' " +
+               "WHERE position_id = %d",
+               (int)dealTime, exitPrice, profit, dealEntryStr, positionId
+            );
+            
+            if(!m_dbManager.Execute(query))
+            {
+               success = false;
+            }
          }
       }
       

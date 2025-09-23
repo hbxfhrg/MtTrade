@@ -546,18 +546,16 @@ void ProcessTradeAnalysisAndInfoPanel()
                      // 记录到数据库
                      if(dblog != NULL)
                      {
-                        // 根据deal_entry值决定传递哪个时间字段
-                        string timeField = "";
                         if(dealEntryStr == "IN")
                         {
-                           timeField = "entry_time";
+                           // 进场交易执行INSERT操作
+                           dblog.LogTradeToMySQL((int)dealTime, symbol, dealType, volume, price, sl, tp, exitPrice, profit, dealTicket, positionId, comment, dealEntryStr);
                         }
                         else if(dealEntryStr == "OUT" || dealEntryStr == "OUT_BY")
                         {
-                           timeField = "exit_time";
+                           // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
+                           dblog.LogTradeToMySQL((int)dealTime, symbol, dealType, volume, price, sl, tp, exitPrice, profit, dealTicket, positionId, comment, dealEntryStr);
                         }
-                        
-                        dblog.LogTradeToMySQL((int)dealTime, symbol, dealType, volume, price, sl, tp, exitPrice, profit, dealTicket, positionId, comment, dealEntryStr);
                         Print("记录交易: ", dealType, " ", symbol, " ", volume, " @ ", price, " SL:", sl, " TP:", tp, " 出场价:", exitPrice, " 利润:", profit, " Entry:", dealEntryStr);
                      }
                      
