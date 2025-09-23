@@ -204,45 +204,59 @@ public:
          return lastTime;
       }
       
+      // 打开文件并直接跳到最后一行
       int file_handle = FileOpen(m_filename, FILE_READ|FILE_CSV|FILE_COMMON);
       if(file_handle != INVALID_HANDLE)
       {
-         // 跳过表头
-         if(!FileIsEnding(file_handle))
+         // 获取文件大小
+         ulong fileSize = FileSize(file_handle);
+         if(fileSize > 0)
          {
-            string headers[20];
-            for(int i=0; i<20; i++)
+            // 跳过表头（第一行）
+            string headerLine = FileReadString(file_handle);
+            
+            // 如果文件只有表头，则返回0
+            if(fileSize <= StringLen(headerLine))
             {
-               headers[i] = FileReadString(file_handle);
-               if(FileIsLineEnding(file_handle))
-                  break;
-            }
-         }
-         
-         // 读取所有记录并找到最大的时间
-         while(!FileIsEnding(file_handle))
-         {
-            string fields[20];
-            for(int i=0; i<20; i++)
-            {
-               fields[i] = FileReadString(file_handle);
-               if(FileIsLineEnding(file_handle))
-                  break;
+               FileClose(file_handle);
+               return lastTime;
             }
             
-            // 检查字段数量
-            if(ArraySize(fields) > 2)
+            // 定位到文件末尾并向前查找最后一行
+            FileSeek(file_handle, 0, SEEK_END);
+            long pos = FileTell(file_handle);
+            
+            // 向前查找直到找到换行符或到达文件开头
+            char ch;
+            while(pos > 0)
+            {
+               pos--;
+               FileSeek(file_handle, pos, SEEK_SET);
+               ch = FileReadNumber(file_handle);
+               if(ch == '\n' || ch == '\r')
+               {
+                  // 找到换行符，定位到下一行开始
+                  FileSeek(file_handle, pos + 1, SEEK_SET);
+                  break;
+               }
+            }
+            
+            // 读取最后一行数据
+            string lastLine = FileReadString(file_handle);
+            
+            // 解析最后一行的时间字段
+            string fields[];
+            int fieldCount = StringSplit(lastLine, ';', fields);
+            
+            // 检查字段数量是否足够
+            if(fieldCount > 2)
             {
                // 检查入场时间（索引1）和出场时间（索引2）
                datetime entryTime = StringToTime(fields[1]);
                datetime exitTime = StringToTime(fields[2]);
                
                // 使用较大的时间
-               datetime recordTime = (exitTime > entryTime) ? exitTime : entryTime;
-               if(recordTime > lastTime)
-               {
-                  lastTime = recordTime;
-               }
+               lastTime = (exitTime > entryTime) ? exitTime : entryTime;
             }
          }
          

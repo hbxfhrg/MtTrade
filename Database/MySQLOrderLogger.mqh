@@ -221,41 +221,48 @@ public:
          return false;
       }
       
-      // 查询数据库中最大的事件时间
+      // 先从CSV文件获取最后同步时间
       datetime lastSyncTime = 0;
       datetime dbLastSyncTime = 0;
-      datetime csvLastSyncTime = 0;
-      
-      // 使用DatabaseManager的查询功能获取数据库最大时间
-      string query = "SELECT GREATEST(MAX(UNIX_TIMESTAMP(entry_time)), MAX(UNIX_TIMESTAMP(exit_time))) as max_time FROM order_logs";
-      string result = m_dbManager.QuerySingleValue(query);
-      
-      if (result != "" && StringToInteger(result) > 0)
-      {
-         // 如果查询成功且有结果，使用查询到的时间作为同步起点
-         dbLastSyncTime = (datetime)StringToInteger(result);
-         Print("从数据库获取的最后同步时间: ", TimeToString(dbLastSyncTime));
-      }
       
       // 获取CSV文件中的最大时间
       if(m_csvLogger != NULL)
       {
-         csvLastSyncTime = m_csvLogger.GetLastSyncTime();
-         Print("从CSV文件获取的最后同步时间: ", TimeToString(csvLastSyncTime));
-      }
-      
-      // 使用两个时间中的较新者作为同步起点
-      lastSyncTime = MathMax(dbLastSyncTime, csvLastSyncTime);
-      
-      if (lastSyncTime == 0)
-      {
-         // 如果都没有记录，从100小时前开始同步
-         lastSyncTime = TimeCurrent() - 360000;
-         Print("使用默认同步时间: ", TimeToString(lastSyncTime));
+         lastSyncTime = m_csvLogger.GetLastSyncTime();
+         Print("从CSV文件获取的最后同步时间: ", TimeToString(lastSyncTime));
+         
+         // 如果CSV中没有记录，则查询数据库
+         if (lastSyncTime == 0 && m_dbManager != NULL)
+         {
+            // 使用DatabaseManager的查询功能获取数据库最大时间
+            string query = "SELECT GREATEST(MAX(UNIX_TIMESTAMP(entry_time)), MAX(UNIX_TIMESTAMP(exit_time))) as max_time FROM order_logs";
+            string result = m_dbManager.QuerySingleValue(query);
+            
+            if (result != "" && StringToInteger(result) > 0)
+            {
+               // 如果查询成功且有结果，使用查询到的时间作为同步起点
+               dbLastSyncTime = (datetime)StringToInteger(result);
+               lastSyncTime = dbLastSyncTime;
+               Print("从数据库获取的最后同步时间: ", TimeToString(dbLastSyncTime));
+            }
+         }
+         
+         // 如果CSV和数据库都没有记录，使用默认时间
+         if (lastSyncTime == 0)
+         {
+            // 如果都没有记录，从100小时前开始同步
+            lastSyncTime = TimeCurrent() - 360000;
+            Print("CSV和数据库中均无记录，使用默认同步时间: ", TimeToString(lastSyncTime));
+         }
+         else
+         {
+            Print("使用最后同步时间: ", TimeToString(lastSyncTime));
+         }
       }
       else
       {
-         Print("使用最后同步时间: ", TimeToString(lastSyncTime));
+         Print("CSV日志记录器未初始化");
+         return false;
       }
       
       // 获取从最后同步时间到当前时间的交易历史
