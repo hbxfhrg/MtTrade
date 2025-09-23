@@ -51,7 +51,8 @@ public:
       
       string query = "CREATE TABLE IF NOT EXISTS order_logs (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
-                    "event_time DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                    "entry_time DATETIME DEFAULT NULL, " +  // 进场时间
+                    "exit_time DATETIME DEFAULT NULL, " +   // 出场时间
                     "event_type VARCHAR(20), " +
                     "symbol VARCHAR(20), " +
                     "order_type VARCHAR(20), " +
@@ -85,14 +86,28 @@ public:
          return false;
       }
       
+      // 根据deal_entry值决定写入哪个时间字段
+      string timeField = "";
+      string timeValue = "";
+      if(dealEntry == "IN")
+      {
+         timeField = "entry_time";
+         timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)eventTime);
+      }
+      else if(dealEntry == "OUT" || dealEntry == "OUT_BY")
+      {
+         timeField = "exit_time";
+         timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)eventTime);
+      }
+      
       // 使用DatabaseManager记录订单事件
       string query = StringFormat(
          "INSERT INTO order_logs " +
-         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, event_time, " +
+         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
          "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
-         "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, FROM_UNIXTIME(%d), %d, %d, %d, '%s', '%s', %d, '%s')",
-         eventType, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, exitPrice, actualProfit,
-         (int)eventTime, orderTicket, positionId, magicNumber, comment, result, errorCode, dealEntry
+         "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
+         timeField, eventType, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, exitPrice, actualProfit,
+         timeValue, orderTicket, positionId, magicNumber, comment, result, errorCode, dealEntry
       );
       
       return m_dbManager.Execute(query);
@@ -109,14 +124,28 @@ public:
          return false;
       }
       
+      // 根据deal_entry值决定写入哪个时间字段
+      string timeField = "";
+      string timeValue = "";
+      if(dealEntry == "IN")
+      {
+         timeField = "entry_time";
+         timeValue = StringFormat("FROM_UNIXTIME(%d)", time);
+      }
+      else if(dealEntry == "OUT" || dealEntry == "OUT_BY")
+      {
+         timeField = "exit_time";
+         timeValue = StringFormat("FROM_UNIXTIME(%d)", time);
+      }
+      
       // 直接使用数据库管理器记录交易
       string query = StringFormat(
          "INSERT INTO order_logs " +
-         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, event_time, " +
+         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
          "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
-         "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, FROM_UNIXTIME(%d), %d, %d, %d, '%s', '%s', %d, '%s')",
-         "TRADE", symbol, type, volume, price, sl, tp, exitPrice, actualProfit,
-         (int)time, orderTicket, positionId, 0, comment, "Trade executed successfully", 0, dealEntry
+         "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
+         timeField, "TRADE", symbol, type, volume, price, sl, tp, exitPrice, actualProfit,
+         timeValue, orderTicket, positionId, 0, comment, "Trade executed successfully", 0, dealEntry
       );
       
       return m_dbManager.Execute(query);
@@ -135,7 +164,7 @@ public:
       datetime lastSyncTime = 0;
       
       // 使用DatabaseManager的查询功能获取最大时间
-      string query = "SELECT MAX(UNIX_TIMESTAMP(event_time)) as max_time FROM order_logs";
+      string query = "SELECT GREATEST(MAX(UNIX_TIMESTAMP(entry_time)), MAX(UNIX_TIMESTAMP(exit_time))) as max_time FROM order_logs";
       string result = m_dbManager.QuerySingleValue(query);
       
       if (result != "" && StringToInteger(result) > 0)
@@ -173,62 +202,16 @@ public:
          long dealEntry = HistoryDealGetInteger(dealTicket, DEAL_ENTRY); // 获取deal_entry值
          
          string dealType = (HistoryDealGetInteger(dealTicket, DEAL_TYPE) == DEAL_TYPE_BUY) ? "BUY" : "SELL";
-         
+            // 获取止损和止盈价格 - 直接从交易记录中获取预设值
+         double sl = HistoryDealGetDouble(dealTicket, DEAL_SL);
+         double tp = HistoryDealGetDouble(dealTicket, DEAL_TP);
          // 获取实际出场价（对于入场交易为0，对于出场交易为实际价格）
          double exitPrice = 0.0;
          if (dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
          {
             exitPrice = price;
-         }
-         
-         // 获取止损和止盈价格
-         double sl = 0, tp = 0;
-         // 首先尝试通过positionId获取持仓信息
-         if(positionId > 0 && PositionSelectByTicket(positionId))
-         {
-            sl = PositionGetDouble(POSITION_SL);
-            tp = PositionGetDouble(POSITION_TP);
-         }
-         else
-         {
-            // 如果通过positionId无法获取，尝试通过symbol和订单类型获取
-            long dealType = HistoryDealGetInteger(dealTicket, DEAL_TYPE);
-            
-            // 尝试选择对应的持仓
-            if(PositionSelect(symbol))
-            {
-               // 检查持仓类型是否匹配
-               long positionType = PositionGetInteger(POSITION_TYPE);
-               if((dealType == DEAL_TYPE_BUY && positionType == POSITION_TYPE_BUY) ||
-                  (dealType == DEAL_TYPE_SELL && positionType == POSITION_TYPE_SELL))
-               {
-                  sl = PositionGetDouble(POSITION_SL);
-                  tp = PositionGetDouble(POSITION_TP);
-               }
-            }
-            else
-            {
-               // 如果通过symbol也无法获取持仓信息，尝试从订单历史中获取
-               // 这种情况可能发生在持仓已关闭后
-               long orderTicket = HistoryDealGetInteger(dealTicket, DEAL_ORDER);
-               if(orderTicket > 0)
-               {
-                  // 尝试获取订单信息
-                  if(OrderSelect(orderTicket))
-                  {
-                     sl = OrderGetDouble(ORDER_SL);
-                     tp = OrderGetDouble(ORDER_TP);
-                  }
-               }
-            }
-         }
-         
-         // 如果仍然无法获取止损和止盈价格，尝试从交易记录中获取
-         if(sl == 0 && tp == 0)
-         {
-            // 从交易记录的注释或其他字段中尝试获取信息
-            // 这里可以根据实际需求添加更多获取止损止盈价格的方法
-         }
+         } 
+              
          
          // 将deal_entry值转换为字符串
          string dealEntryStr = "";
@@ -251,13 +234,27 @@ public:
                break;
          }
          
+         // 根据deal_entry值决定写入哪个时间字段
+         string timeField = "";
+         string timeValue = "";
+         if(dealEntryStr == "IN")
+         {
+            timeField = "entry_time";
+            timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)dealTime);
+         }
+         else if(dealEntryStr == "OUT" || dealEntryStr == "OUT_BY")
+         {
+            timeField = "exit_time";
+            timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)dealTime);
+         }
+         
          string query = StringFormat(
             "INSERT INTO order_logs " +
-            "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, event_time, " +
+            "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
             "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
-            "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, FROM_UNIXTIME(%d), %d, %d, %d, '%s', '%s', %d, '%s')",
-            "TRADE", symbol, dealType, volume, price, sl, tp, exitPrice, profit,
-            (int)dealTime, dealTicket, positionId, 0, "增量同步", "Trade executed successfully", 0, dealEntryStr
+            "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
+            timeField, "TRADE", symbol, dealType, volume, price, sl, tp, exitPrice, profit,
+            timeValue, dealTicket, positionId, 0, "增量同步", "Trade executed successfully", 0, dealEntryStr
          );
          
          if(!m_dbManager.Execute(query))

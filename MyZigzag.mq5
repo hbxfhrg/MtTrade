@@ -505,59 +505,58 @@ void ProcessTradeAnalysisAndInfoPanel()
                         exitPrice = price;
                      }
                      
-                     // 获取止损和止盈价格
-                     double sl = 0, tp = 0;
-                     // 首先尝试通过positionId获取持仓信息
-                     if(positionId > 0 && PositionSelectByTicket(positionId))
+                     // 获取止损和止盈价格 - 直接从交易记录中获取预设值
+                     double sl = HistoryDealGetDouble(dealTicket, DEAL_SL);
+                     double tp = HistoryDealGetDouble(dealTicket, DEAL_TP);
+                     
+                     // 如果无法从交易记录中获取，则尝试其他方式
+                     if(sl == 0 && tp == 0)
                      {
-                        sl = PositionGetDouble(POSITION_SL);
-                        tp = PositionGetDouble(POSITION_TP);
-                     }
-                     else
-                     {
-                        // 如果通过positionId无法获取，尝试通过symbol和订单类型获取
-                        string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
-                        long dealType = HistoryDealGetInteger(dealTicket, DEAL_TYPE);
-                        
-                        // 尝试选择对应的持仓
-                        if(PositionSelect(symbol))
+                        // 根据deal_entry类型获取止损和止盈价格
+                        if(dealEntry == DEAL_ENTRY_IN || dealEntry == DEAL_ENTRY_INOUT)
                         {
-                           // 检查持仓类型是否匹配
-                           long positionType = PositionGetInteger(POSITION_TYPE);
-                           if((dealType == DEAL_TYPE_BUY && positionType == POSITION_TYPE_BUY) ||
-                              (dealType == DEAL_TYPE_SELL && positionType == POSITION_TYPE_SELL))
+                           // 进场交易和反转交易使用原始订单中的止损和止盈值
+                           long orderTicket = HistoryDealGetInteger(dealTicket, DEAL_ORDER);
+                           if(orderTicket > 0 && OrderSelect(orderTicket))
+                           {
+                              sl = OrderGetDouble(ORDER_SL);
+                              tp = OrderGetDouble(ORDER_TP);
+                           }
+                        }
+                        else if(dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
+                        {
+                           // 出场交易使用平仓时持仓的止损和止盈值
+                           if(positionId > 0 && PositionSelectByTicket(positionId))
                            {
                               sl = PositionGetDouble(POSITION_SL);
                               tp = PositionGetDouble(POSITION_TP);
                            }
-                        }
-                        else
-                        {
-                           // 如果通过symbol也无法获取持仓信息，尝试从订单历史中获取
-                           // 这种情况可能发生在持仓已关闭后
-                           long orderTicket = HistoryDealGetInteger(dealTicket, DEAL_ORDER);
-                           if(orderTicket > 0)
+                           else
                            {
-                              // 尝试获取订单信息
-                              if(OrderSelect(orderTicket))
+                              // 如果通过positionId无法获取，尝试通过symbol获取
+                              if(PositionSelect(symbol))
                               {
-                                 sl = OrderGetDouble(ORDER_SL);
-                                 tp = OrderGetDouble(ORDER_TP);
+                                 sl = PositionGetDouble(POSITION_SL);
+                                 tp = PositionGetDouble(POSITION_TP);
                               }
                            }
                         }
                      }
                      
-                     // 如果仍然无法获取止损和止盈价格，尝试从交易记录中获取
-                     if(sl == 0 && tp == 0)
-                     {
-                        // 从交易记录的注释或其他字段中尝试获取信息
-                        // 这里可以根据实际需求添加更多获取止损止盈价格的方法
-                     }
-                     
                      // 记录到数据库
                      if(dblog != NULL)
                      {
+                        // 根据deal_entry值决定传递哪个时间字段
+                        string timeField = "";
+                        if(dealEntryStr == "IN")
+                        {
+                           timeField = "entry_time";
+                        }
+                        else if(dealEntryStr == "OUT" || dealEntryStr == "OUT_BY")
+                        {
+                           timeField = "exit_time";
+                        }
+                        
                         dblog.LogTradeToMySQL((int)dealTime, symbol, dealType, volume, price, sl, tp, exitPrice, profit, dealTicket, positionId, comment, dealEntryStr);
                         Print("记录交易: ", dealType, " ", symbol, " ", volume, " @ ", price, " SL:", sl, " TP:", tp, " 出场价:", exitPrice, " 利润:", profit, " Entry:", dealEntryStr);
                      }
