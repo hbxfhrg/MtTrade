@@ -24,6 +24,7 @@
 #include "Strategies/CL001.mqh"
 #include "Database/DatabaseManager.mqh"
 #include "Database/MySQLOrderLogger.mqh"
+#include <Trade\PositionInfo.mqh>  // 添加这一行以确保PositionSelect等函数可用
 
 //--- 输入参数（简化版本，专注于显示控制）
 input bool   InpShowLabels = true;        // 显示极值点标签
@@ -441,6 +442,139 @@ void ProcessTradeAnalysisAndInfoPanel()
                           const MqlTradeRequest &request,
                           const MqlTradeResult &result)
    {
-     
+      // 只处理特定类型的交易事件，避免重复记录
+      // TRADE_TRANSACTION_DEAL_ADD: 添加交易
+      // TRADE_TRANSACTION_ORDER_ADD: 添加订单
+      // TRADE_TRANSACTION_POSITION: 更改持仓
+      
+      static ulong lastDealTicket = 0;  // 记录上一次处理的交易单号
+      static ulong lastOrderTicket = 0; // 记录上一次处理的订单单号
+      static ulong lastPositionId = 0;  // 记录上一次处理的持仓ID
+      
+      // 根据交易事件类型进行处理
+      switch(trans.type)
+      {
+         // 添加交易记录
+         case TRADE_TRANSACTION_DEAL_ADD:
+            {
+               ulong dealTicket = trans.deal;
+               
+               // 检查是否已经处理过该交易
+               if(dealTicket != lastDealTicket)
+               {
+                  // 获取交易详情
+                  HistorySelect(0, TimeCurrent());
+                  if(HistoryDealSelect(dealTicket))
+                  {
+                     string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
+                     double volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
+                     double price = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
+                     double profit = HistoryDealGetDouble(dealTicket, DEAL_PROFIT); // 获取实际利润
+                     datetime dealTime = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
+                     long positionId = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
+                     long magicNumber = HistoryDealGetInteger(dealTicket, DEAL_MAGIC);
+                     string comment = HistoryDealGetString(dealTicket, DEAL_COMMENT);
+                     string dealType = (HistoryDealGetInteger(dealTicket, DEAL_TYPE) == DEAL_TYPE_BUY) ? "BUY" : "SELL";
+                     
+                     // 获取deal_entry值
+                     long dealEntry = HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
+                     string dealEntryStr = "";
+                     switch(dealEntry)
+                     {
+                        case DEAL_ENTRY_IN:
+                           dealEntryStr = "IN";
+                           break;
+                        case DEAL_ENTRY_OUT:
+                           dealEntryStr = "OUT";
+                           break;
+                        case DEAL_ENTRY_INOUT:
+                           dealEntryStr = "INOUT";
+                           break;
+                        case DEAL_ENTRY_OUT_BY:
+                           dealEntryStr = "OUT_BY";
+                           break;
+                        default:
+                           dealEntryStr = "UNKNOWN";
+                           break;
+                     }
+                     
+                     // 获取实际出场价（对于入场交易为0，对于出场交易为实际价格）
+                     double exitPrice = 0.0;
+                     if (dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
+                     {
+                        exitPrice = price;
+                     }
+                     
+                     // 获取止损和止盈价格
+                     double sl = 0, tp = 0;
+                     // 首先尝试通过positionId获取持仓信息
+                     if(positionId > 0 && PositionSelectByTicket(positionId))
+                     {
+                        sl = PositionGetDouble(POSITION_SL);
+                        tp = PositionGetDouble(POSITION_TP);
+                     }
+                     else
+                     {
+                        // 如果通过positionId无法获取，尝试通过symbol和订单类型获取
+                        string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
+                        long dealType = HistoryDealGetInteger(dealTicket, DEAL_TYPE);
+                        
+                        // 尝试选择对应的持仓
+                        if(PositionSelect(symbol))
+                        {
+                           // 检查持仓类型是否匹配
+                           long positionType = PositionGetInteger(POSITION_TYPE);
+                           if((dealType == DEAL_TYPE_BUY && positionType == POSITION_TYPE_BUY) ||
+                              (dealType == DEAL_TYPE_SELL && positionType == POSITION_TYPE_SELL))
+                           {
+                              sl = PositionGetDouble(POSITION_SL);
+                              tp = PositionGetDouble(POSITION_TP);
+                           }
+                        }
+                        else
+                        {
+                           // 如果通过symbol也无法获取持仓信息，尝试从订单历史中获取
+                           // 这种情况可能发生在持仓已关闭后
+                           long orderTicket = HistoryDealGetInteger(dealTicket, DEAL_ORDER);
+                           if(orderTicket > 0)
+                           {
+                              // 尝试获取订单信息
+                              if(OrderSelect(orderTicket))
+                              {
+                                 sl = OrderGetDouble(ORDER_SL);
+                                 tp = OrderGetDouble(ORDER_TP);
+                              }
+                           }
+                        }
+                     }
+                     
+                     // 如果仍然无法获取止损和止盈价格，尝试从交易记录中获取
+                     if(sl == 0 && tp == 0)
+                     {
+                        // 从交易记录的注释或其他字段中尝试获取信息
+                        // 这里可以根据实际需求添加更多获取止损止盈价格的方法
+                     }
+                     
+                     // 记录到数据库
+                     if(dblog != NULL)
+                     {
+                        dblog.LogTradeToMySQL((int)dealTime, symbol, dealType, volume, price, sl, tp, exitPrice, profit, dealTicket, positionId, comment, dealEntryStr);
+                        Print("记录交易: ", dealType, " ", symbol, " ", volume, " @ ", price, " SL:", sl, " TP:", tp, " 出场价:", exitPrice, " 利润:", profit, " Entry:", dealEntryStr);
+                     }
+                     
+                     // 更新上次处理的交易单号
+                     lastDealTicket = dealTicket;
+                  }
+               }
+            }
+            break;
+            
+         // 其他类型的交易事件可以根据需要添加处理逻辑
+         // 例如，如果需要跟踪订单状态变化或持仓变化
+         
+         default:
+            // 不处理其他类型的交易事件
+            break;
+      }
    }
 //+------------------------------------------------------------------+

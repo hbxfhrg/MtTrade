@@ -191,7 +191,7 @@ public:
                            // 计算过期时间（当前时间 + OrderExpiryHours小时）
                            datetime expiryTime = TimeCurrent() + (OrderExpiryHours * 3600);
                            
-                           if(m_trade.BuyLimit(LotSize, entryPrice, Symbol(), stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiryTime, "CL001 Strategy (Special)"))
+                           if(m_trade.BuyLimit(LotSize, entryPrice, NULL, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiryTime, "CL001 Strategy (Special)"))
                            {
                               // 获取并验证订单票据
                               m_orderTicket = m_trade.ResultOrder();                            
