@@ -246,42 +246,8 @@ public:
          
          // 获取止损和止盈价格 - 直接从交易记录中获取预设值
          double sl = HistoryDealGetDouble(dealTicket, DEAL_SL);
-         double tp = HistoryDealGetDouble(dealTicket, DEAL_TP);
-         
-         // 如果无法从交易记录中获取，则尝试其他方式
-         if(sl == 0 && tp == 0)
-         {
-            // 根据dealEntry类型获取止损和止盈价格
-            if(dealEntry == DEAL_ENTRY_IN || dealEntry == DEAL_ENTRY_INOUT)
-            {
-               // 进场交易和反转交易使用原始订单中的止损和止盈值
-               long orderTicket = HistoryDealGetInteger(dealTicket, DEAL_ORDER);
-               if(orderTicket > 0 && OrderSelect(orderTicket))
-               {
-                  sl = OrderGetDouble(ORDER_SL);
-                  tp = OrderGetDouble(ORDER_TP);
-               }
-            }
-            else if(dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
-            {
-               // 出场交易使用平仓时持仓的止损和止盈值
-               if(positionId > 0 && PositionSelectByTicket(positionId))
-               {
-                  sl = PositionGetDouble(POSITION_SL);
-                  tp = PositionGetDouble(POSITION_TP);
-               }
-               else
-               {
-                  // 如果通过positionId无法获取，尝试通过symbol获取
-                  if(PositionSelect(symbol))
-                  {
-                     sl = PositionGetDouble(POSITION_SL);
-                     tp = PositionGetDouble(POSITION_TP);
-                  }
-               }
-            }
-         }
-         
+         double tp = HistoryDealGetDouble(dealTicket, DEAL_TP);        
+        
          // 将deal_entry值转换为字符串
          string dealEntryStr = "";
          switch(dealEntry)
