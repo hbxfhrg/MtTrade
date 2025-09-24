@@ -4,7 +4,6 @@
 #property strict
 
 #include <Files/File.mqh>
-#include <Arrays/ArrayObj.mqh>
 #include "TradeRecord.mqh"
 
 // 简化版CSV记录器，只使用插入操作
@@ -13,45 +12,48 @@ class CSimpleCSVLogger
 private:
    string m_filename;
    bool m_initialized;
-   CArrayObj* m_pendingRecords; // 存储待处理的入场记录
+   CTradeRecord* m_pendingRecord; // 存储待处理的入场记录
 
 public:
    CSimpleCSVLogger(string filename = "order_log.csv")
    {
       m_filename = filename;
       m_initialized = false;
-      m_pendingRecords = new CArrayObj();
+      m_pendingRecord = NULL;
       Initialize();
    }
    
    // 析构函数
    ~CSimpleCSVLogger()
    {
-      if(m_pendingRecords != NULL)
-      {
-         // 清理所有待处理记录
-         for(int i = m_pendingRecords.Total() - 1; i >= 0; i--)
-         {
-            CTradeRecord* record = (CTradeRecord*)m_pendingRecords.At(i);
-            delete record;
-         }
-         m_pendingRecords.Clear();
-         delete m_pendingRecords;
-         m_pendingRecords = NULL;
-      }
+      ClearPendingRecords();
    }
    
    void Initialize()
    {
       if(!m_initialized)
       {
-         int file_handle = FileOpen(m_filename, FILE_WRITE|FILE_CSV);
+         int file_handle = FileOpen(m_filename, FILE_WRITE|FILE_CSV|FILE_COMMON);
          if(file_handle != INVALID_HANDLE)
          {
-            // 检查文件是否为空，如果为空则写入表头
-            if(FileSize(file_handle) == 0)
+            // 检查文件是否包含表头，如果没有则写入表头
+            bool hasHeader = false;
+            if(FileSize(file_handle) > 0)
+            {
+               // 读取第一行检查是否包含表头
+               FileSeek(file_handle, 0, SEEK_SET);
+               string firstLine = FileReadString(file_handle);
+               if(StringFind(firstLine, "EntryTime") != -1 && StringFind(firstLine, "ExitTime") != -1)
+               {
+                  hasHeader = true;
+               }
+            }
+            
+            // 如果文件为空或不包含表头，则写入表头
+            if(!hasHeader)
             {
                // 写入CSV头部，包含更多字段以匹配数据库结构
+               FileSeek(file_handle, 0, SEEK_END);
                FileWriteString(file_handle, "ID");
                FileWriteString(file_handle, ";");
                FileWriteString(file_handle, "EntryTime");
@@ -109,13 +111,15 @@ public:
                  datetime entryTime, ulong orderTicket, long positionId, long magicNumber,
                  string comment, string result, int errorCode, string dealEntry)
    {
-      // 创建新的交易记录对象并存储在待处理数组中
-      CTradeRecord* record = new CTradeRecord(eventType, symbol, orderType, volume,
-                                             entryPrice, stopLoss, takeProfit,
-                                             entryTime, orderTicket, positionId, magicNumber,
-                                             comment, result, errorCode, dealEntry);
+      // 清空之前的记录
+      ClearPendingRecords();
       
-      m_pendingRecords.Add(record);
+      // 创建新的交易记录对象并存储
+      m_pendingRecord = new CTradeRecord(eventType, symbol, orderType, volume,
+                                        entryPrice, stopLoss, takeProfit,
+                                        entryTime, orderTicket, positionId, magicNumber,
+                                        comment, result, errorCode, dealEntry);
+      
       Print("SimpleCSVLogger: 入场记录已缓存 - PositionId: ", positionId);
       return true;
    }
@@ -124,32 +128,43 @@ public:
    bool LogExit(long positionId, double exitPrice, double profit, datetime exitTime, 
                 string dealEntry, string comment)
    {
-      // 查找对应的入场记录
-      for(int i = 0; i < m_pendingRecords.Total(); i++)
+      // 检查是否存在待处理的入场记录
+      if(m_pendingRecord != NULL)
       {
-         CTradeRecord* record = (CTradeRecord*)m_pendingRecords.At(i);
-         if(record.PositionId == positionId)
+         // 检查是否为对应的入场记录
+         if(m_pendingRecord.PositionId == positionId)
          {
             // 更新记录
-            record.SetExitData(exitPrice, profit, exitTime, dealEntry, comment);
+            m_pendingRecord.SetExitData(exitPrice, profit, exitTime, dealEntry, comment);
             
-            // 写入CSV文件
-            bool success = record.WriteToCSV(m_filename);
-            
-            // 从待处理数组中移除记录
-            m_pendingRecords.Delete(i);
-            delete record;
-            
-            if(success)
+            // 检查入场时间和出场时间是否都存在，只有都存在才写入
+            if(m_pendingRecord.EntryTime > 0 && m_pendingRecord.ExitTime > 0)
             {
-               Print("SimpleCSVLogger: 完整交易记录已写入 - PositionId: ", positionId);
+               // 写入CSV文件
+               bool success = m_pendingRecord.WriteToCSV(m_filename);
+               
+               if(success)
+               {
+                  Print("SimpleCSVLogger: 完整交易记录已写入 - PositionId: ", positionId);
+                  // 成功写入后清空待处理记录
+                  ClearPendingRecords();
+               }
+               else
+               {
+                  Print("SimpleCSVLogger: 写入交易记录失败 - PositionId: ", positionId);
+                  // 写入失败也清空待处理记录
+                  ClearPendingRecords();
+               }
+               
+               return success;
             }
             else
             {
-               Print("SimpleCSVLogger: 写入交易记录失败 - PositionId: ", positionId);
+               Print("SimpleCSVLogger: 入场时间或出场时间为空，不写入记录 - PositionId: ", positionId);
+               // 清空待处理记录
+               ClearPendingRecords();
+               return true; // 返回true表示处理成功，只是没有写入
             }
-            
-            return success;
          }
       }
       
@@ -158,10 +173,30 @@ public:
       CTradeRecord* record = new CTradeRecord();
       record.PositionId = positionId;
       record.SetExitData(exitPrice, profit, exitTime, dealEntry, comment);
-      bool success = record.WriteToCSV(m_filename);
-      delete record;
       
-      return success;
+      // 检查入场时间和出场时间是否都存在，只有都存在才写入
+      if(record.EntryTime > 0 && record.ExitTime > 0)
+      {
+         bool success = record.WriteToCSV(m_filename);
+         
+         if(success)
+         {
+            Print("SimpleCSVLogger: 完整交易记录已写入 - PositionId: ", positionId);
+         }
+         else
+         {
+            Print("SimpleCSVLogger: 写入完整交易记录失败 - PositionId: ", positionId);
+         }
+         
+         delete record;
+         return success;
+      }
+      else
+      {
+         Print("SimpleCSVLogger: 入场时间或出场时间为空，不写入记录 - PositionId: ", positionId);
+         delete record;
+         return true; // 返回true表示处理成功，只是没有写入
+      }
    }
    
    // 直接写入完整记录（用于只有出场记录的情况）
@@ -172,25 +207,36 @@ public:
                          ulong orderTicket, long positionId, long magicNumber,
                          string comment, string result, int errorCode, string dealEntry)
    {
+      // 创建记录对象
       CTradeRecord* record = new CTradeRecord(eventType, symbol, orderType, volume,
                                              entryPrice, stopLoss, takeProfit,
                                              entryTime, orderTicket, positionId, magicNumber,
                                              comment, result, errorCode, dealEntry);
       record.SetExitData(exitPrice, profit, exitTime, dealEntry, comment);
       
-      bool success = record.WriteToCSV(m_filename);
-      delete record;
-      
-      if(success)
+      // 检查入场时间和出场时间是否都存在，只有都存在才写入
+      if(entryTime > 0 && exitTime > 0)
       {
-         Print("SimpleCSVLogger: 完整交易记录已写入 - PositionId: ", positionId);
+         bool success = record.WriteToCSV(m_filename);
+         
+         if(success)
+         {
+            Print("SimpleCSVLogger: 完整交易记录已写入 - PositionId: ", positionId);
+         }
+         else
+         {
+            Print("SimpleCSVLogger: 写入完整交易记录失败 - PositionId: ", positionId);
+         }
+         
+         delete record;
+         return success;
       }
       else
       {
-         Print("SimpleCSVLogger: 写入完整交易记录失败 - PositionId: ", positionId);
+         Print("SimpleCSVLogger: 入场时间或出场时间为空，不写入记录 - PositionId: ", positionId);
+         delete record;
+         return true; // 返回true表示处理成功，只是没有写入
       }
-      
-      return success;
    }
    
    // 从CSV文件中获取最后同步时间
@@ -208,61 +254,51 @@ public:
       int file_handle = FileOpen(m_filename, FILE_READ|FILE_CSV|FILE_COMMON);
       if(file_handle != INVALID_HANDLE)
       {
-         // 获取文件大小
-         ulong fileSize = FileSize(file_handle);
-         if(fileSize > 0)
+         // 逐行读取文件，获取最后一行有效数据
+         string lastLine = "";
+         while(!FileIsEnding(file_handle))
          {
-            // 跳过表头（第一行）
-            string headerLine = FileReadString(file_handle);
-            
-            // 如果文件只有表头，则返回0
-            if(fileSize <= StringLen(headerLine))
+            string line = FileReadString(file_handle);
+            // 跳过空行和表头行
+            if(line != "" && line != "\n" && line != "\r" && line != "\r\n")
             {
-               FileClose(file_handle);
-               return lastTime;
-            }
-            
-            // 定位到文件末尾并向前查找最后一行
-            FileSeek(file_handle, 0, SEEK_END);
-            long pos = FileTell(file_handle);
-            
-            // 向前查找直到找到换行符或到达文件开头
-            char ch;
-            while(pos > 0)
-            {
-               pos--;
-               FileSeek(file_handle, pos, SEEK_SET);
-               ch = FileReadNumber(file_handle);
-               if(ch == '\n' || ch == '\r')
+               // 检查是否为表头（通过检查是否包含特定字段名）
+               if(StringFind(line, "EntryTime") == -1 && StringFind(line, "ExitTime") == -1)
                {
-                  // 找到换行符，定位到下一行开始
-                  FileSeek(file_handle, pos + 1, SEEK_SET);
-                  break;
+                  lastLine = line;
                }
             }
+         }
+         
+         // 解析最后一行的时间字段
+         string fields[];
+         int fieldCount = StringSplit(lastLine, ';', fields);
+         
+         // 检查字段数量是否足够
+         if(fieldCount > 2)
+         {
+            // 检查入场时间（索引1）和出场时间（索引2）
+            datetime entryTime = StringToTime(fields[1]);
+            datetime exitTime = StringToTime(fields[2]);
             
-            // 读取最后一行数据
-            string lastLine = FileReadString(file_handle);
-            
-            // 解析最后一行的时间字段
-            string fields[];
-            int fieldCount = StringSplit(lastLine, ';', fields);
-            
-            // 检查字段数量是否足够
-            if(fieldCount > 2)
-            {
-               // 检查入场时间（索引1）和出场时间（索引2）
-               datetime entryTime = StringToTime(fields[1]);
-               datetime exitTime = StringToTime(fields[2]);
-               
-               // 使用较大的时间
-               lastTime = (exitTime > entryTime) ? exitTime : entryTime;
-            }
+            // 使用较大的时间
+            lastTime = (exitTime > entryTime) ? exitTime : entryTime;
          }
          
          FileClose(file_handle);
       }
       
       return lastTime;
+   }
+   
+   // 清空待处理记录
+   void ClearPendingRecords()
+   {
+      if(m_pendingRecord != NULL)
+      {
+         // 删除待处理记录
+         delete m_pendingRecord;
+         m_pendingRecord = NULL;
+      }
    }
 };
