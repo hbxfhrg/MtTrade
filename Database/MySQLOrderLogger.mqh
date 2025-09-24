@@ -13,7 +13,7 @@ public:
    // 带参数的构造函数
    CMySQLOrderLogger(CDatabaseManager* dbManager) : 
       m_dbManager(dbManager),
-      m_csvLogger(new CSimpleCSVLogger("trade_orders.csv")),  // 初始化简化版CSV日志记录器
+      m_csvLogger(new CSimpleCSVLogger("trade_orders.csv", dbManager)),  // 初始化简化版CSV日志记录器并传递数据库管理器
       m_initialized(false)
    {
       if (m_dbManager != NULL)
@@ -98,50 +98,26 @@ public:
       // 根据deal_entry值决定操作类型
       if(dealEntry == "IN")
       {
-         // 同时记录到CSV文件（记录入场交易）
+         // 只记录到CSV文件（记录入场交易），不执行MySQL操作
          if(m_csvLogger != NULL)
          {
             m_csvLogger.LogEntry(eventType, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, 
                                eventTime, orderTicket, positionId, magicNumber, 
                                comment, result, errorCode, dealEntry);
          }
-      
-         // 进场交易执行INSERT操作
-         string timeField = "entry_time";
-         string timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)eventTime);
          
-         // 使用DatabaseManager记录订单事件
-         string query = StringFormat(
-            "INSERT INTO order_logs " +
-            "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
-            "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
-            "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
-            timeField, eventType, symbol, orderType, volume, entryPrice, stopLoss, takeProfit, exitPrice, actualProfit,
-            timeValue, orderTicket, positionId, magicNumber, comment, result, errorCode, dealEntry
-         );
-         
-         return m_dbManager.Execute(query);
+         // IN事件不执行MySQL操作
+         return true;
       }
       else if(dealEntry == "OUT" || dealEntry == "OUT_BY")
       {
-         // 同时更新CSV文件中的记录
+         // 同时更新CSV文件中的记录，SimpleCSVLogger会自动写入MySQL
          if(m_csvLogger != NULL)
          {
-            m_csvLogger.LogExit(positionId, exitPrice, actualProfit, eventTime, dealEntry, comment);
+            return m_csvLogger.LogExit(positionId, exitPrice, actualProfit, eventTime, dealEntry, comment);
          }
          
-         // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
-         string query = StringFormat(
-            "UPDATE order_logs SET " +
-            "exit_time = FROM_UNIXTIME(%d), " +
-            "exit_price = %.5f, " +
-            "profit = %.2f, " +
-            "deal_entry = '%s' " +
-            "WHERE position_id = %d",
-            (int)eventTime, exitPrice, actualProfit, dealEntry, positionId
-         );
-         
-         return m_dbManager.Execute(query);
+         return false;
       }
       
       return false;
@@ -163,50 +139,26 @@ public:
       // 根据deal_entry值决定操作类型
       if(dealEntry == "IN")
       {
-         // 同时记录到CSV文件（记录入场交易）
+         // 只记录到CSV文件（记录入场交易），不执行MySQL操作
          if(m_csvLogger != NULL)
          {
             m_csvLogger.LogEntry("TRADE", symbol, type, volume, price, sl, tp, 
                                eventTime, orderTicket, positionId, 0, 
                                comment, "Trade executed successfully", 0, dealEntry);
          }
-      
-         // 进场交易执行INSERT操作
-         string timeField = "entry_time";
-         string timeValue = StringFormat("FROM_UNIXTIME(%d)", time);
          
-         // 直接使用数据库管理器记录交易
-         string query = StringFormat(
-            "INSERT INTO order_logs " +
-            "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
-            "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
-            "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
-            timeField, "TRADE", symbol, type, volume, price, sl, tp, exitPrice, actualProfit,
-            timeValue, orderTicket, positionId, 0, comment, "Trade executed successfully", 0, dealEntry
-         );
-         
-         return m_dbManager.Execute(query);
+         // IN事件不执行MySQL操作
+         return true;
       }
       else if(dealEntry == "OUT" || dealEntry == "OUT_BY")
       {
-         // 同时更新CSV文件中的记录
+         // 同时更新CSV文件中的记录，SimpleCSVLogger会自动写入MySQL
          if(m_csvLogger != NULL)
          {
-            m_csvLogger.LogExit(positionId, exitPrice, actualProfit, eventTime, dealEntry, comment);
+            return m_csvLogger.LogExit(positionId, exitPrice, actualProfit, eventTime, dealEntry, comment);
          }
          
-         // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
-         string query = StringFormat(
-            "UPDATE order_logs SET " +
-            "exit_time = FROM_UNIXTIME(%d), " +
-            "exit_price = %.5f, " +
-            "profit = %.2f, " +
-            "deal_entry = '%s' " +
-            "WHERE position_id = %d",
-            time, exitPrice, actualProfit, dealEntry, positionId
-         );
-         
-         return m_dbManager.Execute(query);
+         return false;
       }
       
       return false;
@@ -333,35 +285,17 @@ public:
          // 根据deal_entry值决定操作类型
          if(dealEntry == DEAL_ENTRY_IN)
          {
-            // 同时记录到CSV文件（记录入场交易）
+            // 只记录到CSV文件（记录入场交易），不执行MySQL操作
             if(m_csvLogger != NULL)
             {
                m_csvLogger.LogEntry("TRADE", symbol, dealType, volume, price, sl, tp, 
                                   dealTime, dealTicket, positionId, 0, 
                                   "增量同步", "Trade executed successfully", 0, dealEntryStr);
             }
-         
-            // 进场交易执行INSERT操作
-            string timeField = "entry_time";
-            string timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)dealTime);
-            
-            string query = StringFormat(
-               "INSERT INTO order_logs " +
-               "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, %s, " +
-               "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
-               "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, %s, %d, %d, %d, '%s', '%s', %d, '%s')",
-               timeField, "TRADE", symbol, dealType, volume, price, sl, tp, exitPrice, profit,
-               timeValue, dealTicket, positionId, 0, "增量同步", "Trade executed successfully", 0, dealEntryStr
-            );
-            
-            if(!m_dbManager.Execute(query))
-            {
-               success = false;
-            }
          }
          else if(dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
          {
-            // 同时更新CSV文件中的记录
+            // 同时更新CSV文件中的记录，SimpleCSVLogger会自动写入MySQL
             if(m_csvLogger != NULL)
             {
                if(!m_csvLogger.LogExit(positionId, exitPrice, profit, dealTime, dealEntryStr, "增量同步"))
@@ -370,22 +304,7 @@ public:
                   success = false;
                }
             }
-         
-            // 出场交易执行UPDATE操作，更新出场日期、出场价格和利润字段
-            string query = StringFormat(
-               "UPDATE order_logs SET " +
-               "exit_time = FROM_UNIXTIME(%d), " +
-               "exit_price = %.5f, " +
-               "profit = %.2f, " +
-               "deal_entry = '%s' " +
-               "WHERE position_id = %d",
-               (int)dealTime, exitPrice, profit, dealEntryStr, positionId
-            );
-            
-            if(!m_dbManager.Execute(query))
-            {
-               success = false;
-            }
+
          }
          else
          {

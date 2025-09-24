@@ -3,6 +3,8 @@
 #property version   "1.00"
 #property strict
 
+#include "..\Database\DatabaseManager.mqh"
+
 // 交易记录类，用于管理CSV文件中的交易记录
 class CTradeRecord : public CObject
 {
@@ -168,5 +170,48 @@ public:
          Print("TradeRecord: 记录写入失败 - 文件: ", filename, ", 错误: ", GetLastError());
          return false;
       }
+   }
+   
+   // 将记录写入MySQL数据库
+   bool WriteToMySQL(CDatabaseManager* dbManager)
+   {
+      if(dbManager == NULL)
+      {
+         Print("数据库管理器未初始化");
+         return false;
+      }
+      
+      // 检查入场时间和出场时间是否都存在，只有都存在才写入
+      if(EntryTime <= 0 || ExitTime <= 0)
+      {
+         Print("入场时间或出场时间为空，不写入数据库 - PositionId: ", PositionId);
+         return false;
+      }
+      
+      // 生成INSERT语句
+      string timeValue = StringFormat("FROM_UNIXTIME(%d)", (int)ExitTime);
+      
+      string query = StringFormat(
+         "INSERT INTO order_logs " +
+         "(event_type, symbol, order_type, volume, entry_price, stop_loss, take_profit, exit_price, profit, entry_time, exit_time, " +
+         "order_ticket, position_id, magic_number, comment, result, error_code, deal_entry) " +
+         "VALUES ('%s', '%s', '%s', %.2f, %.5f, %.5f, %.5f, %.5f, %.2f, FROM_UNIXTIME(%d), %s, %d, %d, %d, '%s', '%s', %d, '%s')",
+         EventType, Symbol, OrderType, Volume, EntryPrice, StopLoss, TakeProfit, ExitPrice, Profit, 
+         (int)EntryTime, timeValue, OrderTicket, PositionId, MagicNumber, Comment, Result, ErrorCode, DealEntry
+      );
+      
+      // 执行插入操作
+      bool result = dbManager.Execute(query);
+      
+      if(result)
+      {
+         Print("TradeRecord: 记录写入数据库成功 - PositionId: ", PositionId);
+      }
+      else
+      {
+         Print("TradeRecord: 记录写入数据库失败 - PositionId: ", PositionId, ", 错误: ", dbManager.GetLastError());
+      }
+      
+      return result;
    }
 };
