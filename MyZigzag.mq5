@@ -25,6 +25,7 @@
 #include "Database/DatabaseManager.mqh"
 #include "Database/MySQLOrderLogger.mqh"
 #include <Trade\PositionInfo.mqh>  // 添加这一行以确保PositionSelect等函数可用
+#include <Strings\String.mqh>      // 包含StringReplace函数
 
 //--- 输入参数（简化版本，专注于显示控制）
 input bool   InpShowLabels = true;        // 显示极值点标签
@@ -69,11 +70,38 @@ CStrategyCL001 strategy;
 CDatabaseManager* db = NULL;
 CMySQLOrderLogger* dblog = NULL;
 
+//--- 策略启动时间
+datetime strategyStartTime = 0;
+datetime strategyEndTime = 0; // 策略结束时间
+
+//+------------------------------------------------------------------+
+//| 生成带时间戳的文件名                                             |
+//+------------------------------------------------------------------+
+string GenerateTimestampFilename()
+  {
+   // 如果策略结束时间未设置，使用当前时间作为结束时间
+   if(strategyEndTime == 0)
+      strategyEndTime = TimeCurrent();
+      
+   string startDate = TimeToString(strategyStartTime, TIME_DATE);
+   string endDate = TimeToString(strategyEndTime, TIME_DATE);
+   
+   // 移除日期中的分隔符
+   StringReplace(startDate, ".", "");
+   StringReplace(endDate, ".", "");
+   
+   string filename = "xauusdm_CL001_" + startDate + "_" + endDate + ".csv";
+   return filename;
+  }
+
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
 //+------------------------------------------------------------------+
 int OnInit()
   {
+//--- 记录策略启动时间
+   strategyStartTime = TimeCurrent();
+   
 //--- 初始化配置管理器
    CConfigManager::Init(Symbol());
 
@@ -125,7 +153,21 @@ int OnInit()
    db = new CDatabaseManager(InpDBHost, InpDBUser, InpDBPassword, InpDBName, InpDBPort);
    if(db != NULL)
    {
-      dblog = new CMySQLOrderLogger(db);
+      // 检查是否在策略测试模式下
+      if(MQLInfoInteger(MQL_TESTER))
+      {
+         // 在测试模式下，使用带时间戳的文件名
+         string testFilename = GenerateTimestampFilename();
+         dblog = new CMySQLOrderLogger(db, testFilename);
+         Print("策略测试模式，使用文件名: ", testFilename);
+      }
+      else
+      {
+         // 在生产模式下，使用默认文件名
+         dblog = new CMySQLOrderLogger(db);
+         Print("生产模式，使用默认文件名: trade_orders.csv");
+      }
+      
       if(dblog != NULL)
       {
          Print("MySQL订单日志记录器初始化成功（按需连接模式）");
@@ -159,6 +201,9 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
+// 记录策略结束时间
+   strategyEndTime = TimeCurrent();
+   
 // 清理标签和图形对象
    CLabelManager::DeleteAllLabels("ZigzagLabel_");
    CLabelManager::DeleteAllLabels("ZigzagLabel4H_");

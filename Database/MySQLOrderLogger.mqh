@@ -10,7 +10,7 @@ private:
    bool m_initialized;
 
 public:
-   // 带参数的构造函数
+   // 带参数的构造函数（默认文件名）
    CMySQLOrderLogger(CDatabaseManager* dbManager) : 
       m_dbManager(dbManager),
       m_csvLogger(new CSimpleCSVLogger("trade_orders.csv", dbManager)),  // 初始化简化版CSV日志记录器并传递数据库管理器
@@ -22,6 +22,26 @@ public:
       }
       
       Print("MySQL订单日志记录器初始化完成");
+   }
+   
+   // 带参数的构造函数（自定义文件名）
+   CMySQLOrderLogger(CDatabaseManager* dbManager, string filename) : 
+      m_dbManager(dbManager),
+      m_csvLogger(new CSimpleCSVLogger(filename, dbManager)),  // 初始化简化版CSV日志记录器并传递数据库管理器和自定义文件名
+      m_initialized(false)
+   {
+      if (m_dbManager != NULL)
+      {
+         m_initialized = true;
+      }
+      
+      // 在测试模式下启用时间戳
+      if(MQLInfoInteger(MQL_TESTER))
+      {
+         m_csvLogger.SetUseTimestamp(true);
+      }
+      
+      Print("MySQL订单日志记录器初始化完成，使用文件名: ", filename);
    }
    
    // 析构函数

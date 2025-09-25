@@ -6,24 +6,49 @@
 #include <Files/File.mqh>
 #include "TradeRecord.mqh"
 #include "..\Database\DatabaseManager.mqh"
+#include <Strings\String.mqh>  // 添加StringReplace函数支持
 
 // 简化版CSV记录器，只使用插入操作
 class CSimpleCSVLogger
 {
 private:
    string m_filename;
+   string m_baseFilename;  // 基础文件名
    bool m_initialized;
    CTradeRecord* m_pendingRecord; // 存储待处理的入场记录
    CDatabaseManager* m_dbManager; // 数据库管理器
+   bool m_useTimestamp; // 是否使用时间戳
+   string m_timestampFilename; // 时间戳文件名（一次测试使用同一个文件名）
 
 public:
    CSimpleCSVLogger(string filename = "order_log.csv", CDatabaseManager* dbManager = NULL)
    {
+      m_baseFilename = filename;
       m_filename = filename;
       m_initialized = false;
       m_pendingRecord = NULL;
       m_dbManager = dbManager;
+      m_useTimestamp = false; // 默认不使用时间戳
+      m_timestampFilename = ""; // 初始化时间戳文件名
       Initialize();
+   }
+   
+   // 设置是否使用时间戳
+   void SetUseTimestamp(bool useTimestamp)
+   {
+      m_useTimestamp = useTimestamp;
+   }
+   
+   // 生成带时间戳的文件名（一次测试使用同一个文件名）
+   string GenerateTimestampFilename()
+   {
+      // 如果已经生成过时间戳文件名，则直接返回
+      if(m_timestampFilename != "")
+         return m_timestampFilename;
+         
+      // 对于新的文件名格式，我们直接使用传入的文件名
+      m_timestampFilename = m_baseFilename;
+      return m_timestampFilename;
    }
    
    // 设置数据库管理器
@@ -40,6 +65,16 @@ public:
    
    void Initialize()
    {
+      // 根据是否使用时间戳来确定实际文件名
+      if(m_useTimestamp)
+      {
+         m_filename = GenerateTimestampFilename();
+      }
+      else
+      {
+         m_filename = m_baseFilename;
+      }
+      
       if(!m_initialized)
       {
          int file_handle = FileOpen(m_filename, FILE_WRITE|FILE_CSV|FILE_COMMON);
@@ -191,8 +226,6 @@ public:
       return false;
    }
    
-
-   
    // 从CSV文件中获取最后同步时间
    datetime GetLastSyncTime()
    {
@@ -293,6 +326,4 @@ public:
          m_pendingRecord = NULL;
       }
    }
-   
-
 };
