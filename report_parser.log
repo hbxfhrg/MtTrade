@@ -1,0 +1,8 @@
+2025-09-25 14:03:11,776 - ReportParser - ERROR - 解析Excel文件失败: Missing optional dependency 'openpyxl'.  Use pip or conda to install openpyxl.
+2025-09-25 14:03:12,027 - mysql.connector - INFO - package: mysql.connector.plugins
+2025-09-25 14:03:12,027 - mysql.connector - INFO - plugin_name: caching_sha2_password
+2025-09-25 14:03:12,028 - mysql.connector - INFO - AUTHENTICATION_PLUGIN_CLASS: MySQLCachingSHA2PasswordAuthPlugin
+2025-09-25 14:03:12,101 - ReportParser - INFO - 成功连接到MySQL数据库
+2025-09-25 14:03:12,247 - ReportParser - INFO - 数据表创建成功
+2025-09-25 14:03:12,248 - ReportParser - INFO - 数据库连接已关闭
+2025-09-25 14:03:12,248 - ReportParser - INFO - 处理完成: 插入0条订单记录，0条成交记录

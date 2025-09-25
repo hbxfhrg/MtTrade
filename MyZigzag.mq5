@@ -79,18 +79,21 @@ datetime strategyEndTime = 0; // 策略结束时间
 //+------------------------------------------------------------------+
 string GenerateTimestampFilename()
   {
-   // 如果策略结束时间未设置，使用当前时间作为结束时间
-   if(strategyEndTime == 0)
-      strategyEndTime = TimeCurrent();
-      
-   string startDate = TimeToString(strategyStartTime, TIME_DATE);
-   string endDate = TimeToString(strategyEndTime, TIME_DATE);
+   // 获取当前时间
+   datetime currentTime = TimeCurrent();
    
-   // 移除日期中的分隔符
-   StringReplace(startDate, ".", "");
-   StringReplace(endDate, ".", "");
+   // 格式化时间字符串 (年月日_时分秒)
+   string timeStr = TimeToString(currentTime, TIME_DATE | TIME_MINUTES);
+   // 替换时间字符串中的特殊字符
+   StringReplace(timeStr, ".", "");
+   StringReplace(timeStr, ":", "");
+   StringReplace(timeStr, " ", "_");
    
-   string filename = "xauusdm_CL001_" + startDate + "_" + endDate + ".csv";
+   // 获取当前品种名称
+   string symbol = Symbol();
+   
+   // 生成文件名: 品种_当前时间.csv
+   string filename = symbol + "_" + timeStr + ".csv";
    return filename;
   }
 
