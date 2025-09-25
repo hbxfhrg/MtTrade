@@ -1,0 +1,51 @@
+2025-09-25 16:28:42,858 - ERROR - 读取Excel文件失败: [Errno 2] No such file or directory: 'ReportTester.xlsx'
+2025-09-25 16:28:42,859 - WARNING - 订单数据为空，未保存
+2025-09-25 16:28:42,859 - WARNING - 成交记录数据为空，未保存
+2025-09-25 16:28:42,954 - INFO - package: mysql.connector.plugins
+2025-09-25 16:28:42,954 - INFO - plugin_name: caching_sha2_password
+2025-09-25 16:28:42,954 - INFO - AUTHENTICATION_PLUGIN_CLASS: MySQLCachingSHA2PasswordAuthPlugin
+2025-09-25 16:28:42,955 - INFO - 成功连接到MySQL数据库
+2025-09-25 16:28:42,958 - INFO - 数据表创建成功
+2025-09-25 16:28:42,958 - WARNING - 订单数据为空，跳过保存到数据库
+2025-09-25 16:28:42,959 - WARNING - 成交记录数据为空，跳过保存到数据库
+2025-09-25 16:28:42,959 - INFO - 成功将 0 条订单记录和 0 条成交记录保存到数据库
+2025-09-25 16:28:42,959 - INFO - 数据库连接已关闭
+2025-09-25 16:29:10,143 - ERROR - 读取Excel文件失败: [Errno 2] No such file or directory: 'ReportTester.xlsx'
+2025-09-25 16:29:10,144 - WARNING - 订单数据为空，未保存
+2025-09-25 16:29:10,144 - WARNING - 成交记录数据为空，未保存
+2025-09-25 16:29:10,225 - INFO - package: mysql.connector.plugins
+2025-09-25 16:29:10,226 - INFO - plugin_name: caching_sha2_password
+2025-09-25 16:29:10,226 - INFO - AUTHENTICATION_PLUGIN_CLASS: MySQLCachingSHA2PasswordAuthPlugin
+2025-09-25 16:29:10,228 - INFO - 成功连接到MySQL数据库
+2025-09-25 16:29:10,232 - INFO - 数据表创建成功
+2025-09-25 16:29:10,232 - WARNING - 订单数据为空，跳过保存到数据库
+2025-09-25 16:29:10,232 - WARNING - 成交记录数据为空，跳过保存到数据库
+2025-09-25 16:29:10,232 - INFO - 成功将 0 条订单记录和 0 条成交记录保存到数据库
+2025-09-25 16:29:10,232 - INFO - 数据库连接已关闭
+2025-09-25 16:30:35,084 - ERROR - 读取Excel文件失败: [Errno 2] No such file or directory: 'ReportTester.xlsx'
+2025-09-25 16:30:35,085 - WARNING - 订单数据为空，未保存
+2025-09-25 16:30:35,085 - WARNING - 成交记录数据为空，未保存
+2025-09-25 16:30:35,161 - INFO - package: mysql.connector.plugins
+2025-09-25 16:30:35,162 - INFO - plugin_name: caching_sha2_password
+2025-09-25 16:30:35,162 - INFO - AUTHENTICATION_PLUGIN_CLASS: MySQLCachingSHA2PasswordAuthPlugin
+2025-09-25 16:30:35,163 - INFO - 成功连接到MySQL数据库
+2025-09-25 16:30:35,168 - INFO - 数据表创建成功
+2025-09-25 16:30:35,168 - WARNING - 订单数据为空，跳过保存到数据库
+2025-09-25 16:30:35,168 - WARNING - 成交记录数据为空，跳过保存到数据库
+2025-09-25 16:30:35,168 - INFO - 成功将 0 条订单记录和 0 条成交记录保存到数据库
+2025-09-25 16:30:35,169 - INFO - 数据库连接已关闭
+2025-09-25 16:33:22,343 - ERROR - 文件不存在: ReportTester.xlsx
+2025-09-25 16:33:22,343 - INFO - 当前工作目录: C:\Users\xfhrg\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Experts\MtTrade
+2025-09-25 16:33:22,344 - INFO - Scripts目录下的文件: ['deals.csv', 'orders.csv', 'order_deal_reader.log', 'order_deal_reader.py', 'ReportTester.xlsx', 'test_file_reading.log', 'test_file_reading.py', '__pycache__']
+2025-09-25 16:33:52,831 - ERROR - 文件不存在: ReportTester.xlsx
+2025-09-25 16:33:52,832 - INFO - 当前工作目录: C:\Users\xfhrg\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Experts\MtTrade
+2025-09-25 16:33:52,833 - INFO - Scripts目录下的文件: ['deals.csv', 'orders.csv', 'order_deal_reader.log', 'order_deal_reader.py', 'ReportTester.xlsx', 'test_file_reading.log', 'test_file_reading.py', '__pycache__']
+2025-09-25 16:33:59,063 - ERROR - 文件不存在: ReportTester.xlsx
+2025-09-25 16:33:59,064 - INFO - 当前工作目录: C:\Users\xfhrg\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Experts\MtTrade
+2025-09-25 16:33:59,065 - INFO - Scripts目录下的文件: ['deals.csv', 'orders.csv', 'order_deal_reader.log', 'order_deal_reader.py', 'ReportTester.xlsx', 'test_file_reading.log', 'test_file_reading.py', '__pycache__']
+2025-09-25 16:34:03,683 - ERROR - 文件不存在: ReportTester.xlsx
+2025-09-25 16:34:03,684 - INFO - 当前工作目录: C:\Users\xfhrg\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Experts\MtTrade
+2025-09-25 16:34:03,684 - INFO - Scripts目录下的文件: ['deals.csv', 'orders.csv', 'order_deal_reader.log', 'order_deal_reader.py', 'ReportTester.xlsx', 'test_file_reading.log', 'test_file_reading.py', '__pycache__']
+2025-09-25 16:34:06,148 - ERROR - 文件不存在: ReportTester.xlsx
+2025-09-25 16:34:06,148 - INFO - 当前工作目录: C:\Users\xfhrg\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Experts\MtTrade
+2025-09-25 16:34:06,149 - INFO - Scripts目录下的文件: ['deals.csv', 'orders.csv', 'order_deal_reader.log', 'order_deal_reader.py', 'ReportTester.xlsx', 'test_file_reading.log', 'test_file_reading.py', '__pycache__']
