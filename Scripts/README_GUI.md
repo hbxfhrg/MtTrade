@@ -43,8 +43,14 @@
 
 ## 编译说明
 
-如果需要重新编译exe文件，请执行以下步骤：
+如果需要重新编译exe文件，有两种方法：
 
+### 方法一：使用批处理文件（推荐）
+1. 双击 `build_exe.bat` 文件
+2. 等待打包完成
+3. 生成的exe文件位于 `dist` 目录中
+
+### 方法二：手动编译
 1. 安装依赖：
    ```
    pip install pandas openpyxl mysql-connector-python pyinstaller
@@ -62,6 +68,7 @@
 - `ReadReport.py`：GUI应用程序源代码
 - `dist/ReadReport.exe`：编译后的可执行文件
 - `run_gui.bat`：启动批处理文件
+- `build_exe.bat`：打包批处理文件
 - `build_exe.py`：使用cx_Freeze打包的脚本（备用）
 - `orders.csv`：导出的订单数据CSV文件（示例）
 - `deals.csv`：导出的成交记录CSV文件（示例）

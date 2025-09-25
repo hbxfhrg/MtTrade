@@ -111,8 +111,12 @@ class ReadReportGUI:
     
     def browse_file(self):
         """浏览文件"""
+        # 获取当前应用程序目录
+        initial_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+        
         file_path = filedialog.askopenfilename(
             title="选择Excel文件",
+            initialdir=initial_dir,
             filetypes=[("Excel文件", "*.xlsx"), ("所有文件", "*.*")]
         )
         if file_path:
@@ -145,8 +149,11 @@ class ReadReportGUI:
             return
         
         try:
+            # 获取当前应用程序目录
+            initial_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+            
             # 选择保存目录
-            save_dir = filedialog.askdirectory(title="选择保存目录")
+            save_dir = filedialog.askdirectory(title="选择保存目录", initialdir=initial_dir)
             if not save_dir:
                 return
             
@@ -170,6 +177,8 @@ class ReadReportGUI:
             logger.info("开始保存到数据库...")
             if self._connect_db():
                 if self._create_tables():
+                    # 在保存新数据之前清除现有数据
+                    self._clear_database()
                     orders_count = self._save_orders_to_db(self.orders_df, os.path.basename(self.file_path.get()))
                     deals_count = self._save_deals_to_db(self.deals_df, os.path.basename(self.file_path.get()))
                     logger.info(f"成功将 {orders_count} 条订单记录和 {deals_count} 条成交记录保存到数据库")
@@ -766,6 +775,24 @@ class ReadReportGUI:
             logger.error(f"保存成交记录数据到数据库失败: {e}")
             self.conn.rollback()
             return 0
+    
+    def _clear_database(self):
+        """清除数据库中的所有数据"""
+        try:
+            # 清除订单表数据
+            self.cursor.execute("DELETE FROM report_orders")
+            orders_deleted = self.cursor.rowcount
+            
+            # 清除成交记录表数据
+            self.cursor.execute("DELETE FROM report_deals")
+            deals_deleted = self.cursor.rowcount
+            
+            self.conn.commit()
+            logger.info(f"已清除数据库中的数据: {orders_deleted} 条订单记录, {deals_deleted} 条成交记录")
+        except Error as e:
+            logger.error(f"清除数据库数据失败: {e}")
+            self.conn.rollback()
+            raise
 
 class TextRedirector:
     """重定向stdout/stderr到文本框"""
