@@ -444,20 +444,15 @@ bool CTradeBasePoint::GetTimeframeCachedSegments(ENUM_TIMEFRAMES timeframe, CZig
    bool hasLeft = false;
    bool hasRight = false;
    
-   CZigzagSegment* leftSeg = NULL;
-   if(m_leftSegmentsStore.Get(timeframeIndex, leftSeg) && leftSeg != NULL)
+   // 使用GetArray方法获取整个数组，而不是单个元素
+   if(m_leftSegmentsStore.GetArray(timeframeIndex, leftSegments))
    {
-      ArrayResize(leftSegments, 1);
-      leftSegments[0] = leftSeg;
-      hasLeft = true;
+      hasLeft = (ArraySize(leftSegments) > 0);
    }
    
-   CZigzagSegment* rightSeg = NULL;
-   if(m_rightSegmentsStore.Get(timeframeIndex, rightSeg) && rightSeg != NULL)
+   if(m_rightSegmentsStore.GetArray(timeframeIndex, rightSegments))
    {
-      ArrayResize(rightSegments, 1);
-      rightSegments[0] = rightSeg;
-      hasRight = true;
+      hasRight = (ArraySize(rightSegments) > 0);
    }
    
    // 如果缓存中不存在，尝试查找并缓存

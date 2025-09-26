@@ -90,6 +90,14 @@ class ReadReportGUI:
         tk.Button(button_frame, text="保存数据库", command=self.save_database, bg="#FF9800", fg="white").pack(side=tk.LEFT, padx=(0, 5))
         tk.Button(button_frame, text="清空日志", command=self.clear_log, bg="#F44336", fg="white").pack(side=tk.LEFT)
         
+        # 线段操作按钮框架
+        segment_button_frame = tk.Frame(main_frame)
+        segment_button_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 线段操作按钮
+        tk.Button(segment_button_frame, text="读取线段列表", command=self.read_segment_data, bg="#9C27B0", fg="white").pack(side=tk.LEFT, padx=(0, 5))
+        tk.Button(segment_button_frame, text="写入线段表", command=self.save_segment_database, bg="#607D8B", fg="white").pack(side=tk.LEFT, padx=(0, 5))
+        
         # 日志显示框架
         log_frame = tk.LabelFrame(main_frame, text="运行日志", padx=5, pady=5)
         log_frame.pack(fill=tk.BOTH, expand=True)
@@ -106,6 +114,8 @@ class ReadReportGUI:
 3. 点击"保存CSV"按钮将数据保存为CSV文件
 4. 点击"保存数据库"按钮将数据保存到MySQL数据库
 5. 点击"清空日志"按钮清空日志显示
+6. 点击"读取线段列表"按钮读取线段信息数据
+7. 点击"写入线段表"按钮将线段信息保存到数据库
         """
         tk.Label(main_frame, text=info_text, justify=tk.LEFT, fg="blue").pack(fill=tk.X, pady=(10, 0))
     
@@ -195,6 +205,55 @@ class ReadReportGUI:
         """清空日志"""
         self.log_text.delete(1.0, tk.END)
     
+    def read_segment_data(self):
+        """读取线段数据"""
+        try:
+            # 获取当前应用程序目录
+            initial_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+            
+            # 构造segment_info.csv文件路径
+            segment_file_path = os.path.join(initial_dir, "segment_info.csv")
+            
+            # 检查文件是否存在
+            if not os.path.exists(segment_file_path):
+                messagebox.showerror("错误", f"线段信息文件不存在: {segment_file_path}")
+                return
+            
+            # 读取segment_info.csv文件
+            self.segments_df = self._read_segment_data(segment_file_path)
+            if self.segments_df is not None:
+                logger.info(f"成功读取线段数据，共 {len(self.segments_df)} 条记录")
+                messagebox.showinfo("成功", f"成功读取线段数据，共 {len(self.segments_df)} 条记录")
+            else:
+                logger.error("读取线段数据失败")
+                messagebox.showerror("错误", "读取线段数据失败")
+        except Exception as e:
+            logger.error(f"读取线段数据失败: {e}")
+            messagebox.showerror("错误", f"读取线段数据失败: {e}")
+    
+    def save_segment_database(self):
+        """保存线段数据到数据库"""
+        if not hasattr(self, 'segments_df'):
+            messagebox.showerror("错误", "请先读取线段数据")
+            return
+        
+        try:
+            logger.info("开始保存线段数据到数据库...")
+            if self._connect_db():
+                if self._create_tables():
+                    # 在保存新数据之前清除现有线段数据
+                    self._clear_segment_database()
+                    segments_count = self._save_segments_to_db(self.segments_df)
+                    logger.info(f"成功将 {segments_count} 条线段记录保存到数据库")
+                    messagebox.showinfo("成功", f"成功将 {segments_count} 条线段记录保存到数据库")
+                self._close_db()
+            else:
+                logger.error("无法连接到数据库")
+                messagebox.showerror("错误", "无法连接到数据库")
+        except Exception as e:
+            logger.error(f"保存线段数据到数据库失败: {e}")
+            messagebox.showerror("错误", f"保存线段数据到数据库失败: {e}")
+    
     def _connect_db(self):
         """连接到MySQL数据库"""
         try:
@@ -259,10 +318,31 @@ class ReadReportGUI:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """)
             
+            # 创建线段信息表（更新为新的格式）
+            self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS segment_info (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                trade_time DATETIME COMMENT '交易时间',
+                order_ticket BIGINT COMMENT '订单号',
+                position_id BIGINT COMMENT '仓位ID',
+                reference_price DOUBLE COMMENT '参考价格',
+                reference_time DATETIME COMMENT '参考时间',
+                reference_bar_index INT COMMENT '参考K线索引',
+                timeframe VARCHAR(10) COMMENT '时间周期',
+                segment_side VARCHAR(10) COMMENT '线段方向（Left/Right）',
+                segment_index INT COMMENT '线段序号',
+                start_price DOUBLE COMMENT '起始价格',
+                end_price DOUBLE COMMENT '结束价格',
+                amplitude DOUBLE COMMENT '幅度',
+                direction VARCHAR(10) COMMENT '方向',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+            
             self.conn.commit()
             logger.info("数据表创建成功")
             return True
-        except Error as e:
+        except Exception as e:
             logger.error(f"创建数据表失败: {e}")
             self.conn.rollback()
             return False
@@ -414,6 +494,25 @@ class ReadReportGUI:
         except Exception as e:
             logger.error(f"读取Excel文件失败: {e}")
             return None, None
+    
+    def _read_segment_data(self, file_path):
+        """
+        从CSV文件中读取线段数据
+        
+        Args:
+            file_path (str): CSV文件路径
+            
+        Returns:
+            DataFrame: 线段数据的DataFrame
+        """
+        try:
+            # 读取segment_info.csv文件
+            df = pd.read_csv(file_path, sep=';', encoding='utf-16')
+            logger.info(f"成功读取线段数据文件，包含 {len(df)} 行数据")
+            return df
+        except Exception as e:
+            logger.error(f"读取线段数据文件失败: {e}")
+            return None
     
     def _save_to_csv(self, orders_df, deals_df, orders_csv_path="orders.csv", deals_csv_path="deals.csv"):
         """
@@ -776,6 +875,121 @@ class ReadReportGUI:
             self.conn.rollback()
             return 0
     
+    def _save_segments_to_db(self, segments_df):
+        """
+        将线段数据保存到数据库
+        
+        Args:
+            segments_df (DataFrame): 线段数据
+            
+        Returns:
+            int: 成功插入的记录数
+        """
+        if segments_df is None or len(segments_df) == 0:
+            logger.warning("线段数据为空，跳过保存到数据库")
+            return 0
+        
+        try:
+            insert_query = """
+            INSERT INTO segment_info 
+            (trade_time, order_ticket, position_id, reference_price, reference_time, 
+             reference_bar_index, timeframe, segment_side, segment_index, start_price,
+             end_price, amplitude, direction)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            count = 0
+            for idx, row in segments_df.iterrows():
+                # 提取各字段值
+                trade_time = None
+                order_ticket = None
+                position_id = None
+                reference_price = 0.0
+                reference_time = None
+                reference_bar_index = 0
+                timeframe = ""
+                segment_side = ""
+                segment_index = 0
+                start_price = 0.0
+                end_price = 0.0
+                amplitude = 0.0
+                direction = ""
+                
+                # 处理时间字段
+                if 'TradeTime' in row and pd.notna(row['TradeTime']):
+                    try:
+                        trade_time = datetime.datetime.strptime(row['TradeTime'], '%Y.%m.%d %H:%M:%S')
+                    except ValueError:
+                        pass
+                
+                if 'ReferenceTime' in row and pd.notna(row['ReferenceTime']):
+                    try:
+                        reference_time = datetime.datetime.strptime(row['ReferenceTime'], '%Y.%m.%d %H:%M:%S')
+                    except ValueError:
+                        pass
+                
+                # 处理其他字段
+                if 'OrderTicket' in row and pd.notna(row['OrderTicket']):
+                    order_ticket = int(row['OrderTicket'])
+                
+                if 'PositionId' in row and pd.notna(row['PositionId']):
+                    position_id = int(row['PositionId'])
+                
+                if 'ReferencePrice' in row and pd.notna(row['ReferencePrice']):
+                    reference_price = float(row['ReferencePrice'])
+                
+                if 'ReferenceBarIndex' in row and pd.notna(row['ReferenceBarIndex']):
+                    reference_bar_index = int(row['ReferenceBarIndex'])
+                
+                if 'Timeframe' in row and pd.notna(row['Timeframe']):
+                    timeframe = str(row['Timeframe'])
+                
+                if 'SegmentSide' in row and pd.notna(row['SegmentSide']):
+                    segment_side = str(row['SegmentSide'])
+                
+                if 'SegmentIndex' in row and pd.notna(row['SegmentIndex']):
+                    segment_index = int(row['SegmentIndex'])
+                
+                if 'StartPrice' in row and pd.notna(row['StartPrice']):
+                    start_price = float(row['StartPrice'])
+                
+                if 'EndPrice' in row and pd.notna(row['EndPrice']):
+                    end_price = float(row['EndPrice'])
+                
+                if 'Amplitude' in row and pd.notna(row['Amplitude']):
+                    amplitude = float(row['Amplitude'])
+                
+                if 'Direction' in row and pd.notna(row['Direction']):
+                    direction = str(row['Direction'])
+                
+                values = (
+                    trade_time,
+                    order_ticket,
+                    position_id,
+                    reference_price,
+                    reference_time,
+                    reference_bar_index,
+                    timeframe,
+                    segment_side,
+                    segment_index,
+                    start_price,
+                    end_price,
+                    amplitude,
+                    direction
+                )
+                
+                self.cursor.execute(insert_query, values)
+                count += 1
+            
+            self.conn.commit()
+            logger.info(f"成功将{count}条线段记录保存到数据库")
+            return count
+            
+        except Error as e:
+            logger.error(f"保存线段数据到数据库失败: {e}")
+            self.conn.rollback()
+            return 0
+    
     def _clear_database(self):
         """清除数据库中的所有数据"""
         try:
@@ -791,6 +1005,20 @@ class ReadReportGUI:
             logger.info(f"已清除数据库中的数据: {orders_deleted} 条订单记录, {deals_deleted} 条成交记录")
         except Error as e:
             logger.error(f"清除数据库数据失败: {e}")
+            self.conn.rollback()
+            raise
+    
+    def _clear_segment_database(self):
+        """清除数据库中的线段数据"""
+        try:
+            # 清除线段表数据
+            self.cursor.execute("DELETE FROM segment_info")
+            segments_deleted = self.cursor.rowcount
+            
+            self.conn.commit()
+            logger.info(f"已清除数据库中的线段数据: {segments_deleted} 条记录")
+        except Error as e:
+            logger.error(f"清除数据库线段数据失败: {e}")
             self.conn.rollback()
             raise
 

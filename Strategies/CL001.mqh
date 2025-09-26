@@ -32,7 +32,6 @@ input int OrderExpiryHours = 24;   // 挂单有效时间(小时，默认24小时
 #include <Trade/Trade.mqh>
 #include <Trade/OrderInfo.mqh>
 #include <Trade/PositionInfo.mqh>
-#include "../Database/DatabaseManager.mqh"
 
 class CStrategyCL001
 {

@@ -22,8 +22,8 @@
 #include "GlobalInstances.mqh"
 #include "ZigzagSegmentManager.mqh"
 #include "Strategies/CL001.mqh"
-#include "Database/DatabaseManager.mqh"
-#include "Database/MySQLOrderLogger.mqh"
+#include "Logging/SegmentInfoLogger.mqh"
+
 #include <Trade\PositionInfo.mqh>  // 添加这一行以确保PositionSelect等函数可用
 #include <Strings\String.mqh>      // 包含StringReplace函数
 
@@ -36,12 +36,7 @@ input color  InpInfoPanelColor = clrWhite; // 信息面板文字颜色
 input color  InpInfoPanelBgColor = clrNavy; // 信息面板背景颜色
 input bool   InpShowPenetratedPoints = false; // 显示已失效的价格点
 
-//--- 数据库连接参数
-input string InpDBHost = "localhost";        // 数据库主机
-input int    InpDBPort = 3306;              // 数据库端口
-input string InpDBName = "pymt5";           // 数据库名称
-input string InpDBUser = "root";             // 数据库用户名
-input string InpDBPassword = "!Aa123456";    // 数据库密码
+
 
 //--- 声明交易分析器（核心数据源）
 // 移除独立的ZigZag计算器，完全依赖TradeAnalyzer
@@ -66,36 +61,14 @@ static int        lastMinute = -1;  // 上次检查的分钟数
 // 执行交易策略
 CStrategyCL001 strategy;
 
-//--- 数据库管理器
-CDatabaseManager* db = NULL;
-CMySQLOrderLogger* dblog = NULL;
+//--- 线段信息记录器
+CSegmentInfoLogger* segmentLogger = NULL;
 
 //--- 策略启动时间
 datetime strategyStartTime = 0;
 datetime strategyEndTime = 0; // 策略结束时间
 
-//+------------------------------------------------------------------+
-//| 生成带时间戳的文件名                                             |
-//+------------------------------------------------------------------+
-string GenerateTimestampFilename()
-  {
-   // 获取当前时间
-   datetime currentTime = TimeCurrent();
-   
-   // 格式化时间字符串 (年月日_时分秒)
-   string timeStr = TimeToString(currentTime, TIME_DATE | TIME_MINUTES);
-   // 替换时间字符串中的特殊字符
-   StringReplace(timeStr, ".", "");
-   StringReplace(timeStr, ":", "");
-   StringReplace(timeStr, " ", "_");
-   
-   // 获取当前品种名称
-   string symbol = Symbol();
-   
-   // 生成文件名: 品种_当前时间.csv
-   string filename = symbol + "_" + timeStr + ".csv";
-   return filename;
-  }
+
 
 //+------------------------------------------------------------------+
 //| 自定义指标初始化函数                                             |
@@ -152,49 +125,16 @@ int OnInit()
    ChartSetInteger(0, CHART_SHOW_TRADE_LEVELS, false);
    ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
    
-   // 初始化数据库管理器（按需连接模式）
-   db = new CDatabaseManager(InpDBHost, InpDBUser, InpDBPassword, InpDBName, InpDBPort);
-   if(db != NULL)
+   // 初始化线段信息记录器
+   segmentLogger = new CSegmentInfoLogger("segment_info.csv");
+   if(segmentLogger != NULL)
    {
-      // 检查是否在策略测试模式下
-      if(MQLInfoInteger(MQL_TESTER))
-      {
-         // 在测试模式下，使用带时间戳的文件名
-         string testFilename = GenerateTimestampFilename();
-         dblog = new CMySQLOrderLogger(db, testFilename);
-         Print("策略测试模式，使用文件名: ", testFilename);
-      }
-      else
-      {
-         // 在生产模式下，使用默认文件名
-         dblog = new CMySQLOrderLogger(db);
-         Print("生产模式，使用默认文件名: trade_orders.csv");
-      }
-      
-      if(dblog != NULL)
-      {
-         Print("MySQL订单日志记录器初始化成功（按需连接模式）");
-         // 确保订单日志表存在
-         if(!dblog.CreateOrderLogsTable())
-         {
-            Print("创建订单日志表失败: ", db.GetLastError());
-         }
-         else
-         {
-            Print("订单日志表已准备就绪");
-         }
-      }
-      else
-      {
-         Print("MySQL订单日志记录器初始化失败");
-      }
+      Print("线段信息记录器初始化成功");
    }
    else
    {
-      Print("数据库核心管理器初始化失败");
-   }   
-
-
+      Print("线段信息记录器初始化失败");
+   }
 
    return(INIT_SUCCEEDED);
   }
@@ -221,17 +161,11 @@ void OnDeinit(const int reason)
    ObjectsDeleteAll(0, "ZigzagLine_");
    ObjectsDeleteAll(0, "ZigzagLine4H_");
    
-   // 清理数据库管理器
-   if(dblog != NULL)
+   // 清理线段信息记录器
+   if(segmentLogger != NULL)
    {
-      delete dblog;
-      dblog = NULL;
-   }
-   
-   if(db != NULL)
-   {
-      delete db;
-      db = NULL;
+      delete segmentLogger;
+      segmentLogger = NULL;
    }
    
    ObjectsDeleteAll(0, "SR_Line_");
@@ -258,11 +192,7 @@ void OnTick()
       ProcessTradeAnalyzerLabelDrawing(points4H);
       ProcessTradeAnalysisAndInfoPanel();
       
-      // 同步交易历史
-      if(dblog != NULL)
-      {
-         dblog.SyncTradeHistory();
-      }
+      // 移除了数据库同步交易历史代码
       
       needRecalculateTradeAnalyzer = false;
    }
@@ -493,6 +423,36 @@ void ProcessTradeAnalysisAndInfoPanel()
       // TRADE_TRANSACTION_DEAL_ADD: 添加交易
       // TRADE_TRANSACTION_ORDER_ADD: 添加订单
       // TRADE_TRANSACTION_POSITION: 更改持仓
-   
+      
+      // 检查线段信息记录器是否已初始化
+      if(segmentLogger == NULL)
+         return;
+      
+      // 处理交易事件
+      switch(trans.type)
+      {
+         case TRADE_TRANSACTION_ORDER_ADD:
+            // 记录订单添加事件
+            if(request.type == ORDER_TYPE_BUY_LIMIT || request.type == ORDER_TYPE_SELL_LIMIT)
+            {
+               Print("记录线段信息: 订单添加 - 订单号: ", request.order, ", 价格: ", DoubleToString(request.price, _Digits));
+               // 记录当前各周期的线段信息
+               segmentLogger.LogSegmentInfo(TimeCurrent(), request.order, 0, g_tradeAnalyzer.m_tradeBasePoint);
+            }
+            break;
+            
+         case TRADE_TRANSACTION_DEAL_ADD:
+            // 记录交易添加事件
+            Print("记录线段信息: 交易添加 - 交易号: ", trans.deal, ", 订单号: ", trans.order, ", PositionId: ", trans.position);
+            // 记录当前各周期的线段信息
+            segmentLogger.LogSegmentInfo(TimeCurrent(), trans.order, trans.position, g_tradeAnalyzer.m_tradeBasePoint);
+            break;
+            
+         case TRADE_TRANSACTION_POSITION:
+            // 记录持仓更改事件
+            Print("记录线段信息: 持仓更改 - PositionId: ", trans.position);
+            // 可以根据需要记录持仓更改时的线段信息
+            break;
+      }
    }
 //+------------------------------------------------------------------+
