@@ -75,7 +75,7 @@ public:
          if(orderInfo.SelectByIndex(i) && 
             orderInfo.Symbol() == Symbol() && 
             orderInfo.OrderType() == ORDER_TYPE_BUY_LIMIT &&
-            StringFind(orderInfo.Comment(), "CL001 Strategy") != -1)
+            StringFind(orderInfo.Comment(), "CL001_") != -1)
          {
             // 计算从挂单时间后的最高价
             int startBar = iBarShift(Symbol(), PERIOD_CURRENT, orderInfo.TimeSetup());
@@ -191,7 +191,10 @@ public:
                            // 计算过期时间（当前时间 + OrderExpiryHours小时）
                            datetime expiryTime = TimeCurrent() + (OrderExpiryHours * 3600);
                            
-                           if(m_trade.BuyLimit(LotSize, entryPrice, NULL, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiryTime, "CL001 Strategy (Special)"))
+                           // 使用"CL001_" + 订单票据作为备注
+                           string orderComment = StringFormat("CL001_%d", (int)TimeCurrent());
+                           
+                           if(m_trade.BuyLimit(LotSize, entryPrice, NULL, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiryTime, orderComment))
                            {
                               // 获取并验证订单票据
                               m_orderTicket = m_trade.ResultOrder();                            
@@ -209,7 +212,7 @@ public:
                                     orderInfo.Symbol() == Symbol() && 
                                     orderInfo.OrderType() == ORDER_TYPE_BUY_LIMIT &&
                                     orderInfo.PriceOpen() > entryPrice &&
-                                    StringFind(orderInfo.Comment(), "CL001 Strategy") != -1)
+                                    StringFind(orderInfo.Comment(), "CL001") != -1)
                                  {
                                     m_trade.OrderDelete(orderInfo.Ticket());
                                     Print("关闭本策略旧挂单: 价格=", DoubleToString(orderInfo.PriceOpen(), _Digits));
@@ -218,6 +221,7 @@ public:
                               return true;
                            }
                            return false;
+
                         }
                      
                      }
