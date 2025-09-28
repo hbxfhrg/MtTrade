@@ -69,34 +69,23 @@ class ReadReportGUI:
         main_frame = tk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # 文件选择框架
-        file_frame = tk.LabelFrame(main_frame, text="文件选择", padx=5, pady=5)
-        file_frame.pack(fill=tk.X, pady=(0, 10))
+        # 交易历史操作框架
+        trade_frame = tk.LabelFrame(main_frame, text="交易历史操作 - 读取和保存交易订单及成交记录", padx=5, pady=5)
+        trade_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # 文件路径输入
-        tk.Label(file_frame, text="Excel文件路径:").grid(row=0, column=0, sticky=tk.W)
-        tk.Entry(file_frame, textvariable=self.file_path, width=50).grid(row=0, column=1, padx=(5, 5), sticky=tk.EW)
-        tk.Button(file_frame, text="浏览...", command=self.browse_file).grid(row=0, column=2, padx=(5, 0))
+        # 交易历史操作按钮
+        tk.Button(trade_frame, text="读取交易历史", command=self.read_data, bg="#4CAF50", fg="white").pack(side=tk.LEFT, padx=(0, 5))
+        tk.Button(trade_frame, text="保存CSV", command=self.save_csv, bg="#2196F3", fg="white").pack(side=tk.LEFT, padx=(0, 5))
+        tk.Button(trade_frame, text="保存数据库", command=self.save_database, bg="#FF9800", fg="white").pack(side=tk.LEFT, padx=(0, 5))
+        tk.Button(trade_frame, text="清空日志", command=self.clear_log, bg="#F44336", fg="white").pack(side=tk.LEFT)
         
-        file_frame.columnconfigure(1, weight=1)
-        
-        # 操作按钮框架
-        button_frame = tk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        # 操作按钮
-        tk.Button(button_frame, text="读取数据", command=self.read_data, bg="#4CAF50", fg="white").pack(side=tk.LEFT, padx=(0, 5))
-        tk.Button(button_frame, text="保存CSV", command=self.save_csv, bg="#2196F3", fg="white").pack(side=tk.LEFT, padx=(0, 5))
-        tk.Button(button_frame, text="保存数据库", command=self.save_database, bg="#FF9800", fg="white").pack(side=tk.LEFT, padx=(0, 5))
-        tk.Button(button_frame, text="清空日志", command=self.clear_log, bg="#F44336", fg="white").pack(side=tk.LEFT)
-        
-        # 线段操作按钮框架
-        segment_button_frame = tk.Frame(main_frame)
-        segment_button_frame.pack(fill=tk.X, pady=(0, 10))
+        # 线段数据操作框架
+        segment_frame = tk.LabelFrame(main_frame, text="线段数据操作 - 读取和保存线段信息数据", padx=5, pady=5)
+        segment_frame.pack(fill=tk.X, pady=(0, 10))
         
         # 线段操作按钮
-        tk.Button(segment_button_frame, text="读取线段列表", command=self.read_segment_data, bg="#9C27B0", fg="white").pack(side=tk.LEFT, padx=(0, 5))
-        tk.Button(segment_button_frame, text="写入线段表", command=self.save_segment_database, bg="#607D8B", fg="white").pack(side=tk.LEFT, padx=(0, 5))
+        tk.Button(segment_frame, text="读取线段列表", command=self.read_segment_data, bg="#9C27B0", fg="white").pack(side=tk.LEFT, padx=(0, 5))
+        tk.Button(segment_frame, text="写入线段表", command=self.save_segment_database, bg="#607D8B", fg="white").pack(side=tk.LEFT, padx=(0, 5))
         
         # 日志显示框架
         log_frame = tk.LabelFrame(main_frame, text="运行日志", padx=5, pady=5)
@@ -109,48 +98,49 @@ class ReadReportGUI:
         # 添加说明文本
         info_text = """
 使用说明：
-1. 点击"浏览..."按钮选择ReportTester.xlsx文件
-2. 点击"读取数据"按钮读取订单和成交记录
-3. 点击"保存CSV"按钮将数据保存为CSV文件
-4. 点击"保存数据库"按钮将数据保存到MySQL数据库
-5. 点击"清空日志"按钮清空日志显示
-6. 点击"读取线段列表"按钮读取线段信息数据
-7. 点击"写入线段表"按钮将线段信息保存到数据库
+1. 在"交易历史操作"框中点击"读取交易历史"按钮选择并读取ReportTester.xlsx文件中的订单和成交记录
+2. 在"交易历史操作"框中点击"保存CSV"按钮将数据保存为CSV文件
+3. 在"交易历史操作"框中点击"保存数据库"按钮将数据保存到MySQL数据库
+4. 在"交易历史操作"框中点击"清空日志"按钮清空日志显示
+5. 在"线段数据操作"框中点击"读取线段列表"按钮选择并读取线段信息数据
+6. 在"线段数据操作"框中点击"写入线段表"按钮将线段信息保存到数据库
         """
         tk.Label(main_frame, text=info_text, justify=tk.LEFT, fg="blue").pack(fill=tk.X, pady=(10, 0))
     
-    def browse_file(self):
-        """浏览文件"""
-        # 获取当前应用程序目录
-        initial_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
-        
-        file_path = filedialog.askopenfilename(
-            title="选择Excel文件",
-            initialdir=initial_dir,
-            filetypes=[("Excel文件", "*.xlsx"), ("所有文件", "*.*")]
-        )
-        if file_path:
-            self.file_path.set(file_path)
-            logger.info(f"已选择文件: {file_path}")
+    def clear_log(self):
+        """清空日志"""
+        self.log_text.delete(1.0, tk.END)
     
     def read_data(self):
-        """读取数据"""
-        if not self.file_path.get():
-            messagebox.showerror("错误", "请先选择Excel文件")
-            return
-        
-        if not os.path.exists(self.file_path.get()):
-            messagebox.showerror("错误", "文件不存在")
-            return
-        
+        """读取交易历史数据"""
         try:
-            logger.info("开始读取数据...")
-            self.orders_df, self.deals_df = self._read_order_deal_data(self.file_path.get())
-            logger.info("数据读取完成")
-            messagebox.showinfo("成功", "数据读取完成")
+            # 获取当前应用程序目录
+            initial_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+            
+            # 让用户选择Excel文件
+            file_path = filedialog.askopenfilename(
+                title="选择交易历史Excel文件",
+                initialdir=initial_dir,
+                filetypes=[("Excel文件", "*.xlsx"), ("所有文件", "*.*")]
+            )
+            
+            # 如果用户取消选择，直接返回
+            if not file_path:
+                return
+            
+            # 检查文件是否存在
+            if not os.path.exists(file_path):
+                messagebox.showerror("错误", f"文件不存在: {file_path}")
+                return
+            
+            # 读取Excel文件
+            logger.info("开始读取交易历史数据...")
+            self.orders_df, self.deals_df = self._read_order_deal_data(file_path)
+            logger.info("交易历史数据读取完成")
+            messagebox.showinfo("成功", "交易历史数据读取完成")
         except Exception as e:
-            logger.error(f"读取数据失败: {e}")
-            messagebox.showerror("错误", f"读取数据失败: {e}")
+            logger.error(f"读取交易历史数据失败: {e}")
+            messagebox.showerror("错误", f"读取交易历史数据失败: {e}")
     
     def save_csv(self):
         """保存CSV"""
@@ -180,7 +170,7 @@ class ReadReportGUI:
     def save_database(self):
         """保存到数据库"""
         if not hasattr(self, 'orders_df') or not hasattr(self, 'deals_df'):
-            messagebox.showerror("错误", "请先读取数据")
+            messagebox.showerror("错误", "请先读取交易历史数据")
             return
         
         try:
@@ -189,8 +179,9 @@ class ReadReportGUI:
                 if self._create_tables():
                     # 在保存新数据之前清除现有数据
                     self._clear_database()
-                    orders_count = self._save_orders_to_db(self.orders_df, os.path.basename(self.file_path.get()))
-                    deals_count = self._save_deals_to_db(self.deals_df, os.path.basename(self.file_path.get()))
+                    # 使用默认文件名，因为我们现在不保存文件路径
+                    orders_count = self._save_orders_to_db(self.orders_df, "ReportTester.xlsx")
+                    deals_count = self._save_deals_to_db(self.deals_df, "ReportTester.xlsx")
                     logger.info(f"成功将 {orders_count} 条订单记录和 {deals_count} 条成交记录保存到数据库")
                     messagebox.showinfo("成功", f"成功将 {orders_count} 条订单记录和 {deals_count} 条成交记录保存到数据库")
                 self._close_db()
@@ -200,10 +191,6 @@ class ReadReportGUI:
         except Exception as e:
             logger.error(f"保存到数据库失败: {e}")
             messagebox.showerror("错误", f"保存到数据库失败: {e}")
-    
-    def clear_log(self):
-        """清空日志"""
-        self.log_text.delete(1.0, tk.END)
     
     def read_segment_data(self):
         """读取线段数据"""
