@@ -1,0 +1,20 @@
+2025-09-28 11:09:02,808 - INFO - 成功读取线段数据文件，包含 9545 行数据
+2025-09-28 11:09:02,809 - INFO - 列名: ['TradeTime', 'OrderTicket', 'PositionId', 'ReferencePrice', 'ReferenceTime', 'ReferenceBarIndex', 'Timeframe', 'SegmentSide', 'SegmentIndex', 'StartPrice', 'EndPrice', 'Amplitude', 'Direction', 'TradeAction', 'TradePrice', 'TradeVolume', 'TradeComment', 'TradeStatus']
+2025-09-28 11:09:02,809 - INFO - 成功读取线段数据，共 9545 条记录
+2025-09-28 11:09:30,338 - INFO - 开始保存线段数据到数据库...
+2025-09-28 11:09:30,490 - INFO - package: mysql.connector.plugins
+2025-09-28 11:09:30,490 - INFO - plugin_name: caching_sha2_password
+2025-09-28 11:09:30,491 - INFO - AUTHENTICATION_PLUGIN_CLASS: MySQLCachingSHA2PasswordAuthPlugin
+2025-09-28 11:09:30,496 - INFO - 成功连接到MySQL数据库
+2025-09-28 11:09:30,508 - INFO - 数据表创建成功
+2025-09-28 11:09:30,515 - INFO - 已清除数据库中的线段数据: 8 条记录
+2025-09-28 11:09:30,524 - ERROR - 保存线段数据到数据库失败: 1054 (42S22): Unknown column 'segment_side' in 'field list'
+2025-09-28 11:09:30,525 - INFO - 成功将 0 条线段记录保存到数据库
+2025-09-28 11:09:32,306 - INFO - 数据库连接已关闭
+2025-09-28 11:09:59,054 - INFO - 开始保存线段数据到数据库...
+2025-09-28 11:09:59,109 - INFO - 成功连接到MySQL数据库
+2025-09-28 11:09:59,142 - INFO - 数据表创建成功
+2025-09-28 11:09:59,148 - INFO - 已清除数据库中的线段数据: 0 条记录
+2025-09-28 11:10:01,907 - INFO - 成功将9545条线段记录保存到数据库
+2025-09-28 11:10:01,908 - INFO - 成功将 9545 条线段记录保存到数据库
+2025-09-28 11:10:05,275 - INFO - 数据库连接已关闭

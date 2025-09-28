@@ -211,16 +211,24 @@ class ReadReportGUI:
             # 获取当前应用程序目录
             initial_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
             
-            # 构造segment_info.csv文件路径
-            segment_file_path = os.path.join(initial_dir, "segment_info.csv")
+            # 让用户选择segment_info.csv文件
+            file_path = filedialog.askopenfilename(
+                title="选择线段数据文件",
+                initialdir=initial_dir,
+                filetypes=[("CSV文件", "*.csv"), ("所有文件", "*.*")]
+            )
+            
+            # 如果用户取消选择，直接返回
+            if not file_path:
+                return
             
             # 检查文件是否存在
-            if not os.path.exists(segment_file_path):
-                messagebox.showerror("错误", f"线段信息文件不存在: {segment_file_path}")
+            if not os.path.exists(file_path):
+                messagebox.showerror("错误", f"线段信息文件不存在: {file_path}")
                 return
             
             # 读取segment_info.csv文件
-            self.segments_df = self._read_segment_data(segment_file_path)
+            self.segments_df = self._read_segment_data(file_path)
             if self.segments_df is not None:
                 logger.info(f"成功读取线段数据，共 {len(self.segments_df)} 条记录")
                 messagebox.showinfo("成功", f"成功读取线段数据，共 {len(self.segments_df)} 条记录")
@@ -335,6 +343,11 @@ class ReadReportGUI:
                 end_price DOUBLE COMMENT '结束价格',
                 amplitude DOUBLE COMMENT '幅度',
                 direction VARCHAR(10) COMMENT '方向',
+                trade_action VARCHAR(20) COMMENT '交易操作类型',
+                trade_price DOUBLE COMMENT '交易价格',
+                trade_volume DOUBLE COMMENT '交易量',
+                trade_comment VARCHAR(255) COMMENT '交易注释',
+                trade_status VARCHAR(50) COMMENT '交易状态',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """)
@@ -509,6 +522,7 @@ class ReadReportGUI:
             # 读取segment_info.csv文件
             df = pd.read_csv(file_path, sep=';', encoding='utf-16')
             logger.info(f"成功读取线段数据文件，包含 {len(df)} 行数据")
+            logger.info(f"列名: {list(df.columns)}")
             return df
         except Exception as e:
             logger.error(f"读取线段数据文件失败: {e}")
@@ -894,8 +908,9 @@ class ReadReportGUI:
             INSERT INTO segment_info 
             (trade_time, order_ticket, position_id, reference_price, reference_time, 
              reference_bar_index, timeframe, segment_side, segment_index, start_price,
-             end_price, amplitude, direction)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             end_price, amplitude, direction, trade_action, trade_price, trade_volume,
+             trade_comment, trade_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
             count = 0
@@ -914,6 +929,11 @@ class ReadReportGUI:
                 end_price = 0.0
                 amplitude = 0.0
                 direction = ""
+                trade_action = ""
+                trade_price = 0.0
+                trade_volume = 0.0
+                trade_comment = ""
+                trade_status = ""
                 
                 # 处理时间字段
                 if 'TradeTime' in row and pd.notna(row['TradeTime']):
@@ -961,6 +981,22 @@ class ReadReportGUI:
                 
                 if 'Direction' in row and pd.notna(row['Direction']):
                     direction = str(row['Direction'])
+                    
+                # 新增的交易操作相关字段
+                if 'TradeAction' in row and pd.notna(row['TradeAction']):
+                    trade_action = str(row['TradeAction'])
+                
+                if 'TradePrice' in row and pd.notna(row['TradePrice']):
+                    trade_price = float(row['TradePrice'])
+                
+                if 'TradeVolume' in row and pd.notna(row['TradeVolume']):
+                    trade_volume = float(row['TradeVolume'])
+                
+                if 'TradeComment' in row and pd.notna(row['TradeComment']):
+                    trade_comment = str(row['TradeComment'])
+                
+                if 'TradeStatus' in row and pd.notna(row['TradeStatus']):
+                    trade_status = str(row['TradeStatus'])
                 
                 values = (
                     trade_time,
@@ -975,7 +1011,12 @@ class ReadReportGUI:
                     start_price,
                     end_price,
                     amplitude,
-                    direction
+                    direction,
+                    trade_action,
+                    trade_price,
+                    trade_volume,
+                    trade_comment,
+                    trade_status
                 )
                 
                 self.cursor.execute(insert_query, values)

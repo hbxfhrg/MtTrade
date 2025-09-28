@@ -104,3 +104,16 @@ enum ENUM_REFERENCE_POINT_TYPE
    REFERENCE_POINT_LOW    // 低点参考点
 };
 
+//+------------------------------------------------------------------+
+//| 交易操作动作枚举                                                  |
+//| 用于记录交易操作动作到CSV日志文件                                |
+//+------------------------------------------------------------------+
+enum ENUM_TRADE_ACTION
+{
+   TRADE_ACTION_PENDING_ORDER,   // 挂单
+   TRADE_ACTION_ENTRY,           // 入场
+   TRADE_ACTION_EXIT,            // 出场
+   TRADE_ACTION_MODIFY_ORDER,    // 改价
+   TRADE_ACTION_CANCEL           // 取消
+};
+

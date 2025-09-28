@@ -23,8 +23,10 @@
 #include "ZigzagSegmentManager.mqh"
 #include "Strategies/CL001.mqh"
 #include "Logging/SegmentInfoLogger.mqh"
+#include "EnumDefinitions.mqh"
 
 #include <Trade\PositionInfo.mqh>  // 添加这一行以确保PositionSelect等函数可用
+#include <Trade\DealInfo.mqh>      // 包含CTradeDeal类
 #include <Strings\String.mqh>      // 包含StringReplace函数
 
 //--- 输入参数（简化版本，专注于显示控制）
@@ -432,26 +434,71 @@ void ProcessTradeAnalysisAndInfoPanel()
       switch(trans.type)
       {
          case TRADE_TRANSACTION_ORDER_ADD:
-            // 记录订单添加事件
-            if(request.type == ORDER_TYPE_BUY_LIMIT || request.type == ORDER_TYPE_SELL_LIMIT)
             {
+               // 记录订单添加事件
                Print("记录线段信息: 订单添加 - 订单号: ", request.order, ", 价格: ", DoubleToString(request.price, _Digits));
-               // 记录当前各周期的线段信息
-               segmentLogger.LogSegmentInfo(TimeCurrent(), request.order, 0, g_tradeAnalyzer.m_tradeBasePoint);
+               
+               // 记录所有时间周期的数据
+               segmentLogger.LogTradeActionWithAllSegments(TRADE_ACTION_PENDING_ORDER, TimeCurrent(), 
+                                                        request.order, 0, Symbol(), request.price, request.volume,
+                                                        "挂单",
+                                                        g_tradeAnalyzer.m_tradeBasePoint,
+                                                        "订单已添加");
             }
             break;
             
          case TRADE_TRANSACTION_DEAL_ADD:
-            // 记录交易添加事件
-            Print("记录线段信息: 交易添加 - 交易号: ", trans.deal, ", 订单号: ", trans.order, ", PositionId: ", trans.position);
-            // 记录当前各周期的线段信息
-            segmentLogger.LogSegmentInfo(TimeCurrent(), trans.order, trans.position, g_tradeAnalyzer.m_tradeBasePoint);
+            {
+               // 记录交易添加事件
+               Print("记录线段信息: 交易添加 - 交易号: ", trans.deal, ", 订单号: ", trans.order, ", PositionId: ", trans.position);
+               
+               // 直接从交易事务和请求中获取交易信息，而不是从历史记录中获取
+               // 为所有时间周期记录交易信息
+               double dealPrice = (result.deal != 0) ? result.price : request.price;
+               double dealVolume = (result.deal != 0) ? result.volume : request.volume;
+               
+               // 记录所有时间周期的数据
+               segmentLogger.LogTradeActionWithAllSegments(TRADE_ACTION_ENTRY, TimeCurrent(), 
+                                                        trans.order, trans.position, Symbol(), 
+                                                        dealPrice, dealVolume,
+                                                        "成交",
+                                                        g_tradeAnalyzer.m_tradeBasePoint,
+                                                        "交易已完成");
+            }
             break;
             
          case TRADE_TRANSACTION_POSITION:
             // 记录持仓更改事件
             Print("记录线段信息: 持仓更改 - PositionId: ", trans.position);
             // 可以根据需要记录持仓更改时的线段信息
+            break;
+            
+         case TRADE_TRANSACTION_ORDER_UPDATE:
+            {
+               // 记录订单更新事件（改价操作）
+               Print("记录线段信息: 订单更新 - 订单号: ", trans.order);
+               
+               // 记录所有时间周期的数据
+               segmentLogger.LogTradeActionWithAllSegments(TRADE_ACTION_MODIFY_ORDER, TimeCurrent(), 
+                                                        trans.order, 0, Symbol(), request.price, request.volume,
+                                                        "改价",
+                                                        g_tradeAnalyzer.m_tradeBasePoint,
+                                                        "订单已更新");
+            }
+            break;
+            
+         case TRADE_TRANSACTION_ORDER_DELETE:
+            {
+               // 记录订单删除事件（取消操作）
+               Print("记录线段信息: 订单删除 - 订单号: ", trans.order);
+               
+               // 记录所有时间周期的数据
+               segmentLogger.LogTradeActionWithAllSegments(TRADE_ACTION_CANCEL, TimeCurrent(), 
+                                                        trans.order, 0, Symbol(), request.price, request.volume,
+                                                        "取消",
+                                                        g_tradeAnalyzer.m_tradeBasePoint,
+                                                        "订单已取消");
+            }
             break;
       }
    }

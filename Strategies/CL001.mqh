@@ -188,7 +188,7 @@ public:
                          
                            
                            // 计算过期时间（当前时间 + OrderExpiryHours小时）
-                           datetime expiryTime = TimeCurrent() + (OrderExpiryHours * 3600);
+                           datetime expiryTime = TimeCurrent() + (int)(OrderExpiryHours * 3600);
                            
                            // 使用"CL001_" + 订单票据作为备注
                            string orderComment = StringFormat("CL001_%d", (int)TimeCurrent());
