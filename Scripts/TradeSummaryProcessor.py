@@ -160,8 +160,165 @@ class TradeSummaryProcessor:
             # 创建汇总数据列表
             summary_list = []
             
-            # 按订单号分组处理数据
-            for _, order_row in orders_df.iterrows():
+            # 处理所有订单，而不仅仅是已成交的仓位
+            logger.info(f"处理所有 {len(orders_df)} 条订单记录")
+            
+            # 首先处理有position_id的已成交订单（进场/出场对）
+            # 从线段表中获取所有有效的position_id（大于0的）
+            valid_positions = segments_df[segments_df['position_id'] > 0]['position_id'].unique()
+            logger.info(f"找到 {len(valid_positions)} 个有效的仓位ID")
+            
+            # 处理每个仓位
+            processed_order_ids = set()  # 记录已处理的订单ID
+            
+            for position_id in valid_positions:
+                # 获取该仓位的所有线段记录
+                position_segments = segments_df[segments_df['position_id'] == position_id]
+                
+                # 获取该仓位涉及的所有订单票号
+                order_tickets = position_segments['order_ticket'].unique()
+                processed_order_ids.update(order_tickets)
+                
+                # 获取这些订单票号对应的订单记录
+                position_orders = orders_df[orders_df['order_id'].isin(order_tickets)]
+                
+                # 获取这些订单对应的成交记录
+                position_deals = deals_df[deals_df['order_id'].isin(order_tickets)]
+                
+                # 确定进场和出场订单
+                entry_order = None
+                exit_order = None
+                
+                if len(position_orders) >= 2:
+                    # 按时间排序确定进场和出场
+                    sorted_orders = position_orders.sort_values('open_time')
+                    entry_order = sorted_orders.iloc[0]
+                    exit_order = sorted_orders.iloc[1]
+                elif len(position_orders) == 1:
+                    # 只有一个订单
+                    entry_order = position_orders.iloc[0]
+                
+                # 创建汇总记录
+                if entry_order is not None:
+                    summary_record = {
+                        'position_id': position_id,
+                        'symbol': entry_order['symbol'],
+                        'order_type': entry_order['type'],
+                        'volume': entry_order['volume'],
+                        'open_price': entry_order['price'],
+                        'sl': entry_order['sl'],
+                        'tp': entry_order['tp'],
+                        'open_time': entry_order['open_time'],
+                        'status': entry_order['status'],
+                        'comment': entry_order['comment']
+                    }
+                    
+                    # 如果有出场订单，添加出场信息
+                    if exit_order is not None:
+                        summary_record['order_id'] = exit_order['order_id']
+                        summary_record['close_time'] = exit_order['time']
+                        summary_record['close_price'] = exit_order['price']
+                        # 合并状态
+                        profit_value = 0
+                        if not position_deals.empty:
+                            profit_value = position_deals['profit'].sum()
+                        summary_record['status'] = self._merge_status(entry_order['status'], exit_order['status'], profit_value)
+                        summary_record['comment'] = f"{entry_order['comment']} | {exit_order['comment']}"
+                    else:
+                        summary_record['order_id'] = entry_order['order_id']
+                        summary_record['close_time'] = entry_order['time']
+                        summary_record['close_price'] = entry_order['price']
+                    
+                    # 添加成交相关信息
+                    if not position_deals.empty:
+                        # 计算总手续费、库存费和盈利
+                        summary_record['commission'] = position_deals['commission'].sum()
+                        summary_record['swap'] = position_deals['swap'].sum()
+                        summary_record['profit'] = position_deals['profit'].sum()
+                        
+                        # 获取最后一条成交记录的信息
+                        last_deal = position_deals.iloc[-1]
+                        summary_record['close_price'] = last_deal['price']
+                        summary_record['close_time'] = last_deal['deal_time']
+                        summary_record['comment'] = last_deal['comment']
+                    
+                    # 添加线段相关信息
+                    if not position_segments.empty:
+                        # 分离进场和出场的线段
+                        entry_segments = pd.DataFrame()
+                        exit_segments = pd.DataFrame()
+                        
+                        if entry_order is not None:
+                            entry_segments = position_segments[position_segments['order_ticket'] == entry_order['order_id']]
+                        
+                        if exit_order is not None:
+                            exit_segments = position_segments[position_segments['order_ticket'] == exit_order['order_id']]
+                        
+                        # 进场线段统计
+                        if not entry_segments.empty:
+                            summary_record['entry_right_segments_5min'] = len(entry_segments[
+                                (entry_segments['timeframe'] == 'M5') & 
+                                (entry_segments['segment_side'] == 'Right')
+                            ])
+                            
+                            summary_record['entry_right_segments_15min'] = len(entry_segments[
+                                (entry_segments['timeframe'] == 'M15') & 
+                                (entry_segments['segment_side'] == 'Right')
+                            ])
+                            
+                            summary_record['entry_right_segments_30min'] = len(entry_segments[
+                                (entry_segments['timeframe'] == 'M30') & 
+                                (entry_segments['segment_side'] == 'Right')
+                            ])
+                            
+                            # 进场第一个线段长度
+                            first_entry_segment = entry_segments[
+                                (entry_segments['segment_side'] == 'Right')
+                            ].sort_values('segment_index').iloc[0] if not entry_segments[
+                                (entry_segments['segment_side'] == 'Right')
+                            ].empty else None
+                            
+                            if first_entry_segment is not None:
+                                summary_record['entry_first_segment_length'] = round(abs(
+                                    first_entry_segment['end_price'] - first_entry_segment['start_price']
+                                ), 2)
+                        
+                        # 出场线段统计
+                        if not exit_segments.empty:
+                            summary_record['exit_right_segments_5min'] = len(exit_segments[
+                                (exit_segments['timeframe'] == 'M5') & 
+                                (exit_segments['segment_side'] == 'Right')
+                            ])
+                            
+                            summary_record['exit_right_segments_15min'] = len(exit_segments[
+                                (exit_segments['timeframe'] == 'M15') & 
+                                (exit_segments['segment_side'] == 'Right')
+                            ])
+                            
+                            summary_record['exit_right_segments_30min'] = len(exit_segments[
+                                (exit_segments['timeframe'] == 'M30') & 
+                                (exit_segments['segment_side'] == 'Right')
+                            ])
+                            
+                            # 出场第一个线段长度
+                            first_exit_segment = exit_segments[
+                                (exit_segments['segment_side'] == 'Right')
+                            ].sort_values('segment_index').iloc[0] if not exit_segments[
+                                (exit_segments['segment_side'] == 'Right')
+                            ].empty else None
+                            
+                            if first_exit_segment is not None:
+                                summary_record['exit_first_segment_length'] = round(abs(
+                                    first_exit_segment['end_price'] - first_exit_segment['start_price']
+                                ), 2)
+                    
+                    summary_list.append(summary_record)
+            
+            # 处理未成交的订单（没有position_id关联的订单）
+            logger.info(f"已处理 {len(processed_order_ids)} 条订单，剩余 {len(orders_df) - len(processed_order_ids)} 条未处理订单")
+            unprocessed_orders = orders_df[~orders_df['order_id'].isin(processed_order_ids)]
+            
+            for _, order_row in unprocessed_orders.iterrows():
                 order_id = order_row['order_id']
                 
                 # 获取该订单的成交记录
@@ -186,11 +343,13 @@ class TradeSummaryProcessor:
                 }
                 
                 # 添加成交相关信息
+                profit_value = 0
                 if not order_deals.empty:
                     # 计算总手续费、库存费和盈利
                     summary_record['commission'] = order_deals['commission'].sum()
                     summary_record['swap'] = order_deals['swap'].sum()
                     summary_record['profit'] = order_deals['profit'].sum()
+                    profit_value = order_deals['profit'].sum()
                     
                     # 获取最后一条成交记录的注释作为平仓注释
                     summary_record['comment'] = order_deals.iloc[-1]['comment']
@@ -198,6 +357,9 @@ class TradeSummaryProcessor:
                     # 获取平仓价格和时间
                     summary_record['close_price'] = order_deals.iloc[-1]['price']
                     summary_record['close_time'] = order_deals.iloc[-1]['deal_time']
+                
+                # 根据盈利金额更新状态
+                summary_record['status'] = self._merge_status(order_row['status'], order_row['status'], profit_value)
                 
                 # 添加线段相关信息
                 if not order_segments.empty:
@@ -229,19 +391,16 @@ class TradeSummaryProcessor:
                     ].empty else None
                     
                     if first_right_segment is not None:
-                        summary_record['first_segment_length'] = abs(
+                        summary_record['first_segment_length'] = round(abs(
                             first_right_segment['end_price'] - first_right_segment['start_price']
-                        )
+                        ), 2)
                 
                 summary_list.append(summary_record)
             
             # 转换为DataFrame
             summary_df = pd.DataFrame(summary_list)
-            
-            # 按position_id合并进场和出场数据
-            merged_summary_df = self._merge_entry_exit_data(summary_df, segments_df)
-            
-            return merged_summary_df
+            logger.info(f"处理完成，共生成 {len(summary_df)} 条汇总记录")
+            return summary_df
             
         except Exception as e:
             logger.error(f"处理汇总数据失败: {e}")
@@ -255,144 +414,17 @@ class TradeSummaryProcessor:
             summary_df (DataFrame): 汇总数据
             segments_df (DataFrame): 线段数据
         """
-        try:
-            # 按position_id分组
-            merged_list = []
-            position_groups = summary_df.groupby('position_id') if 'position_id' in summary_df.columns else []
-            
-            # 如果没有position_id字段，则按订单号处理
-            if len(position_groups) == 0:
-                return summary_df
-            
-            for position_id, group in position_groups:
-                if len(group) == 1:
-                    # 只有一条记录，直接添加
-                    merged_list.append(group.iloc[0])
-                else:
-                    # 有多条记录，需要合并
-                    entry_record = None
-                    exit_record = None
-                    
-                    # 确定进场和出场记录
-                    for _, record in group.iterrows():
-                        if 'entry' in str(record['comment']).lower() or 'in' in str(record['comment']).lower():
-                            entry_record = record
-                        elif 'exit' in str(record['comment']).lower() or 'out' in str(record['comment']).lower():
-                            exit_record = record
-                    
-                    # 如果无法通过注释确定，则按时间排序
-                    if entry_record is None or exit_record is None:
-                        sorted_group = group.sort_values('open_time')
-                        if len(sorted_group) >= 2:
-                            entry_record = sorted_group.iloc[0]
-                            exit_record = sorted_group.iloc[1]
-                        else:
-                            # 只有一条记录
-                            merged_list.append(group.iloc[0])
-                            continue
-                    
-                    # 创建合并记录
-                    merged_record = {
-                        'order_id': entry_record['order_id'],
-                        'position_id': position_id,
-                        'symbol': entry_record['symbol'],
-                        'order_type': entry_record['order_type'],
-                        'volume': entry_record['volume'],
-                        'open_price': entry_record['open_price'],
-                        'close_price': exit_record['close_price'] if not pd.isna(exit_record['close_price']) else entry_record['close_price'],
-                        'sl': entry_record['sl'],
-                        'tp': entry_record['tp'],
-                        'open_time': entry_record['open_time'],
-                        'close_time': exit_record['close_time'] if not pd.isna(exit_record['close_time']) else entry_record['close_time'],
-                        'status': self._merge_status(entry_record['status'], exit_record['status']),
-                        'commission': (entry_record['commission'] if not pd.isna(entry_record['commission']) else 0) + 
-                                     (exit_record['commission'] if not pd.isna(exit_record['commission']) else 0),
-                        'swap': (entry_record['swap'] if not pd.isna(entry_record['swap']) else 0) + 
-                               (exit_record['swap'] if not pd.isna(exit_record['swap']) else 0),
-                        'profit': (entry_record['profit'] if not pd.isna(entry_record['profit']) else 0) + 
-                                 (exit_record['profit'] if not pd.isna(exit_record['profit']) else 0),
-                        'comment': f"{entry_record['comment']} | {exit_record['comment']}"
-                    }
-                    
-                    # 添加进场和出场的线段统计信息
-                    entry_segments = segments_df[segments_df['order_ticket'] == entry_record['order_id']]
-                    exit_segments = segments_df[segments_df['order_ticket'] == exit_record['order_id']]
-                    
-                    # 进场线段统计
-                    if not entry_segments.empty:
-                        merged_record['entry_right_segments_5min'] = len(entry_segments[
-                            (entry_segments['timeframe'] == 'M5') & 
-                            (entry_segments['segment_side'] == 'Right')
-                        ])
-                        
-                        merged_record['entry_right_segments_15min'] = len(entry_segments[
-                            (entry_segments['timeframe'] == 'M15') & 
-                            (entry_segments['segment_side'] == 'Right')
-                        ])
-                        
-                        merged_record['entry_right_segments_30min'] = len(entry_segments[
-                            (entry_segments['timeframe'] == 'M30') & 
-                            (entry_segments['segment_side'] == 'Right')
-                        ])
-                        
-                        # 进场第一个线段长度
-                        first_entry_segment = entry_segments[
-                            (entry_segments['segment_side'] == 'Right')
-                        ].sort_values('segment_index').iloc[0] if not entry_segments[
-                            (entry_segments['segment_side'] == 'Right')
-                        ].empty else None
-                        
-                        if first_entry_segment is not None:
-                            merged_record['entry_first_segment_length'] = abs(
-                                first_entry_segment['end_price'] - first_entry_segment['start_price']
-                            )
-                    
-                    # 出场线段统计
-                    if not exit_segments.empty:
-                        merged_record['exit_right_segments_5min'] = len(exit_segments[
-                            (exit_segments['timeframe'] == 'M5') & 
-                            (exit_segments['segment_side'] == 'Right')
-                        ])
-                        
-                        merged_record['exit_right_segments_15min'] = len(exit_segments[
-                            (exit_segments['timeframe'] == 'M15') & 
-                            (exit_segments['segment_side'] == 'Right')
-                        ])
-                        
-                        merged_record['exit_right_segments_30min'] = len(exit_segments[
-                            (exit_segments['timeframe'] == 'M30') & 
-                            (exit_segments['segment_side'] == 'Right')
-                        ])
-                        
-                        # 出场第一个线段长度
-                        first_exit_segment = exit_segments[
-                            (exit_segments['segment_side'] == 'Right')
-                        ].sort_values('segment_index').iloc[0] if not exit_segments[
-                            (exit_segments['segment_side'] == 'Right')
-                        ].empty else None
-                        
-                        if first_exit_segment is not None:
-                            merged_record['exit_first_segment_length'] = abs(
-                                first_exit_segment['end_price'] - first_exit_segment['start_price']
-                            )
-                    
-                    merged_list.append(merged_record)
-            
-            # 转换为DataFrame
-            merged_df = pd.DataFrame(merged_list)
-            return merged_df
-            
-        except Exception as e:
-            logger.error(f"合并进场出场数据失败: {e}")
-            return summary_df
+        # 由于我们已经在_process_summary_data中处理了合并逻辑，这里直接返回
+        return summary_df
     
-    def _merge_status(self, entry_status, exit_status):
+    def _merge_status(self, entry_status, exit_status, profit=0):
         """
         合并订单状态
         
         Args:
             entry_status (str): 进场状态
             exit_status (str): 出场状态
+            profit (float): 盈利金额
             
         Returns:
             str: 合并后的状态
@@ -401,13 +433,17 @@ class TradeSummaryProcessor:
         if 'cancel' in str(entry_status).lower() or 'cancel' in str(exit_status).lower():
             return '取消'
         
-        # 如果任意一个是亏损，则为亏损
-        if 'loss' in str(entry_status).lower() or 'loss' in str(exit_status).lower():
-            return '亏损'
+        # 如果任意一个是过期，则为过期
+        if 'expired' in str(entry_status).lower() or 'expired' in str(exit_status).lower():
+            return '过期'
         
-        # 如果任意一个是盈利，则为盈利
-        if 'profit' in str(entry_status).lower() or 'profit' in str(exit_status).lower():
+        # 根据盈利金额判断状态
+        if profit > 0:
             return '盈利'
+        elif profit < 0:
+            return '亏损'
+        else:
+            return '持平'
         
         # 默认返回原始状态
         return entry_status if not pd.isna(entry_status) else exit_status
